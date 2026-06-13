@@ -1,13 +1,9 @@
 import streamlit as st
-from utils import supabase
+from utils import supabase, obtener_periodo_trabajo
 from datetime import datetime
 from streamlit_option_menu import option_menu
-from utils import supabase, obtener_periodo_trabajo
 
-# Dentro de tu zona autenticada o donde necesites mostrar las fechas:
-periodo = obtener_periodo_trabajo()
-st.sidebar.info(f"📅 Ciclo actual: {periodo['desde']} al {periodo['hasta']}")
-
+# 1. ESTO DEBE SER LA PRIMERA LÍNEA (después de los imports)
 st.set_page_config(page_title="Taquilla POS", layout="centered")
 
 # --- FUNCIÓN DE REGISTRO DINÁMICO ---
@@ -20,6 +16,7 @@ def modulo_registro_taquilla(agencia_data):
         with st.container(border=True):
             st.markdown(f"#### 📍 Sistema: {sist}")
             c1, c2, c3, c4 = st.columns(4)
+            
             venta = c1.number_input(f"Venta", min_value=0.0, format="%.2f", key=f"v_{sist}")
             comision = c2.number_input(f"Comisión", min_value=0.0, format="%.2f", key=f"c_{sist}")
             premios = c3.number_input(f"Premios", min_value=0.0, format="%.2f", key=f"p_{sist}")
@@ -66,12 +63,15 @@ if not st.session_state.taquilla_autenticada:
         else:
             st.error("Datos incorrectos")
 else:
-    # Zona autenticada
+    # --- ZONA DE USUARIO AUTENTICADO ---
     ag = st.session_state.agencia_actual
+    admin_id = ag['user_id']
+    periodo = obtener_periodo_trabajo(admin_id)
     
-    # Sidebar
+    # 5. SIDEBAR - MENÚ
     with st.sidebar:
-        st.write(f"**Usuario:** {ag['nombre_agencia']}")
+        st.info(f"📅 Ciclo: {periodo['desde']} al {periodo['hasta']}")
+        st.write(f"**Agencia:** {ag['nombre_agencia']}")
         
         seleccion = option_menu(
             "Menú Taquilla", 
@@ -85,8 +85,8 @@ else:
             st.session_state.taquilla_autenticada = False
             st.rerun()
 
-    # Mapeo de páginas
+    # 6. MAPEO Y EJECUCIÓN
     if seleccion == "Inicio":
-        st.write("Bienvenido a la Taquilla")
+        st.write("Bienvenido al sistema de taquilla.")
     elif seleccion == "Cargar Ventas":
         modulo_registro_taquilla(ag)

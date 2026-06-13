@@ -73,3 +73,59 @@ else:
     if st.button("Cerrar Sesión"):
         st.session_state.taquilla_autenticada = False
         st.rerun()
+# 5. SIDEBAR - MENÚ SIMPLIFICADO
+        with st.sidebar:
+            if not acceso_ok:
+                st.error(msg_error)
+                st.warning("💳 Contacte al administrador.")
+                if st.button("🚪 Cerrar Sesión"):
+                    st.session_state.clear()
+                    st.rerun()
+                st.stop()
+
+            st.markdown(f"""
+                <div style='padding: 10px; border-bottom: 1px solid #eee; margin-bottom: 10px;'>
+                    <p style='margin:0; font-size: 10px; color: #888;'>USUARIO ACTIVO</p>
+                    <p style='margin:0; font-size: 12px; font-weight: bold; color: #333;'>{user_actual.email}</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+            if st.button("🔄 Refrescar", use_container_width=True):
+                 st.session_state["key_menu"] += 1
+                 st.rerun()
+
+            # --- MENÚ REDUCIDO ---
+            lista_opciones = ["Inicio", "Cargar Ventas", "Pagos", "Gastos Operativos"]
+            lista_iconos = ["house", "cloud-upload", "cash-coin", "receipt"]
+
+            seleccion = option_menu(
+                "", 
+                lista_opciones,
+                icons=lista_iconos, 
+                menu_icon="cast", default_index=0,
+                key=f'menu_saas_final_{st.session_state["key_menu"]}',
+                styles={
+                    "container": {"padding": "0!important", "background-color": "#fafafa"},
+                    "icon": {"color": "#ff9800", "font-size": "14px"}, 
+                    "nav-link": {"font-size": "12px", "text-align": "left", "margin": "0px", "--hover-color": "#eee"},
+                    "nav-link-selected": {"background-color": "#02ab21"},
+                }
+            )
+
+            st.divider()
+            if st.button("🚪 Cerrar Sesión", use_container_width=True, type="secondary"):
+                supabase.auth.sign_out()
+                st.session_state.clear()
+                st.rerun()
+
+    # 6. MAPEO Y EJECUCIÓN (Solo las funciones necesarias)
+    paginas = {
+        "Inicio": modulo_home, 
+        "Cargar Ventas": modulo_ventas, 
+        "Pagos": modulo_pagos,
+        "Gastos Operativos": modulo_gastos
+    }
+
+    if seleccion in paginas:
+        paginas[seleccion]()
+        

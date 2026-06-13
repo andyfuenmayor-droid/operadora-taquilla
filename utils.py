@@ -10,30 +10,43 @@ def get_supabase():
 supabase = get_supabase()
 
 # AÑADE EL PARÁMETRO u_id OPCIONAL PARA EVITAR EL ERROR DE UUID
-def db_engine(tabla, accion, datos=None, u_id=None):
+def db_engine(tabla, accion, datos=None, u_id=None, filtrar_usuario=True):
+    """
+    Motor unificado. 
+    Añadimos 'filtrar_usuario' para poder leer tablas globales (como config_sistema)
+    sin que nos obligue a filtrar por ID de agencia.
+    """
     try:
         if accion == "leer":
-            # Si no pasas un u_id, no filtra, o usa el que le des
             query = supabase.table(tabla).select("*")
-            if u_id:
+            
+            # Solo filtramos si la tabla lo requiere y si 'filtrar_usuario' es True
+            if filtrar_usuario and u_id:
                 query = query.eq("user_id", u_id)
+            
             res = query.execute()
             df = pd.DataFrame(res.data or [])
             if not df.empty:
                 df.columns = [c.lower().strip() for c in df.columns]
             return df
-        # ... resto de la función (guardar/borrar) ...
-        return pd.DataFrame()
+        
+        elif accion == "guardar":
+            if datos:
+                # Aquí seguimos obligando a guardar con el ID del usuario actual
+                for d in datos: d["user_id"] = u_id
+                return supabase.table(tabla).insert(datos).execute()
+                
     except Exception as e:
         st.error(f"Error en db_engine ({tabla}): {e}")
         return pd.DataFrame()
 
-# utils.py (Asegúrate de que esta función acepte u_id)
 def obtener_periodo_trabajo(u_id):
-    default = {"desde": "2026-03-09", "hasta": "2026-03-15", "tipo": "SEMANAL", "semana": "11"}
+    default = {"desde": "2026-06-01", "hasta": "2026-06-07", "tipo": "SEMANAL", "semana": "23"}
     try:
-        # Llamamos al motor pasándole el u_id que viene de la agencia logueada
-        df_conf = db_engine("config_sistema", "leer", u_id=u_id) 
+        # AQUI ESTÁ EL CAMBIO: Ponemos filtrar_usuario=False 
+        # para que lea la config sin importar qué ID de agencia tenga la taquilla
+        df_conf = db_engine("config_sistema", "leer", u_id=u_id, filtrar_usuario=False) 
+        
         if df_conf is not None and not df_conf.empty:
             conf_dict = dict(zip(df_conf["parametro"], df_conf["valor"]))
             return {

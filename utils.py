@@ -40,21 +40,68 @@ def db_engine(tabla, accion, datos=None, u_id=None, filtrar_usuario=True):
         st.error(f"Error en db_engine ({tabla}): {e}")
         return pd.DataFrame()
 
-def obtener_periodo_trabajo(u_id):
-    default = {"desde": "2026-06-01", "hasta": "2026-06-07", "tipo": "SEMANAL", "semana": "23"}
-    try:
-        # AQUI ESTÁ EL CAMBIO: Ponemos filtrar_usuario=False 
-        # para que lea la config sin importar qué ID de agencia tenga la taquilla
-        df_conf = db_engine("config_sistema", "leer", u_id=u_id, filtrar_usuario=False) 
-        
-        if df_conf is not None and not df_conf.empty:
-            conf_dict = dict(zip(df_conf["parametro"], df_conf["valor"]))
-            return {
-                "desde": str(conf_dict.get("fecha_desde", default["desde"])),
-                "hasta": str(conf_dict.get("fecha_hasta", default["hasta"])),
-                "tipo": str(conf_dict.get("tipo_cierre", default["tipo"])),
-                "semana": str(conf_dict.get("semana_no", default["semana"]))
-            }
-    except Exception:
-        pass 
-    return default
+def modulo_auditoria_hibrida():
+    # 1. CARGA DE DATOS (TAQUILLA + CARGA ACTUAL)
+    res_actual = supabase.table("carga_actual").select("*").execute()
+    df_actual = pd.DataFrame(res_actual.data)
+    
+    res_taq = supabase.table("cda_reportes_diarios").select("*").execute()
+    df_taq = pd.DataFrame(res_taq.data)
+    
+    if not df_taq.empty:
+        df_taq = df_taq.rename(columns={
+            "monto_venta": "venta",
+            "monto_premios": "premios",
+            "nombre_agency": "agencia"
+        })
+    
+    # Combinar todas las cargas de taquilla
+    df_final = pd.concat([df_actual, df_taq], ignore_index=True)
+    
+    # 2. SELECCIÓN DE DIVISA
+    divisa = st.selectbox("Seleccione Divisa:", ["COP", "BS", "USD"])
+    
+    # 3. CARGA DE OFICIAL (Supongamos que tu tabla oficial se llama 'carga_oficial')
+    # Ajusta el nombre de la tabla si es diferente
+    res_ofi = supabase.table("carga_oficial").select("*").eq("moneda", divisa).execute()
+    df_oficial = pd.DataFrame(res_ofi.data)
+
+    # 4. AGRUPACIÓN Y CRUCE
+    if not df_final.empty:
+        # Agrupamos la taquilla por Agencia y Sistema
+        taq_group = df_final[df_final['moneda'] == divisa].groupby(['agencia', 'sistema']).agg({
+            'venta': 'sum', 'comision': 'sum', 'premios': 'sum'
+        }).reset_index()
+
+        # Si tienes df_oficial, hacemos el merge
+        if not df_oficial.empty:
+            # Aseguramos nombres de columnas alineados para el merge
+            df_oficial.columns = [c.lower() for c in df_oficial.columns]
+            
+            # Cruzamos los datos
+            df_auditoria = pd.merge(df_oficial, taq_group, on=['agencia', 'sistema'], suffixes=('_ofi', '_taq'), how='outer').fillna(0)
+            
+            # 5. MOSTRAR TABLA
+            st.subheader(f"📊 Resumen Financiero ({divisa})")
+            
+            # Filtramos para mostrar las columnas que pediste
+            columnas_finales = [
+                'agencia', 'sistema', 
+                'venta_ofi', 'venta_taq', 
+                'comision_ofi', 'comision_taq', 
+                'premios_ofi', 'premios_taq'
+            ]
+            
+            # Formato de visualización
+            st.dataframe(df_auditoria[columnas_finales].style.format("{:,.2f}", subset=['venta_ofi', 'venta_taq', 'comision_ofi', 'comision_taq', 'premios_ofi', 'premios_taq']), use_container_width=True)
+
+            # 6. TOTALES GLOBALES
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Ventas (Ofi/Taq)", f"{df_auditoria['venta_ofi'].sum():,.0f} / {df_auditoria['venta_taq'].sum():,.0f}")
+            c2.metric("Premios (Ofi/Taq)", f"{df_auditoria['premios_ofi'].sum():,.0f} / {df_auditoria['premios_taq'].sum():,.0f}")
+            c3.metric("Comisiones (Ofi/Taq)", f"{df_auditoria['comision_ofi'].sum():,.0f} / {df_auditoria['comision_taq'].sum():,.0f}")
+
+        else:
+            st.warning("No se encontraron datos oficiales para comparar.")
+    else:
+        st.info("No hay datos de carga en la taquilla.")

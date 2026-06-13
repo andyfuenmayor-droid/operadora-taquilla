@@ -28,8 +28,20 @@ def db_engine(tabla, accion, datos=None, u_id=None):
         st.error(f"Error en db_engine ({tabla}): {e}")
         return pd.DataFrame()
 
-def obtener_periodo_trabajo(u_id): # AHORA NECESITA EL u_id
-    # ... (tu lógica de fechas) ...
-    # Asegúrate de llamar a db_engine así:
-    df_conf = db_engine("config_sistema", "leer", u_id=u_id)
-    # ... resto del código ...
+# utils.py (Asegúrate de que esta función acepte u_id)
+def obtener_periodo_trabajo(u_id):
+    default = {"desde": "2026-03-09", "hasta": "2026-03-15", "tipo": "SEMANAL", "semana": "11"}
+    try:
+        # Llamamos al motor pasándole el u_id que viene de la agencia logueada
+        df_conf = db_engine("config_sistema", "leer", u_id=u_id) 
+        if df_conf is not None and not df_conf.empty:
+            conf_dict = dict(zip(df_conf["parametro"], df_conf["valor"]))
+            return {
+                "desde": str(conf_dict.get("fecha_desde", default["desde"])),
+                "hasta": str(conf_dict.get("fecha_hasta", default["hasta"])),
+                "tipo": str(conf_dict.get("tipo_cierre", default["tipo"])),
+                "semana": str(conf_dict.get("semana_no", default["semana"]))
+            }
+    except Exception:
+        pass 
+    return default

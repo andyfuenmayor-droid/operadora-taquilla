@@ -2,6 +2,11 @@ import streamlit as st
 from utils import supabase
 from datetime import datetime
 from streamlit_option_menu import option_menu
+from utils import supabase, obtener_periodo_trabajo
+
+# Dentro de tu zona autenticada o donde necesites mostrar las fechas:
+periodo = obtener_periodo_trabajo()
+st.sidebar.info(f"📅 Ciclo actual: {periodo['desde']} al {periodo['hasta']}")
 
 st.set_page_config(page_title="Taquilla POS", layout="centered")
 

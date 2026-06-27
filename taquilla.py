@@ -69,7 +69,7 @@ def modulo_registro_taquilla(agencia_data):
                 else:
                     st.warning("Ingrese un monto válido.")
 
-# --- NUEVA LÓGICA DE LOGIN RELACIONAL POR USUARIO (CORREGIDA CON ID_AGENCIA) ---
+# --- NUEVA LÓGICA DE LOGIN RELACIONAL POR USUARIO (OPTIMIZADA CON ILIKE) ---
 if "taquilla_autenticada" not in st.session_state:
     st.session_state.taquilla_autenticada = False
 
@@ -77,14 +77,14 @@ if not st.session_state.taquilla_autenticada:
     st.session_state["menu_colapsado_post_login"] = False
     st.title("🔐 Acceso Taquilla POS")
     
-    user_input = st.text_input("Usuario de Taquilla").strip().lower()
+    user_input = st.text_input("Usuario de Taquilla").strip()
     key_input = st.text_input("Clave / PIN de Acceso", type="password").strip()
     
     if st.button("Ingresar al Sistema"):
-        # 1. Buscamos el usuario en la tabla taquilla_usuarios
+        # 1. Buscamos el usuario ignorando mayúsculas/minúsculas y espacios (ilike)
         res_user = supabase.table("taquilla_usuarios")\
             .select("*")\
-            .eq("usuario", user_input)\
+            .ilike("usuario", user_input)\
             .eq("clave", key_input)\
             .eq("activo", True)\
             .execute()

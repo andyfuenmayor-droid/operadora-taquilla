@@ -42,11 +42,14 @@ def modulo_registro_taquilla(agencia_data):
             premios = c3.number_input(f"Premios", min_value=0.0, format="%.2f", key=f"p_{sist}")
             
             neto_calculado = venta - comision - premios
-            c4.metric("Neto Calculado", f"{neto_calculado:,.2f}")
+            c4.metric("Neto Calculated", f"{neto_calculado:,.2f}")
             
             if st.button(f"🚀 Guardar {sist}", key=f"btn_{sist}"):
                 if venta >= 0:
                     try:
+                        # Extraemos el cajero actual si existe en la sesión para guardarlo como auditoría
+                        cajero_id_val = st.session_state.cajero_actual["id"] if "cajero_actual" in st.session_state else None
+                        
                         data = {
                             "nombre_agency": agencia_data['nombre_agencia'],
                             "sistema": sist,
@@ -55,34 +58,53 @@ def modulo_registro_taquilla(agencia_data):
                             "comision": comision,
                             "neto": neto_calculado,
                             "fecha": datetime.now().strftime("%Y-%m-%d"),
-                            "moneda": "COP",  # Ajustar dinámicamente si manejas más divisas
-                            "user_id": agencia_data['user_id']
+                            "moneda": "COP",
+                            "user_id": agencia_data['user_id'],
+                            "cajero_id": cajero_id_val # Nueva columna relacional de auditoría
                         }
-                        # Guardamos en la tabla robusta verificada en tu captura
                         supabase.table("cda_reportes_diarios").insert(data).execute()
                         st.success(f"✅ {sist} registrado con éxito!")
+                        st.rerun()
                     except Exception as e:
                         st.error(f"Error al guardar en base de datos: {e}")
                 else:
                     st.warning("Ingrese un monto válido.")
 
-# --- LÓGICA DE LOGIN ---
+# --- NUEVA LÓGICA DE LOGIN RELACIONAL POR USUARIO ---
 if "taquilla_autenticada" not in st.session_state:
     st.session_state.taquilla_autenticada = False
 
 if not st.session_state.taquilla_autenticada:
     st.session_state["menu_colapsado_post_login"] = False
-    st.title("🔐 Acceso Taquilla")
-    ag_input = st.text_input("Nombre de la Agencia").strip().upper()
-    key_input = st.text_input("Clave de Acceso", type="password")
-    if st.button("Ingresar"):
-        res = supabase.table("agencias").select("*").eq("nombre_agencia", ag_input).eq("clave_taquilla", key_input).execute()
+    st.title("🔐 Acceso Taquilla POS")
+    
+    user_input = st.text_input("Usuario de Taquilla").strip().lower()
+    key_input = st.text_input("Clave / PIN de Acceso", type="password").strip()
+    
+    if st.button("Ingresar al Sistema"):
+        # Validación directa contra la nueva tabla multiusuario
+        res = supabase.table("taquilla_usuarios")\
+            .select("*, agencias(*)")\
+            .eq("usuario", user_input)\
+            .eq("clave", key_input)\
+            .eq("activo", True)\
+            .execute()
+            
         if res.data:
+            user_data = res.data[0]
             st.session_state.taquilla_autenticada = True
-            st.session_state.agencia_actual = res.data[0]
+            st.session_state.agencia_actual = user_data["agencias"]
+            st.session_state.cajero_actual = {
+                "id": user_data["id"],
+                "usuario": user_data["usuario"],
+                "rol": user_data["rol"],
+                "nombre": user_data["nombre_cajero"]
+            }
+            # Marcar último ingreso en base de datos
+            supabase.table("taquilla_usuarios").update({"ultimo_ingreso": datetime.now().isoformat()}).eq("id", user_data["id"]).execute()
             st.rerun()
         else:
-            st.error("Datos incorrectos")
+            st.error("❌ Datos incorrectos o usuario desactivado.")
 else:
     # 📱 TRUCO MAESTRO REFORZADO: Cierre automático en móviles
     if "menu_colapsado_post_login" in st.session_state and not st.session_state["menu_colapsado_post_login"]:
@@ -111,9 +133,10 @@ else:
     # VALIDACIÓN DE LICENCIA SILENCIOSA
     acceso_ok, msg_error = verificar_suscripcion()
     ag = st.session_state.agencia_actual
+    cajero = st.session_state.cajero_actual
     periodo = obtener_periodo_trabajo(ag['user_id'])
     
-    # BARRA LATERAL SIMPLIFICADA (Solo Información y Cerrar Sesión)
+    # BARRA LATERAL SIMPLIFICADA
     with st.sidebar:
         if not acceso_ok:
             st.error(msg_error)
@@ -121,6 +144,8 @@ else:
             
         st.info(f"📅 Ciclo Activo:\n{periodo['desde']} al {periodo['hasta']}")
         st.write(f"**Terminal:** {ag['nombre_agencia']}")
+        st.write(f"**Usuario:** {cajero['nombre'] if cajero['nombre'] else cajero['usuario'].upper()}")
+        st.write(f"**Rol:** `{cajero['rol'].upper()}`")
         st.divider()
         if st.button("🚪 Cerrar Sesión", use_container_width=True):
             st.session_state.taquilla_autenticada = False
@@ -128,3 +153,75 @@ else:
 
     # EJECUCIÓN DIRECTA DEL MÓDULO DE CARGA
     modulo_registro_taquilla(ag)
+
+    # 🛡️ 3. VISTA EXCLUSIVA PARA EL ROL SUPERVISOR (FUSIONADA Y CORREGIDA)
+    if cajero['rol'] == 'supervisor':
+        st.markdown("---")
+        st.subheader("🛡️ Panel Administrativo de Supervisión")
+        st.caption("Herramientas de control de turnos, corrección de errores y visualización de cierres.")
+        
+        tab_cierres, tab_correcciones = st.tabs(["📊 Cierres y Totales", "✏️ Corrección de Errores"])
+        
+        # Inicializamos df_turno vacío por seguridad para evitar NameError en las pestañas cruzadas
+        df_turno = pd.DataFrame()
+        
+        try:
+            res_v = supabase.table("cda_reportes_diarios")\
+                .select("sistema, monto_venta, monto_premios, comision, neto, fecha")\
+                .eq("nombre_agency", ag['nombre_agencia'])\
+                .gte("fecha", periodo['desde'])\
+                .lte("fecha", periodo['hasta'])\
+                .execute()
+            df_turno = pd.DataFrame(res_v.data or [])
+        except Exception as e:
+            st.error(f"Error al conectar con los reportes del ciclo: {e}")
+        
+        with tab_cierres:
+            st.markdown(f"#### 📈 Acumulado del Ciclo Active ({ag['nombre_agencia']})")
+            if not df_turno.empty:
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Total Ventas", f"{df_turno['monto_venta'].sum():,.2f} COP")
+                c2.metric("Total Premios", f"{df_turno['monto_premios'].sum():,.2f} COP")
+                c3.metric("Neto de Caja", f"{df_turno['neto'].sum():,.2f} COP")
+                
+                st.dataframe(df_turno, use_container_width=True, hide_index=True)
+            else:
+                st.info("💡 No se han registrado ventas en este ciclo todavía.")
+                
+        with tab_correcciones:
+            st.markdown("#### ✏️ Modificar Registro Diario")
+            st.caption("Selecciona un registro ingresado por los cajeros para corregir montos erróneos.")
+            
+            if not df_turno.empty:
+                df_turno["opcion_select"] = df_turno["fecha"] + " - " + df_turno["sistema"] + " (Neto: " + df_turno["neto"].astype(str) + ")"
+                registro_sel = st.selectbox("Seleccione el reporte a corregir:", df_turno["opcion_select"].tolist())
+                
+                fila_editar = df_turno[df_turno["opcion_select"] == registro_sel].iloc[0]
+                
+                with st.form(key=f"form_corregir_err"):
+                    st.markdown(f"**Modificando:** `{fila_editar['sistema']}` del día `{fila_editar['fecha']}`")
+                    v_edit = st.number_input("Nueva Venta", min_value=0.0, value=float(fila_editar['monto_venta']), format="%.2f")
+                    c_edit = st.number_input("Nueva Comisión", min_value=0.0, value=float(fila_editar['comision']), format="%.2f")
+                    p_edit = st.number_input("Nuevo Premio", min_value=0.0, value=float(fila_editar['monto_premios']), format="%.2f")
+                    
+                    if st.form_submit_button("💾 Aplicar Corrección"):
+                        nuevo_neto = v_edit - c_edit - p_edit
+                        try:
+                            supabase.table("cda_reportes_diarios")\
+                                .update({
+                                    "monto_venta": v_edit,
+                                    "comision": c_edit,
+                                    "monto_premios": p_edit,
+                                    "neto": nuevo_neto
+                                })\
+                                .eq("nombre_agency", ag['nombre_agencia'])\
+                                .eq("fecha", fila_editar['fecha'])\
+                                .eq("sistema", fila_editar['sistema'])\
+                                .execute()
+                                
+                            st.success("✅ ¡Registro corregido perfectamente!")
+                            st.rerun()
+                        except Exception as error_up:
+                            st.error(f"No se pudo actualizar: {error_up}")
+            else:
+                st.info("💡 No hay registros disponibles para corregir en este ciclo.")

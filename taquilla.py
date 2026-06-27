@@ -69,7 +69,7 @@ def modulo_registro_taquilla(agencia_data):
                 else:
                     st.warning("Ingrese un monto válido.")
 
-# --- NUEVA LÓGICA DE LOGIN CON DETECCIÓN DE ACTIVACIÓN PARA AUDITORÍA ---
+# --- LÓGICA DE LOGIN RELACIONAL POR USUARIO (SOPORTE MIXTO UUID E INT) ---
 if "taquilla_autenticada" not in st.session_state:
     st.session_state.taquilla_autenticada = False
 
@@ -81,7 +81,7 @@ if not st.session_state.taquilla_autenticada:
     key_input = st.text_input("Clave / PIN de Acceso", type="password").strip()
     
     if st.button("Ingresar al Sistema"):
-        # 1. Buscamos el usuario ignorando mayúsculas/minúsculas y espacios en blanco
+        # 1. Buscamos el usuario ignorando mayúsculas/minúsculas y espacios (ilike)
         res_user = supabase.table("taquilla_usuarios")\
             .select("*")\
             .ilike("usuario", user_input)\
@@ -91,16 +91,20 @@ if not st.session_state.taquilla_autenticada:
         if res_user.data:
             user_data = res_user.data[0]
             
-            # 🔍 VALIDACIÓN DE AUDITORÍA / ACTIVACIÓN
+            # 🔍 VALIDACIÓN DE ESTADO ACTIVO
             if not user_data.get("activo"):
-                st.error("⚠️ El usuario existe pero NO está activado en la base de datos para auditoría. Verifica el campo 'activo' en Supabase.")
+                st.error("⚠️ El usuario existe pero NO está activado en la base de datos para auditoría.")
             else:
-                # 2. Buscamos la agencia usando el 'id_agencia'
-                res_agencia = supabase.table("agencias")\
-                    .select("*")\
-                    .eq("id", user_data["id_agencia"])\
-                    .execute()
-                    
+                # 2. Buscamos la agencia. Evaluamos si es un ID numérico o un string UUID
+                raw_agencia_id = str(user_data["agencia_id"]).strip()
+                
+                # Intentamos buscar asumiendo que sea el ID interno de la tabla agencias
+                res_agencia = supabase.table("agencias").select("*").eq("id", raw_agencia_id).execute()
+                
+                # Salvavidas: si no hace match (por el choque de tipo de dato Int vs UUID), buscamos por coincidencia fallback
+                if not res_agencia.data and raw_agencia_id.isdigit():
+                    res_agencia = supabase.table("agencias").select("*").eq("id", int(raw_agencia_id)).execute()
+                
                 if res_agencia.data:
                     st.session_state.taquilla_autenticada = True
                     st.session_state.agencia_actual = res_agencia.data[0]
@@ -120,7 +124,7 @@ if not st.session_state.taquilla_autenticada:
                     st.success("✅ ¡Acceso concedido!")
                     st.rerun()
                 else:
-                    st.error("❌ El usuario no tiene una agencia válida asignada (`id_agencia`).")
+                    st.error(f"❌ No se encontró la configuración de la agencia con el ID '{raw_agencia_id}' asignado a este usuario.")
         else:
             st.error("❌ Datos incorrectos (Usuario o Clave erróneos).")
 else:

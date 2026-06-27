@@ -69,7 +69,7 @@ def modulo_registro_taquilla(agencia_data):
                 else:
                     st.warning("Ingrese un monto válido.")
 
-# --- LÓGICA DE LOGIN RELACIONAL POR USUARIO (SOPORTE MIXTO UUID E INT) ---
+# --- NUEVA LÓGICA DE LOGIN COMPATIBLE CON IDS NUMÉRICOS Y FORMATO UUID ---
 if "taquilla_autenticada" not in st.session_state:
     st.session_state.taquilla_autenticada = False
 
@@ -95,19 +95,36 @@ if not st.session_state.taquilla_autenticada:
             if not user_data.get("activo"):
                 st.error("⚠️ El usuario existe pero NO está activado en la base de datos para auditoría.")
             else:
-                # 2. Buscamos la agencia. Evaluamos si es un ID numérico o un string UUID
                 raw_agencia_id = str(user_data["agencia_id"]).strip()
+                res_agencia_data = None
                 
-                # Intentamos buscar asumiendo que sea el ID interno de la tabla agencias
+                # Intentamos buscar directo asumiendo match estricto con el id (por si es UUID)
                 res_agencia = supabase.table("agencias").select("*").eq("id", raw_agencia_id).execute()
                 
-                # Salvavidas: si no hace match (por el choque de tipo de dato Int vs UUID), buscamos por coincidencia fallback
-                if not res_agencia.data and raw_agencia_id.isdigit():
-                    res_agencia = supabase.table("agencias").select("*").eq("id", int(raw_agencia_id)).execute()
-                
                 if res_agencia.data:
+                    res_agencia_data = res_agencia.data[0]
+                elif raw_agencia_id.isdigit():
+                    # Fallback Maestro: Si es un número (como tu ID 14), traemos todas las agencias del creador 
+                    # y buscamos la posición correspondiente indexada para cruzar el ID numérico clásico
+                    res_todas = supabase.table("agencias").select("*").eq("user_id", user_data["user_id"]).execute()
+                    df_orden = pd.DataFrame(res_todas.data or [])
+                    if not df_orden.empty:
+                        # Ordenamos por fecha de creación o ID para mantener correspondencia exacta con tu grilla
+                        if "id" in df_orden.columns:
+                            df_orden = df_orden.sort_values(by="id", ascending=True).reset_index(drop=True)
+                        
+                        # Buscamos si el número de fila o ID coincide
+                        target_id = int(raw_agencia_id)
+                        match_row = df_orden[df_orden.index + 1 == target_id]
+                        if match_row.empty and target_id in df_orden["id"].values:
+                            match_row = df_orden[df_orden["id"] == target_id]
+                            
+                        if not match_row.empty:
+                            res_agencia_data = match_row.iloc[0].to_dict()
+
+                if res_agencia_data:
                     st.session_state.taquilla_autenticada = True
-                    st.session_state.agencia_actual = res_agencia.data[0]
+                    st.session_state.agencia_actual = res_agencia_data
                     st.session_state.cajero_actual = {
                         "id": user_data["id"],
                         "usuario": user_data["usuario"],
@@ -124,7 +141,7 @@ if not st.session_state.taquilla_autenticada:
                     st.success("✅ ¡Acceso concedido!")
                     st.rerun()
                 else:
-                    st.error(f"❌ No se encontró la configuración de la agencia con el ID '{raw_agencia_id}' asignado a este usuario.")
+                    st.error(f"❌ No se pudo enlazar este operador con la estructura de la agencia ID '{raw_agencia_id}'.")
         else:
             st.error("❌ Datos incorrectos (Usuario o Clave erróneos).")
 else:

@@ -69,7 +69,7 @@ def modulo_registro_taquilla(agencia_data):
                 else:
                     st.warning("Ingrese un monto válido.")
 
-# --- NUEVA LÓGICA DE LOGIN RELACIONAL POR USUARIO (OPTIMIZADA CON ILIKE) ---
+# --- NUEVA LÓGICA DE LOGIN CON DETECCIÓN DE ACTIVACIÓN PARA AUDITORÍA ---
 if "taquilla_autenticada" not in st.session_state:
     st.session_state.taquilla_autenticada = False
 
@@ -81,45 +81,48 @@ if not st.session_state.taquilla_autenticada:
     key_input = st.text_input("Clave / PIN de Acceso", type="password").strip()
     
     if st.button("Ingresar al Sistema"):
-        # 1. Buscamos el usuario ignorando mayúsculas/minúsculas y espacios (ilike)
+        # 1. Buscamos el usuario ignorando mayúsculas/minúsculas y espacios en blanco
         res_user = supabase.table("taquilla_usuarios")\
             .select("*")\
             .ilike("usuario", user_input)\
             .eq("clave", key_input)\
-            .eq("activo", True)\
             .execute()
             
         if res_user.data:
             user_data = res_user.data[0]
             
-            # 2. Buscamos la agencia usando el 'id_agencia' que está en tu tabla
-            res_agencia = supabase.table("agencias")\
-                .select("*")\
-                .eq("id", user_data["id_agencia"])\
-                .execute()
-                
-            if res_agencia.data:
-                st.session_state.taquilla_autenticada = True
-                st.session_state.agencia_actual = res_agencia.data[0]
-                st.session_state.cajero_actual = {
-                    "id": user_data["id"],
-                    "usuario": user_data["usuario"],
-                    "rol": user_data["rol"],
-                    "nombre": user_data["nombre_cajero"]
-                }
-                
-                # Marcar último ingreso en la base de datos
-                try:
-                    supabase.table("taquilla_usuarios").update({"ultimo_ingreso": datetime.now().isoformat()}).eq("id", user_data["id"]).execute()
-                except:
-                    pass
-                    
-                st.success("✅ ¡Acceso concedido!")
-                st.rerun()
+            # 🔍 VALIDACIÓN DE AUDITORÍA / ACTIVACIÓN
+            if not user_data.get("activo"):
+                st.error("⚠️ El usuario existe pero NO está activado en la base de datos para auditoría. Verifica el campo 'activo' en Supabase.")
             else:
-                st.error("❌ El usuario no tiene una agencia válida asignada.")
+                # 2. Buscamos la agencia usando el 'id_agencia'
+                res_agencia = supabase.table("agencias")\
+                    .select("*")\
+                    .eq("id", user_data["id_agencia"])\
+                    .execute()
+                    
+                if res_agencia.data:
+                    st.session_state.taquilla_autenticada = True
+                    st.session_state.agencia_actual = res_agencia.data[0]
+                    st.session_state.cajero_actual = {
+                        "id": user_data["id"],
+                        "usuario": user_data["usuario"],
+                        "rol": user_data["rol"],
+                        "nombre": user_data["nombre_cajero"]
+                    }
+                    
+                    # Marcar último ingreso en la base de datos
+                    try:
+                        supabase.table("taquilla_usuarios").update({"ultimo_ingreso": datetime.now().isoformat()}).eq("id", user_data["id"]).execute()
+                    except:
+                        pass
+                        
+                    st.success("✅ ¡Acceso concedido!")
+                    st.rerun()
+                else:
+                    st.error("❌ El usuario no tiene una agencia válida asignada (`id_agencia`).")
         else:
-            st.error("❌ Datos incorrectos o usuario desactivado.")
+            st.error("❌ Datos incorrectos (Usuario o Clave erróneos).")
 else:
     # 📱 TRUCO MAESTRO REFORZADO: Cierre automático en móviles
     if "menu_colapsado_post_login" in st.session_state and not st.session_state["menu_colapsado_post_login"]:

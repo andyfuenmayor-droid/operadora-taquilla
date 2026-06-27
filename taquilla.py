@@ -47,7 +47,6 @@ def modulo_registro_taquilla(agencia_data):
             if st.button(f"🚀 Guardar {sist}", key=f"btn_{sist}"):
                 if venta >= 0:
                     try:
-                        # Extraemos el cajero actual si existe en la sesión para guardarlo como auditoría
                         cajero_id_val = st.session_state.cajero_actual["id"] if "cajero_actual" in st.session_state else None
                         
                         data = {
@@ -60,7 +59,7 @@ def modulo_registro_taquilla(agencia_data):
                             "fecha": datetime.now().strftime("%Y-%m-%d"),
                             "moneda": "COP",
                             "user_id": agencia_data['user_id'],
-                            "cajero_id": cajero_id_val # Nueva columna relacional de auditoría
+                            "cajero_id": cajero_id_val 
                         }
                         supabase.table("cda_reportes_diarios").insert(data).execute()
                         st.success(f"✅ {sist} registrado con éxito!")
@@ -70,7 +69,7 @@ def modulo_registro_taquilla(agencia_data):
                 else:
                     st.warning("Ingrese un monto válido.")
 
-# --- NUEVA LÓGICA DE LOGIN RELACIONAL POR USUARIO ---
+# --- NUEVA LÓGICA DE LOGIN RELACIONAL POR USUARIO (CORREGIDA CON ID_AGENCIA) ---
 if "taquilla_autenticada" not in st.session_state:
     st.session_state.taquilla_autenticada = False
 
@@ -82,27 +81,43 @@ if not st.session_state.taquilla_autenticada:
     key_input = st.text_input("Clave / PIN de Acceso", type="password").strip()
     
     if st.button("Ingresar al Sistema"):
-        # Validación directa contra la nueva tabla multiusuario
-        res = supabase.table("taquilla_usuarios")\
-            .select("*, agencias(*)")\
+        # 1. Buscamos el usuario en la tabla taquilla_usuarios
+        res_user = supabase.table("taquilla_usuarios")\
+            .select("*")\
             .eq("usuario", user_input)\
             .eq("clave", key_input)\
             .eq("activo", True)\
             .execute()
             
-        if res.data:
-            user_data = res.data[0]
-            st.session_state.taquilla_autenticada = True
-            st.session_state.agencia_actual = user_data["agencias"]
-            st.session_state.cajero_actual = {
-                "id": user_data["id"],
-                "usuario": user_data["usuario"],
-                "rol": user_data["rol"],
-                "nombre": user_data["nombre_cajero"]
-            }
-            # Marcar último ingreso en base de datos
-            supabase.table("taquilla_usuarios").update({"ultimo_ingreso": datetime.now().isoformat()}).eq("id", user_data["id"]).execute()
-            st.rerun()
+        if res_user.data:
+            user_data = res_user.data[0]
+            
+            # 2. Buscamos la agencia usando el 'id_agencia' que está en tu tabla
+            res_agencia = supabase.table("agencias")\
+                .select("*")\
+                .eq("id", user_data["id_agencia"])\
+                .execute()
+                
+            if res_agencia.data:
+                st.session_state.taquilla_autenticada = True
+                st.session_state.agencia_actual = res_agencia.data[0]
+                st.session_state.cajero_actual = {
+                    "id": user_data["id"],
+                    "usuario": user_data["usuario"],
+                    "rol": user_data["rol"],
+                    "nombre": user_data["nombre_cajero"]
+                }
+                
+                # Marcar último ingreso en la base de datos
+                try:
+                    supabase.table("taquilla_usuarios").update({"ultimo_ingreso": datetime.now().isoformat()}).eq("id", user_data["id"]).execute()
+                except:
+                    pass
+                    
+                st.success("✅ ¡Acceso concedido!")
+                st.rerun()
+            else:
+                st.error("❌ El usuario no tiene una agencia válida asignada.")
         else:
             st.error("❌ Datos incorrectos o usuario desactivado.")
 else:
@@ -154,7 +169,7 @@ else:
     # EJECUCIÓN DIRECTA DEL MÓDULO DE CARGA
     modulo_registro_taquilla(ag)
 
-    # 🛡️ 3. VISTA EXCLUSIVA PARA EL ROL SUPERVISOR (FUSIONADA Y CORREGIDA)
+    # 🛡️ 3. VISTA EXCLUSIVA PARA EL ROL SUPERVISOR
     if cajero['rol'] == 'supervisor':
         st.markdown("---")
         st.subheader("🛡️ Panel Administrativo de Supervisión")
@@ -162,7 +177,6 @@ else:
         
         tab_cierres, tab_correcciones = st.tabs(["📊 Cierres y Totales", "✏️ Corrección de Errores"])
         
-        # Inicializamos df_turno vacío por seguridad para evitar NameError en las pestañas cruzadas
         df_turno = pd.DataFrame()
         
         try:
@@ -177,7 +191,7 @@ else:
             st.error(f"Error al conectar con los reportes del ciclo: {e}")
         
         with tab_cierres:
-            st.markdown(f"#### 📈 Acumulado del Ciclo Active ({ag['nombre_agencia']})")
+            st.markdown(f"#### 📈 Acumulado del Ciclo Activo ({ag['nombre_agencia']})")
             if not df_turno.empty:
                 c1, c2, c3 = st.columns(3)
                 c1.metric("Total Ventas", f"{df_turno['monto_venta'].sum():,.2f} COP")

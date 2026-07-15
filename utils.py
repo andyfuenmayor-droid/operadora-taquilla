@@ -42,7 +42,7 @@ def obtener_periodo_trabajo(u_id):
             df_conf = db_engine("config_sistema", "leer", u_id=None, filtrar_usuario=False)
 
         if df_conf is not None and not df_conf.empty:
-            # LIMPIEZA PROFUNDA: Quitamos espacios y pasamos a minúsculas los parámetros
+            # LIMPIEZA PROFUNDA: Quitamos espacios y pasamos a minúsculas los parámetros prueba de git
             df_conf['parametro'] = df_conf['parametro'].astype(str).str.strip().str.lower()
             df_conf['valor'] = df_conf['valor'].astype(str).str.strip()
             

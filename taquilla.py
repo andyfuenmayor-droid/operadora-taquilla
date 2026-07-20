@@ -956,15 +956,18 @@ if not st.session_state.taquilla_autenticada:
 
         [data-testid="stBlockContainer"],
         [data-testid="stAppViewBlockContainer"],
+        [data-testid="stVerticalBlock"],
+        [data-testid="stVerticalBlockBorderWrapper"],
         .block-container {
             max-width: 585px !important;
-            padding-top: 5rem !important;
-            padding-bottom: 5rem !important;
+            padding-top: 4rem !important;
+            padding-bottom: 4rem !important;
             margin: 0 auto !important;
             background: transparent !important;
             background-color: transparent !important;
             border: none !important;
             box-shadow: none !important;
+            outline: none !important;
         }
 
         form[data-testid="stForm"],
@@ -1086,15 +1089,18 @@ if not st.session_state.taquilla_autenticada:
 
         [data-testid="stBlockContainer"],
         [data-testid="stAppViewBlockContainer"],
+        [data-testid="stVerticalBlock"],
+        [data-testid="stVerticalBlockBorderWrapper"],
         .block-container {
             max-width: 585px !important;
-            padding-top: 5rem !important;
-            padding-bottom: 5rem !important;
+            padding-top: 4rem !important;
+            padding-bottom: 4rem !important;
             margin: 0 auto !important;
             background: transparent !important;
             background-color: transparent !important;
             border: none !important;
             box-shadow: none !important;
+            outline: none !important;
         }
 
         form[data-testid="stForm"],

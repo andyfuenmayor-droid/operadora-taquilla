@@ -47,11 +47,15 @@ done
 echo "▶️ Iniciando nuevo contenedor..."
 docker run -d \
   --name taquilla-container \
-  -p 8501:8501 \
+  -p 127.0.0.1:8501:8501 \
   -e SUPABASE_URL="$SUPABASE_URL" \
   -e SUPABASE_KEY="$SUPABASE_KEY" \
   --restart always \
   taquilla-app
+
+echo "⚙️ Limpiando configuraciones previas de Nginx..."
+rm -f /etc/nginx/sites-enabled/default
+rm -f /etc/nginx/sites-enabled/default.conf
 
 echo "⚙️ Configurando Nginx para cda.multibancaexpress.com..."
 cat << 'EOF' > /etc/nginx/sites-available/cda
@@ -78,6 +82,8 @@ nginx -t
 systemctl reload nginx
 
 echo "🔒 Configurando certificado SSL (HTTPS)..."
-certbot --nginx -d cda.multibancaexpress.com --non-interactive --agree-tos --register-unsafely-without-email || echo "⚠️ Certbot omitido o el dominio aún no apunta a esta IP."
+certbot --nginx -d cda.multibancaexpress.com --non-interactive --agree-tos --register-unsafely-without-email --reinstall || echo "⚠️ Certbot finalizado."
+
+systemctl reload nginx
 
 echo "✅ Despliegue completado con éxito. Accede a https://cda.multibancaexpress.com"

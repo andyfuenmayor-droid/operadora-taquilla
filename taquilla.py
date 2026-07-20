@@ -1896,6 +1896,8 @@ else:
 
     opciones = ["Carga de Ventas", "Tickets Premiados", "Gestión de Gastos", "Gestión de Pagos", "Reporte Diario", "Reporte por Rango", "Cierre Diario"]
 
+    opcion = st.selectbox("📍 Seleccione operación:", opciones, key="opcion_operacion_main")
+
     with st.sidebar:
         sidebar_info = f"""<div style="background-color: {card_bg}; border: 1px solid {card_border}; padding: 1.25rem; border-radius: 16px; margin-bottom: 1.5rem;">
 <div style="font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">Terminal</div>
@@ -1908,8 +1910,6 @@ else:
 <div style="font-size: 0.9rem; font-weight: 500; color: { '#34d399' if ultimo_cierre else '#fb7185' }; font-family: inherit;">📅 {ultimo_cierre if ultimo_cierre else 'Sin cierres registrados'}</div>
 </div>"""
         st.markdown(sidebar_info, unsafe_allow_html=True)
-        st.divider()
-        opcion = st.selectbox("📍 Seleccione operación:", opciones, key="nav_opcion_select")
         st.divider()
         if st.button("🚪 Cerrar Sesión", use_container_width=True, key="btn_logout_sidebar"):
             st.session_state.taquilla_autenticada = False; st.rerun()

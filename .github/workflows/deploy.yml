@@ -18,8 +18,9 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd /opt/taquilla
-            git pull origin main
-            docker build -t taquilla-app .
+            git fetch --all
+            git reset --hard origin/main
+            docker build --no-cache -t taquilla-app .
             docker stop taquilla-container 2>/dev/null || true
             docker rm taquilla-container 2>/dev/null || true
             docker run -d \

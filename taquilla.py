@@ -29,12 +29,17 @@ st.markdown("""
     </head>
     <script>
     (function() {
-        const CURRENT_VERSION = "2.0.2";
+        const CURRENT_VERSION = "2.0.3";
         const savedVersion = localStorage.getItem("taquilla_version");
         if (savedVersion !== CURRENT_VERSION) {
             localStorage.clear();
             sessionStorage.clear();
             localStorage.setItem("taquilla_version", CURRENT_VERSION);
+            if ('caches' in window) {
+                caches.keys().then(function(names) {
+                    for (let name of names) caches.delete(name);
+                });
+            }
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.getRegistrations().then(function(registrations) {
                     for(let r of registrations) { r.unregister(); }

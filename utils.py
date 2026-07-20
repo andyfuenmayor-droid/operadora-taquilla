@@ -8,23 +8,20 @@ load_dotenv()
 
 @st.cache_resource
 def get_supabase():
-    url = None
-    key = None
-    try:
-        if "SUPABASE_URL" in st.secrets:
-            url = st.secrets["SUPABASE_URL"]
-        if "SUPABASE_KEY" in st.secrets:
-            key = st.secrets["SUPABASE_KEY"]
-    except Exception:
-        pass
-
-    if not url:
-        url = os.getenv("SUPABASE_URL")
-    if not key:
-        key = os.getenv("SUPABASE_KEY")
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_KEY")
 
     if not url or not key:
-        st.error("⚠️ Error: No se encontraron SUPABASE_URL ni SUPABASE_KEY en `.streamlit/secrets.toml` ni en las variables de entorno.")
+        try:
+            if "SUPABASE_URL" in st.secrets:
+                url = st.secrets["SUPABASE_URL"]
+            if "SUPABASE_KEY" in st.secrets:
+                key = st.secrets["SUPABASE_KEY"]
+        except Exception:
+            pass
+
+    if not url or not key:
+        st.error("⚠️ Error: No se encontraron SUPABASE_URL ni SUPABASE_KEY en las variables de entorno ni en `.streamlit/secrets.toml`.")
         
     return create_client(url, key)
 

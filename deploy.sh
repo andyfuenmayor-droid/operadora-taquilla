@@ -59,6 +59,11 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_read_timeout 86400;
+
+        # Evitar almacenamiento en caché del navegador y forzar siempre la versión actual
+        add_header Cache-Control "no-cache, no-store, must-revalidate, max-age=0" always;
+        add_header Pragma "no-cache" always;
+        add_header Expires "0" always;
     }
 }
 EOF

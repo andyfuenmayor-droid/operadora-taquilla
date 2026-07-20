@@ -30,3 +30,4 @@ jobs:
               -e SUPABASE_KEY="${{ secrets.SUPABASE_KEY }}" \
               --restart always \
               taquilla-app
+            bash deploy.sh "${{ secrets.SUPABASE_URL }}" "${{ secrets.SUPABASE_KEY }}" || true

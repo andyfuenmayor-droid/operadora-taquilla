@@ -20,8 +20,13 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# CSS para garantizar la visibilidad del menú lateral y su botón desplegable
+# Anti-cache meta tags y CSS para visibilidad de controles
 st.markdown("""
+    <head>
+        <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+        <meta http-equiv="Pragma" content="no-cache" />
+        <meta http-equiv="Expires" content="0" />
+    </head>
     <style>
     [data-testid="collapsedControl"] {
         display: flex !important;

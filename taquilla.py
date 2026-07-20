@@ -18,7 +18,40 @@ if st.session_state.get("dispositivo") in ["Teléfono", "Tablet"]:
 else:
     estado_sidebar = "expanded"
 
-st.set_page_config(page_title="Taquilla POS", layout="wide", initial_sidebar_state=estado_sidebar)
+st.set_page_config(
+    page_title="Taquilla POS",
+    page_icon="assets/pos_icon.png",
+    layout="wide",
+    initial_sidebar_state=estado_sidebar
+)
+
+# CSS para ocultar la corona de Streamlit (header, toolbar, deploy button, footer)
+st.markdown("""
+    <style>
+    [data-testid="stHeader"] {
+        display: none !important;
+    }
+    [data-testid="stDecoration"] {
+        display: none !important;
+    }
+    [data-testid="stToolbar"] {
+        display: none !important;
+    }
+    .stAppDeployButton {
+        display: none !important;
+    }
+    #MainMenu {
+        visibility: hidden !important;
+    }
+    footer {
+        visibility: hidden !important;
+    }
+    header {
+        visibility: hidden !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 
 if "tema_oscuro" not in st.session_state:
     st.session_state.tema_oscuro = True

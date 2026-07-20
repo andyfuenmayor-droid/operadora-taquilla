@@ -44,6 +44,58 @@ st.markdown("""
     })();
     </script>
     <style>
+    /* Estilos del Login en la carga inicial (Frame 1) */
+    form[data-testid="stForm"],
+    div[data-testid="stForm"] {
+        background-color: rgba(15, 23, 42, 0.75) !important;
+        backdrop-filter: blur(24px) !important;
+        -webkit-backdrop-filter: blur(24px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 24px !important;
+        padding: 2.5rem 2rem !important;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6) !important;
+        width: 100% !important;
+        max-width: 533px !important;
+        margin: 0 auto !important;
+    }
+    [data-testid="stForm"] > div {
+        gap: 1.25rem !important;
+    }
+    [data-testid="stWidgetLabel"] p {
+        color: #94a3b8 !important;
+        font-weight: 600 !important;
+        font-size: 0.75rem !important;
+        letter-spacing: 0.05em !important;
+        text-transform: uppercase !important;
+        margin-bottom: 0.35rem !important;
+    }
+    div[data-baseweb="input"],
+    div[data-baseweb="input"] > div,
+    div[data-baseweb="input"] input {
+        background-color: #0f172a !important;
+        color: #f8fafc !important;
+        border-color: rgba(255, 255, 255, 0.08) !important;
+        border-radius: 10px !important;
+    }
+    div[data-baseweb="input"]:focus-within {
+        border-color: #6366f1 !important;
+    }
+    input {
+        color: #f8fafc !important;
+        font-size: 0.95rem !important;
+    }
+    [data-testid="stFormSubmitButton"] button {
+        width: 100% !important;
+        background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%) !important;
+        color: #ffffff !important;
+        border: none !important;
+        padding: 0.75rem 1.5rem !important;
+        border-radius: 12px !important;
+        font-size: 0.95rem !important;
+        font-weight: 600 !important;
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35) !important;
+        margin-top: 0.5rem !important;
+    }
     [data-testid="collapsedControl"] {
         display: flex !important;
         visibility: visible !important;

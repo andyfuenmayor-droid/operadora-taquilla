@@ -1,0 +1,31 @@
+name: Deploy to DigitalOcean Droplet
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploying application via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /opt/taquilla
+            git pull origin main
+            docker build -t taquilla-app .
+            docker stop taquilla-container 2>/dev/null || true
+            docker rm taquilla-container 2>/dev/null || true
+            docker run -d \
+              --name taquilla-container \
+              -p 127.0.0.1:8510:8501 \
+              -e SUPABASE_URL="${{ secrets.SUPABASE_URL }}" \
+              -e SUPABASE_KEY="${{ secrets.SUPABASE_KEY }}" \
+              --restart always \
+              taquilla-app

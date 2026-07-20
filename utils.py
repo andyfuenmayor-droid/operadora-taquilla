@@ -1,10 +1,12 @@
 import os
 import streamlit as st
 import pandas as pd
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 from supabase import create_client
-
-load_dotenv()
 
 @st.cache_resource
 def get_supabase():

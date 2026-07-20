@@ -20,13 +20,30 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Anti-cache meta tags y CSS para visibilidad de controles
+# Anti-cache meta tags, JS auto-clearing script y CSS para visibilidad de controles
 st.markdown("""
     <head>
         <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
         <meta http-equiv="Pragma" content="no-cache" />
         <meta http-equiv="Expires" content="0" />
     </head>
+    <script>
+    (function() {
+        const CURRENT_VERSION = "2.0.2";
+        const savedVersion = localStorage.getItem("taquilla_version");
+        if (savedVersion !== CURRENT_VERSION) {
+            localStorage.clear();
+            sessionStorage.clear();
+            localStorage.setItem("taquilla_version", CURRENT_VERSION);
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                    for(let r of registrations) { r.unregister(); }
+                });
+            }
+            window.location.reload(true);
+        }
+    })();
+    </script>
     <style>
     [data-testid="collapsedControl"] {
         display: flex !important;

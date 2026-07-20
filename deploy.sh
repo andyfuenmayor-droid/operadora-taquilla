@@ -53,14 +53,17 @@ docker run -d \
   --restart always \
   taquilla-app
 
-echo "⚙️ Limpiando configuraciones previas de Nginx..."
+echo "⚙️ Limpiando configuraciones Nginx duplicadas para cda..."
 rm -f /etc/nginx/sites-enabled/default
 rm -f /etc/nginx/sites-enabled/default.conf
+rm -f /etc/nginx/sites-enabled/cda*
+rm -f /etc/nginx/sites-available/cda*
 
 echo "⚙️ Configurando Nginx para cda.multibancaexpress.com..."
 cat << 'EOF' > /etc/nginx/sites-available/cda
 server {
     listen 80;
+    listen [::]:80;
     server_name cda.multibancaexpress.com;
 
     location / {
@@ -77,13 +80,14 @@ server {
 }
 EOF
 
-ln -sf /etc/nginx/sites-available/cda /etc/nginx/sites-enabled/
+ln -sf /etc/nginx/sites-available/cda /etc/nginx/sites-enabled/cda
 nginx -t
 systemctl reload nginx
 
-echo "🔒 Configurando certificado SSL (HTTPS)..."
-certbot --nginx -d cda.multibancaexpress.com --non-interactive --agree-tos --register-unsafely-without-email --reinstall || echo "⚠️ Certbot finalizado."
+echo "🔒 Aplicando Certificado SSL con Certbot..."
+certbot --nginx -d cda.multibancaexpress.com --non-interactive --agree-tos --register-unsafely-without-email --redirect || echo "⚠️ Certbot finalizado."
 
+nginx -t
 systemctl reload nginx
 
 echo "✅ Despliegue completado con éxito. Accede a https://cda.multibancaexpress.com"

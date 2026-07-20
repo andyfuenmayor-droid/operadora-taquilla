@@ -14,12 +14,18 @@ if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_KEY" ]; then
     exit 1
 fi
 
-echo "🚀 Actualizando e instalando paquetes..."
-apt update
-apt install -y docker.io nginx certbot python3-certbot-nginx git
+echo "🚀 Actualizando paquetes e instalando dependencias..."
+apt update || true
+apt install -y nginx certbot python3-certbot-nginx git || true
 
-systemctl enable --now docker
-systemctl enable --now nginx
+# Verificar si Docker ya está instalado
+if ! command -v docker &> /dev/null; then
+    echo "📦 Instalando Docker..."
+    apt install -y docker.io || apt install -y docker-ce docker-ce-cli containerd.io || true
+fi
+
+systemctl enable --now docker || true
+systemctl enable --now nginx || true
 
 echo "📦 Construyendo la imagen de Docker..."
 docker build -t taquilla-app .
@@ -62,6 +68,6 @@ nginx -t
 systemctl reload nginx
 
 echo "🔒 Configurando certificado SSL (HTTPS)..."
-certbot --nginx -d cda.multibancaexpress.com --non-interactive --agree-tos --register-unsafely-without-email || echo "⚠️ Certbot falló o el dominio aún no apunta a esta IP."
+certbot --nginx -d cda.multibancaexpress.com --non-interactive --agree-tos --register-unsafely-without-email || echo "⚠️ Certbot omitido o el dominio aún no apunta a esta IP."
 
 echo "✅ Despliegue completado con éxito. Accede a https://cda.multibancaexpress.com"

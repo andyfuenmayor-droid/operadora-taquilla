@@ -20,9 +20,23 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# CSS para ocultar elementos innecesarios de Streamlit conservando el menú lateral y su botón
+# CSS para garantizar la visibilidad del menú lateral y su botón desplegable
 st.markdown("""
     <style>
+    [data-testid="collapsedControl"] {
+        display: flex !important;
+        visibility: visible !important;
+        z-index: 999999 !important;
+        position: fixed !important;
+        top: 10px !important;
+        left: 10px !important;
+        background-color: #1e293b !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        border-radius: 8px !important;
+        padding: 4px !important;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3) !important;
+    }
     [data-testid="stHeader"] {
         background-color: transparent !important;
     }
@@ -1858,7 +1872,23 @@ else:
         badge_border = "rgba(79, 70, 229, 0.2)"
         badge_text = "#4f46e5"
 
+    opciones = ["Carga de Ventas", "Tickets Premiados", "Gestión de Gastos", "Gestión de Pagos", "Reporte Diario", "Reporte por Rango", "Cierre Diario"]
+    if "opcion_actual" not in st.session_state:
+        st.session_state.opcion_actual = "Carga de Ventas"
+
     with st.sidebar:
+        st.markdown("### 📍 Menú de Navegación")
+        opcion_sb = st.radio(
+            "Seleccione operación:", 
+            opciones, 
+            index=opciones.index(st.session_state.opcion_actual) if st.session_state.opcion_actual in opciones else 0,
+            key="radio_nav_sidebar"
+        )
+        if opcion_sb != st.session_state.opcion_actual:
+            st.session_state.opcion_actual = opcion_sb
+            st.rerun()
+
+        st.divider()
         sidebar_info = f"""<div style="background-color: {card_bg}; border: 1px solid {card_border}; padding: 1.25rem; border-radius: 16px; margin-bottom: 1.5rem;">
 <div style="font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">Terminal</div>
 <div style="font-size: 1.1rem; font-weight: 700; color: {text_val_color}; margin-bottom: 0.75rem;">🏢 {ag['nombre_agencia'].upper()}</div>
@@ -1871,12 +1901,20 @@ else:
 </div>"""
         st.markdown(sidebar_info, unsafe_allow_html=True)
         st.divider()
-        if st.button("🚪 Cerrar Sesión", use_container_width=True):
+        if st.button("🚪 Cerrar Sesión", use_container_width=True, key="btn_logout_sidebar"):
             st.session_state.taquilla_autenticada = False; st.rerun()
 
-    opciones = ["Carga de Ventas", "Tickets Premiados", "Gestión de Gastos", "Gestión de Pagos", "Reporte Diario", "Reporte por Rango", "Cierre Diario"]
+    opcion_main = st.selectbox(
+        "📍 Seleccione operación:", 
+        opciones, 
+        index=opciones.index(st.session_state.opcion_actual) if st.session_state.opcion_actual in opciones else 0,
+        key="select_nav_main"
+    )
+    if opcion_main != st.session_state.opcion_actual:
+        st.session_state.opcion_actual = opcion_main
+        st.rerun()
 
-    opcion = st.selectbox("📍 Seleccione operación:", opciones)
+    opcion = st.session_state.opcion_actual
 
     if opcion == "Carga de Ventas": modulo_registro_taquilla(ag)
     elif opcion == "Gestión de Gastos": modulo_gastos(ag)

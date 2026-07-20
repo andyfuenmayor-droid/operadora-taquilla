@@ -6,7 +6,7 @@ enableCORS = false
 enableXsrfProtection = false
 
 [client]
-toolbarMode = "off"
+toolbarMode = "minimal"
 showErrorDetails = false
 
 [theme]

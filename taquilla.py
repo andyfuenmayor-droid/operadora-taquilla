@@ -44,9 +44,15 @@ st.markdown("""
     })();
     </script>
     <style>
-    /* Estilos del Login en la carga inicial (Frame 1) */
-    form[data-testid="stForm"],
+    /* Contenedor envolvente transparente */
     div[data-testid="stForm"] {
+        background: transparent !important;
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+    /* Tarjeta Elegante Única del Login */
+    form[data-testid="stForm"] {
         background-color: rgba(15, 23, 42, 0.75) !important;
         backdrop-filter: blur(24px) !important;
         -webkit-backdrop-filter: blur(24px) !important;
@@ -1022,8 +1028,14 @@ if not st.session_state.taquilla_autenticada:
             outline: none !important;
         }
 
-        form[data-testid="stForm"],
         div[data-testid="stForm"] {
+            background: transparent !important;
+            background-color: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
+
+        form[data-testid="stForm"] {
             background-color: rgba(15, 23, 42, 0.75) !important;
             backdrop-filter: blur(24px) !important;
             -webkit-backdrop-filter: blur(24px) !important;
@@ -1155,8 +1167,14 @@ if not st.session_state.taquilla_autenticada:
             outline: none !important;
         }
 
-        form[data-testid="stForm"],
         div[data-testid="stForm"] {
+            background: transparent !important;
+            background-color: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
+
+        form[data-testid="stForm"] {
             background-color: #ffffff !important;
             border: 1px solid rgba(15, 23, 42, 0.08) !important;
             border-radius: 24px !important;

@@ -13,23 +13,18 @@ elif any(word in user_agent for word in ["iphone", "android", "blackberry", "ope
 else:
     st.session_state["dispositivo"] = "Escritorio"
 
-if st.session_state.get("dispositivo") in ["Teléfono", "Tablet"]:
-    estado_sidebar = "collapsed"
-else:
-    estado_sidebar = "expanded"
-
 st.set_page_config(
     page_title="Taquilla POS",
     page_icon="assets/pos_icon.png",
     layout="wide",
-    initial_sidebar_state=estado_sidebar
+    initial_sidebar_state="expanded"
 )
 
-# CSS para ocultar la corona de Streamlit (header, toolbar, deploy button, footer)
+# CSS para ocultar elementos innecesarios de Streamlit conservando el menú lateral y su botón
 st.markdown("""
     <style>
     [data-testid="stHeader"] {
-        display: none !important;
+        background-color: transparent !important;
     }
     [data-testid="stDecoration"] {
         display: none !important;
@@ -44,9 +39,6 @@ st.markdown("""
         visibility: hidden !important;
     }
     footer {
-        visibility: hidden !important;
-    }
-    header {
         visibility: hidden !important;
     }
     </style>

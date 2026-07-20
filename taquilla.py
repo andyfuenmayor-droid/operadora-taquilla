@@ -29,23 +29,94 @@ st.markdown("""
     </head>
     <script>
     (function() {
-        const CURRENT_VERSION = "2.0.3";
-        const savedVersion = localStorage.getItem("taquilla_version");
-        if (savedVersion !== CURRENT_VERSION) {
-            localStorage.clear();
-            sessionStorage.clear();
-            localStorage.setItem("taquilla_version", CURRENT_VERSION);
-            if ('caches' in window) {
-                caches.keys().then(function(names) {
-                    for (let name of names) caches.delete(name);
-                });
+        const SERVER_VERSION = "2026.07.20-v2.5.0";
+        const savedVersion = localStorage.getItem("taquilla_client_build");
+
+        function showUpdateModal() {
+            if (document.getElementById("update-modal-backdrop")) return;
+            const modal = document.createElement("div");
+            modal.id = "update-modal-backdrop";
+            modal.innerHTML = `
+                <div style="
+                    position: fixed;
+                    top: 0; left: 0; right: 0; bottom: 0;
+                    background: rgba(11, 15, 25, 0.85);
+                    backdrop-filter: blur(12px);
+                    -webkit-backdrop-filter: blur(12px);
+                    z-index: 9999999;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 1rem;
+                    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+                ">
+                    <div style="
+                        background: #1e293b;
+                        border: 1px solid rgba(99, 102, 241, 0.4);
+                        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+                        border-radius: 24px;
+                        max-width: 440px;
+                        width: 100%;
+                        padding: 2.25rem 2rem;
+                        text-align: center;
+                        color: #f8fafc;
+                    ">
+                        <div style="font-size: 3.5rem; margin-bottom: 0.75rem;">🚀</div>
+                        <h2 style="margin: 0 0 0.5rem 0; font-size: 1.5rem; font-weight: 700; color: #ffffff;">
+                            ¡Nueva Actualización!
+                        </h2>
+                        <p style="margin: 0 0 1.75rem 0; color: #94a3b8; font-size: 0.95rem; line-height: 1.5;">
+                            Se han aplicado mejoras en el sistema. Presiona el botón para actualizar la memoria y cargar los cambios.
+                        </p>
+                        <button id="btn-force-reload-system" style="
+                            width: 100%;
+                            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+                            color: #ffffff;
+                            border: none;
+                            padding: 0.9rem 1.5rem;
+                            font-size: 1rem;
+                            font-weight: 700;
+                            border-radius: 12px;
+                            cursor: pointer;
+                            box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
+                            transition: transform 0.15s ease;
+                        ">
+                            🔄 ACTUALIZAR AHORA (F5)
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            const btn = document.getElementById("btn-force-reload-system");
+            if (btn) {
+                btn.onclick = function() {
+                    localStorage.clear();
+                    sessionStorage.clear();
+                    localStorage.setItem("taquilla_client_build", SERVER_VERSION);
+                    if ('caches' in window) {
+                        caches.keys().then(function(names) {
+                            for (let name of names) caches.delete(name);
+                        });
+                    }
+                    if ('serviceWorker' in navigator) {
+                        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                            for(let r of registrations) { r.unregister(); }
+                        });
+                    }
+                    window.location.reload(true);
+                };
             }
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                    for(let r of registrations) { r.unregister(); }
-                });
+        }
+
+        if (!savedVersion) {
+            localStorage.setItem("taquilla_client_build", SERVER_VERSION);
+        } else if (savedVersion !== SERVER_VERSION) {
+            if (document.readyState === "loading") {
+                document.addEventListener("DOMContentLoaded", showUpdateModal);
+            } else {
+                showUpdateModal();
             }
-            window.location.reload(true);
         }
     })();
     </script>

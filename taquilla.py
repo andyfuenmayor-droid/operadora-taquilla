@@ -470,6 +470,253 @@ def modulo_pagos(agencia_data):
                     st.success("✅ Pago guardado exitosamente!"); time.sleep(1); st.rerun()
 
 
+def modulo_gestion_bancaria(agencia_data):
+    render_encabezado_principal("🏛️ Gestión Bancaria")
+    render_subtitulo_terminal(agencia_data['nombre_agencia'])
+    u_id = agencia_data['user_id']
+    ag_nombre = agencia_data['nombre_agencia']
+
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "💳 Cuentas Admin", 
+        "📟 Puntos de Venta (POS)", 
+        "💸 Registrar Pago", 
+        "📊 Historial y Resumen"
+    ])
+
+    # Cargar cuentas bancarias creadas por el Admin desde Supabase
+    try:
+        res_c = supabase.table("cuentas_bancarias").select("*").execute()
+        df_cuentas = pd.DataFrame(res_c.data or [])
+        if not df_cuentas.empty:
+            df_cuentas.columns = [c.lower() for c in df_cuentas.columns]
+    except Exception:
+        df_cuentas = pd.DataFrame()
+
+    # Cargar Puntos de Venta (POS) asociados
+    try:
+        res_pos = supabase.table("puntos_venta").select("*").eq("agencia", ag_nombre).execute()
+        df_pos = pd.DataFrame(res_pos.data or [])
+        if not df_pos.empty:
+            df_pos.columns = [c.lower() for c in df_pos.columns]
+    except Exception:
+        df_pos = pd.DataFrame()
+
+    # ==================== TAB 1: CUENTAS BANCARIAS ADMIN ====================
+    with tab1:
+        render_titulo_seccion("🏦 Cuentas Bancarias Registradas por el Administrador")
+        if not df_cuentas.empty:
+            cols_c = st.columns(min(len(df_cuentas), 3))
+            is_dark = st.session_state.get("tema_oscuro", True)
+            card_bg = "rgba(30, 41, 59, 0.6)" if is_dark else "#f8fafc"
+            card_border = "rgba(99, 102, 241, 0.2)" if is_dark else "#cbd5e1"
+            title_color = "#38bdf8" if is_dark else "#0284c7"
+            sub_color = "#cbd5e1" if is_dark else "#334155"
+
+            for idx, (_, row) in enumerate(df_cuentas.iterrows()):
+                c_idx = idx % min(len(df_cuentas), 3)
+                banco = str(row.get("banco", "Banco")).upper()
+                titular = str(row.get("titular", "N/A"))
+                num_cuenta = str(row.get("numero_cuenta") or row.get("identificador") or row.get("email") or "N/A")
+                moneda = str(row.get("moneda", "USD")).upper()
+                metodos = str(row.get("metodos_aceptados") or row.get("tipo_cuenta") or "General")
+
+                card_html = f"""
+                <div style="background: {card_bg}; border: 1px solid {card_border}; border-radius: 12px; padding: 14px; margin-bottom: 12px;">
+                    <div style="font-size: 15px; font-weight: 700; color: {title_color}; margin-bottom: 4px;">🏦 {banco} ({moneda})</div>
+                    <div style="font-size: 13px; color: {sub_color};"><b>Titular:</b> {titular}</div>
+                    <div style="font-size: 12px; color: {sub_color}; margin-top: 2px;"><b>Cuenta/ID:</b> <code style="font-size: 11px;">{num_cuenta}</code></div>
+                    <div style="font-size: 11px; color: #94a3b8; margin-top: 6px;"><b>Métodos:</b> {metodos}</div>
+                </div>
+                """
+                cols_c[c_idx].markdown(card_html, unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            cols_show = [c for c in ["banco", "titular", "numero_cuenta", "moneda", "tipo_cuenta", "estado"] if c in df_cuentas.columns]
+            if cols_show:
+                st.dataframe(df_cuentas[cols_show], use_container_width=True, hide_index=True)
+        else:
+            st.info("ℹ️ No hay cuentas bancarias registradas en el sistema por la administración.")
+
+    # ==================== TAB 2: PUNTOS DE VENTA (POS) ====================
+    with tab2:
+        render_titulo_seccion("📟 Gestión de Puntos de Venta (POS) Asociados")
+
+        with st.form("form_crear_pos", clear_on_submit=True):
+            st.markdown("##### ➕ Registrar Nuevo Punto de Venta (POS)")
+            c1, c2, c3 = st.columns([3, 3, 4])
+            nombre_pos = c1.text_input("Nombre / Alias del POS*", placeholder="Ej: POS Taquilla 1, Flexipos Credicard")
+            serial_pos = c2.text_input("Serial / Código Terminal", placeholder="Ej: SN-987654321")
+            
+            opciones_cuentas = []
+            if not df_cuentas.empty:
+                for _, r in df_cuentas.iterrows():
+                    b_name = r.get("banco", "Banco")
+                    n_acc = r.get("numero_cuenta") or r.get("identificador") or r.get("email") or ""
+                    opciones_cuentas.append(f"{b_name} - {n_acc} ({r.get('moneda', 'USD')})")
+            else:
+                opciones_cuentas = ["Cuenta Principal Admin"]
+
+            cuenta_asociada = c3.selectbox("Cuenta Bancaria Admin Asociada*", opciones_cuentas)
+            estado_pos = st.selectbox("Estado del POS", ["Activo", "Inactivo"], index=0)
+
+            if st.form_submit_button("💾 GUARDAR PUNTO DE VENTA", use_container_width=True):
+                if not nombre_pos.strip():
+                    st.error("Debe ingresar un nombre o alias para el Punto de Venta.")
+                else:
+                    try:
+                        supabase.table("puntos_venta").insert({
+                            "nombre_pos": nombre_pos.strip().upper(),
+                            "serial_pos": serial_pos.strip().upper() if serial_pos else "N/A",
+                            "cuenta_resumen": cuenta_asociada,
+                            "agencia": ag_nombre,
+                            "user_id": u_id,
+                            "estado": estado_pos,
+                            "created_at": datetime.now().isoformat()
+                        }).execute()
+                        st.success("✅ Punto de Venta (POS) guardado exitosamente!")
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al guardar el POS: {e}")
+
+        st.divider()
+        render_titulo_seccion("📋 Puntos de Venta Registrados")
+        if not df_pos.empty:
+            cols_show_pos = [c for c in ["nombre_pos", "serial_pos", "cuenta_resumen", "estado", "agencia", "created_at"] if c in df_pos.columns]
+            st.dataframe(df_pos[cols_show_pos], use_container_width=True, hide_index=True)
+        else:
+            st.info("ℹ️ No hay Puntos de Venta registrados para esta taquilla.")
+
+    # ==================== TAB 3: REGISTRAR PAGO ====================
+    with tab3:
+        render_titulo_seccion("💸 Registrar Pago Recibido (Punto de Venta / Pago Móvil / Zelle)")
+
+        fecha_hoy = datetime.now().date()
+        cerrado = dia_esta_cerrado(ag_nombre, fecha_hoy)
+        if cerrado:
+            st.warning(f"🔒 El día {fecha_hoy} está cerrado. Los registros se guardarán con la fecha actual.")
+
+        with st.form("form_reg_pago_bancario", clear_on_submit=True):
+            col_m1, col_m2, col_m3 = st.columns([2, 2, 2])
+            fecha_pago = col_m1.date_input("Fecha de Operación", value=fecha_hoy)
+            metodo_pago = col_m2.selectbox("Método de Pago*", ["Punto de Venta", "Pago Móvil", "Zelle"])
+            moneda_pago = col_m3.selectbox("Moneda*", ["USD", "BS", "COP"], index=0)
+
+            col_d1, col_d2 = st.columns([3, 3])
+            
+            if metodo_pago == "Punto de Venta":
+                lista_pos = df_pos[df_pos["estado"].astype(str).str.upper() == "ACTIVO"]["nombre_pos"].tolist() if not df_pos.empty and "nombre_pos" in df_pos.columns and "estado" in df_pos.columns else []
+                if not lista_pos:
+                    lista_pos = ["POS Taquilla General"]
+                pos_o_cuenta = col_d1.selectbox("Seleccione Punto de Venta (POS)*", lista_pos)
+            else:
+                opciones_c = []
+                if not df_cuentas.empty:
+                    for _, r in df_cuentas.iterrows():
+                        opciones_c.append(f"{r.get('banco', 'Banco')} - {r.get('numero_cuenta') or r.get('email') or ''}")
+                if not opciones_c:
+                    opciones_c = ["Cuenta Admin Registrada"]
+                pos_o_cuenta = col_d1.selectbox("Cuenta Destino Admin*", opciones_c)
+
+            referencia = col_d2.text_input("Número de Referencia / Comprobante*", placeholder="Ej: 987654 / Últimos 6 dígitos")
+
+            col_v1, col_v2, col_v3 = st.columns([2, 3, 3])
+            monto_pago = col_v1.number_input("Monto Recibido*", min_value=0.0, format="%.2f")
+            concepto = col_v2.selectbox("Concepto de Operación*", ["Compra de Tickets", "Apuesta", "Recarga / Abono", "Otro"])
+            datos_cliente = col_v3.text_input("Datos del Pagador / Titular", placeholder="Ej: V-14567890 / Pedro Pérez")
+
+            if st.form_submit_button("💾 REGISTRAR PAGO BANCARIO", use_container_width=True):
+                if monto_pago <= 0:
+                    st.error("Ingrese un monto válido mayor a cero.")
+                elif not referencia.strip():
+                    st.error("Debe proporcionar un número de referencia o comprobante.")
+                else:
+                    try:
+                        # 1. Guardar en tabla cda_pagos_bancarios
+                        data_bancaria = {
+                            "fecha": str(fecha_pago),
+                            "agencia": ag_nombre,
+                            "metodo_pago": metodo_pago,
+                            "monto": round(float(monto_pago), 2),
+                            "moneda": moneda_pago,
+                            "referencia": referencia.strip().upper(),
+                            "concepto": concepto,
+                            "datos_pagador": datos_cliente.strip().upper() if datos_cliente else "N/A",
+                            "pos_o_cuenta": pos_o_cuenta,
+                            "user_id": u_id,
+                            "created_at": datetime.now().isoformat()
+                        }
+                        supabase.table("cda_pagos_bancarios").insert(data_bancaria).execute()
+
+                        # 2. Registrar en cda_pagos_diarios para mantener unificados los reportes diarios
+                        supabase.table("cda_pagos_diarios").insert({
+                            "fecha": str(fecha_pago),
+                            "agencia": ag_nombre,
+                            "tipo_pago": f"{metodo_pago} (Ref: {referencia.strip().upper()})",
+                            "monto": round(float(monto_pago), 2),
+                            "moneda": moneda_pago,
+                            "user_id": u_id
+                        }).execute()
+
+                        st.success(f"✅ Pago por {metodo_pago} (Ref: {referencia}) registrado exitosamente!")
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al guardar transacción: {e}")
+
+    # ==================== TAB 4: HISTORIAL Y RESUMEN ====================
+    with tab4:
+        render_titulo_seccion("📊 Historial de Transacciones Bancarias")
+
+        c_f1, _ = st.columns([2, 2])
+        fecha_hist = c_f1.date_input("📅 Filtrar por Fecha:", value=datetime.now().date(), key="fecha_hist_bancaria")
+
+        try:
+            res_pb = supabase.table("cda_pagos_bancarios").select("*").eq("user_id", u_id).eq("fecha", str(fecha_hist)).execute()
+            df_pb = pd.DataFrame(res_pb.data or [])
+            if not df_pb.empty:
+                df_pb.columns = [c.lower() for c in df_pb.columns]
+        except Exception:
+            df_pb = pd.DataFrame()
+
+        if not df_pb.empty:
+            df_pos_m = df_pb[df_pb["metodo_pago"].astype(str).str.upper() == "PUNTO DE VENTA"]
+            df_pm_m = df_pb[df_pb["metodo_pago"].astype(str).str.upper() == "PAGO MÓVIL"]
+            df_zelle_m = df_pb[df_pb["metodo_pago"].astype(str).str.upper() == "ZELLE"]
+
+            tot_pos = float(df_pos_m["monto"].sum()) if not df_pos_m.empty else 0.0
+            tot_pm = float(df_pm_m["monto"].sum()) if not df_pm_m.empty else 0.0
+            tot_zelle = float(df_zelle_m["monto"].sum()) if not df_zelle_m.empty else 0.0
+            tot_total = float(df_pb["monto"].sum())
+
+            is_dark = st.session_state.get("tema_oscuro", True)
+            bg_card = "rgba(30, 41, 59, 0.6)" if is_dark else "#f8fafc"
+            border_card = "rgba(255, 255, 255, 0.08)" if is_dark else "#e2e8f0"
+            txt_label = "#94a3b8" if is_dark else "#64748b"
+            txt_val = "#f8fafc" if is_dark else "#0f172a"
+
+            cols_m = st.columns(4)
+            met_cards = [
+                ("📟 Punto de Venta", f"${tot_pos:,.2f}"),
+                ("📲 Pago Móvil", f"${tot_pm:,.2f}"),
+                ("💵 Zelle", f"${tot_zelle:,.2f}"),
+                ("🏛️ Total Bancario", f"${tot_total:,.2f}")
+            ]
+
+            for i, (l_title, l_val) in enumerate(met_cards):
+                card_h = f"""<div style="background: {bg_card}; border: 1px solid {border_card}; border-radius: 8px; padding: 8px; text-align: center;">
+                <div style="font-size: 10px; font-weight: 700; color: {txt_label}; text-transform: uppercase;">{l_title}</div>
+                <div style="font-size: 14px; font-weight: 700; color: { '#34d399' if 'Total' in l_title else txt_val };">{l_val}</div>
+                </div>"""
+                cols_m[i].markdown(card_h, unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            cols_show_pb = [c for c in ["fecha", "metodo_pago", "monto", "moneda", "referencia", "pos_o_cuenta", "concepto", "datos_pagador", "created_at"] if c in df_pb.columns]
+            st.dataframe(df_pb[cols_show_pb], use_container_width=True, hide_index=True)
+        else:
+            st.info(f"ℹ️ No hay transacciones bancarias registradas el día {fecha_hist}.")
+
+
 def modulo_reporte_rango(agencia_data):
     render_encabezado_principal("📊 Reporte por Rango de Fechas")
     render_subtitulo_terminal(agencia_data['nombre_agencia'])
@@ -2061,7 +2308,7 @@ else:
         badge_border = "rgba(79, 70, 229, 0.2)"
         badge_text = "#4f46e5"
 
-    opciones = ["Carga de Ventas", "Tickets Premiados", "Gestión de Gastos", "Gestión de Pagos", "Reporte Diario", "Reporte por Rango", "Cierre Diario"]
+    opciones = ["Carga de Ventas", "Tickets Premiados", "Gestión de Gastos", "Gestión de Pagos", "Gestión Bancaria", "Reporte Diario", "Reporte por Rango", "Cierre Diario"]
 
     opcion = st.selectbox("📍 Seleccione operación:", opciones, key="opcion_operacion_main")
 
@@ -2084,6 +2331,7 @@ else:
     if opcion == "Carga de Ventas": modulo_registro_taquilla(ag)
     elif opcion == "Gestión de Gastos": modulo_gastos(ag)
     elif opcion == "Gestión de Pagos": modulo_pagos(ag)
+    elif opcion == "Gestión Bancaria": modulo_gestion_bancaria(ag)
     elif opcion == "Reporte por Rango": modulo_reporte_rango(ag)
     elif opcion == "Tickets Premiados": modulo_premios_tickets(ag)
     elif opcion == "Cierre Diario": modulo_cierre_diario(ag)

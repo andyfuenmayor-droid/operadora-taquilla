@@ -274,12 +274,14 @@ def modulo_registro_taquilla(agencia_data):
     if "fecha_carga_actual" not in st.session_state:
         st.session_state["fecha_carga_actual"] = obtener_ultimo_dia_cerrado(agencia_data['nombre_agencia']) or datetime.now().date()
 
-    fecha_seleccionada = st.date_input(
-        "📅 Seleccione el día a cargar:",
-        value=st.session_state["fecha_carga_actual"],
-        key="fecha_carga_input",
-        on_change=lambda: setattr(st.session_state, 'fecha_carga_actual', st.session_state["fecha_carga_input"])
-    )
+    col_f, _ = st.columns([2, 2])
+    with col_f:
+        fecha_seleccionada = st.date_input(
+            "📅 Seleccione el día a cargar:",
+            value=st.session_state["fecha_carga_actual"],
+            key="fecha_carga_input",
+            on_change=lambda: setattr(st.session_state, 'fecha_carga_actual', st.session_state["fecha_carga_input"])
+        )
     fecha_carga_iso = str(fecha_seleccionada)
 
     cerrado = dia_esta_cerrado(agencia_data['nombre_agencia'], fecha_carga_iso)
@@ -306,7 +308,7 @@ def modulo_registro_taquilla(agencia_data):
 
     for sist in sistemas_lista:
         with st.container(border=True):
-            st.markdown(f"#### 📍 Sistema: {sist}")
+            render_titulo_seccion(f"📍 Sistema: {sist}")
             existe_en_db = False
             v_val, c_val, p_val = 0.0, 0.0, 0.0
             if not df_existentes.empty:
@@ -363,11 +365,13 @@ def modulo_gastos(agencia_data):
     if "fecha_gasto_filtro" not in st.session_state:
         st.session_state["fecha_gasto_filtro"] = obtener_ultimo_dia_cerrado(ag_nombre) or datetime.now().date()
 
-    fecha_filtro = st.date_input(
-        "📅 Ver gastos del día:",
-        value=st.session_state["fecha_gasto_filtro"],
-        key="fecha_gasto_filtro_input"
-    )
+    col_f, _ = st.columns([2, 2])
+    with col_f:
+        fecha_filtro = st.date_input(
+            "📅 Ver gastos del día:",
+            value=st.session_state["fecha_gasto_filtro"],
+            key="fecha_gasto_filtro_input"
+        )
 
     cerrado = dia_esta_cerrado(ag_nombre, fecha_filtro)
     if cerrado:
@@ -382,6 +386,7 @@ def modulo_gastos(agencia_data):
         df_g = pd.DataFrame()
 
     if not df_g.empty:
+        render_titulo_seccion("📋 Gastos del Día")
         cols_orden = ["id", "agencia", "moneda", "monto", "concepto", "fecha", "created_at", "user_id"]
         cols_existentes = [c for c in cols_orden if c in df_g.columns]
         st.dataframe(df_g[cols_existentes], use_container_width=True, hide_index=True)
@@ -389,25 +394,24 @@ def modulo_gastos(agencia_data):
         st.info("ℹ️ No hay gastos en este día.")
 
     if not cerrado:
-        with st.container(border=True):
+        with st.form("form_g", clear_on_submit=True):
             render_titulo_seccion("📝 Registrar Nuevo Gasto")
-            with st.form("form_g", clear_on_submit=True):
-                c1, c2, c3 = st.columns([1, 1, 2])
-                fecha_g = c1.date_input("Fecha", value=fecha_filtro)
-                moneda_g = c2.selectbox("Moneda", ["COP", "USD", "BS"], index=0)
-                monto_g = c3.number_input("Monto", min_value=0.0, format="%.2f")
-                concepto_g = st.text_input("Concepto:")
-                if st.form_submit_button("💾 GUARDAR", use_container_width=True):
-                    if not concepto_g.strip() or monto_g <= 0:
-                        st.error("Complete los campos.")
-                    else:
-                        supabase.table("cda_gastos_diarios").insert({
-                            "fecha": str(fecha_g), "agencia": ag_nombre,
-                            "concepto": concepto_g.upper().strip(),
-                            "monto": round(float(monto_g), 2),
-                            "moneda": moneda_g, "user_id": u_id
-                        }).execute()
-                        st.success("✅ Gasto guardado!"); time.sleep(1); st.rerun()
+            c1, c2, c3 = st.columns([2, 2, 3])
+            fecha_g = c1.date_input("Fecha", value=fecha_filtro)
+            moneda_g = c2.selectbox("Moneda", ["COP", "USD", "BS"], index=0)
+            monto_g = c3.number_input("Monto", min_value=0.0, format="%.2f")
+            concepto_g = st.text_input("Concepto:", placeholder="Ej. Pago de servicios, papelería, mantenimiento...")
+            if st.form_submit_button("💾 GUARDAR GASTO", use_container_width=True):
+                if not concepto_g.strip() or monto_g <= 0:
+                    st.error("Complete el concepto y un monto mayor a cero.")
+                else:
+                    supabase.table("cda_gastos_diarios").insert({
+                        "fecha": str(fecha_g), "agencia": ag_nombre,
+                        "concepto": concepto_g.upper().strip(),
+                        "monto": round(float(monto_g), 2),
+                        "moneda": moneda_g, "user_id": u_id
+                    }).execute()
+                    st.success("✅ Gasto guardado exitosamente!"); time.sleep(1); st.rerun()
 
 
 def modulo_pagos(agencia_data):
@@ -418,11 +422,13 @@ def modulo_pagos(agencia_data):
     if "fecha_pago_filtro" not in st.session_state:
         st.session_state["fecha_pago_filtro"] = obtener_ultimo_dia_cerrado(ag_nombre) or datetime.now().date()
 
-    fecha_filtro = st.date_input(
-        "📅 Ver pagos del día:",
-        value=st.session_state["fecha_pago_filtro"],
-        key="fecha_pago_filtro_input"
-    )
+    col_f, _ = st.columns([2, 2])
+    with col_f:
+        fecha_filtro = st.date_input(
+            "📅 Ver pagos del día:",
+            value=st.session_state["fecha_pago_filtro"],
+            key="fecha_pago_filtro_input"
+        )
 
     cerrado = dia_esta_cerrado(ag_nombre, fecha_filtro)
     if cerrado:
@@ -437,6 +443,7 @@ def modulo_pagos(agencia_data):
         df_p = pd.DataFrame()
 
     if not df_p.empty:
+        render_titulo_seccion("📋 Pagos del Día")
         cols_p = ["id", "agencia", "sistema", "moneda", "monto", "estado", "fecha", "created_at", "user_id"]
         cols_p = [c for c in cols_p if c in df_p.columns]
         st.dataframe(df_p[cols_p], use_container_width=True, hide_index=True)
@@ -444,24 +451,23 @@ def modulo_pagos(agencia_data):
         st.info("ℹ️ No hay pagos en este día.")
 
     if not cerrado:
-        with st.container(border=True):
+        with st.form("form_p", clear_on_submit=True):
             render_titulo_seccion("📝 Registrar Nuevo Pago")
-            with st.form("form_p", clear_on_submit=True):
-                c1, c2, c3 = st.columns([1, 1, 2])
-                fecha_pg = c1.date_input("Fecha", value=fecha_filtro)
-                moneda_pg = c2.selectbox("Moneda", ["COP", "USD", "BS"], index=0)
-                monto_pg = c3.number_input("Monto", min_value=0.0, format="%.2f")
-                tipo_pg = st.selectbox("Tipo Pago", ["Pago Móvil", "Transferencia", "Zelle", "Efectivo"])
-                if st.form_submit_button("💾 GUARDAR", use_container_width=True):
-                    if monto_pg <= 0:
-                        st.error("Ingrese un monto válido.")
-                    else:
-                        supabase.table("cda_pagos_diarios").insert({
-                            "fecha": str(fecha_pg), "agencia": ag_nombre,
-                            "tipo_pago": tipo_pg, "monto": round(float(monto_pg), 2),
-                            "moneda": moneda_pg, "user_id": u_id
-                        }).execute()
-                        st.success("✅ Pago guardado!"); time.sleep(1); st.rerun()
+            c1, c2, c3, c4 = st.columns([2, 2, 3, 3])
+            fecha_pg = c1.date_input("Fecha", value=fecha_filtro)
+            moneda_pg = c2.selectbox("Moneda", ["COP", "USD", "BS"], index=0)
+            monto_pg = c3.number_input("Monto", min_value=0.0, format="%.2f")
+            tipo_pg = c4.selectbox("Tipo Pago", ["Pago Móvil", "Transferencia", "Zelle", "Efectivo"])
+            if st.form_submit_button("💾 GUARDAR PAGO", use_container_width=True):
+                if monto_pg <= 0:
+                    st.error("Ingrese un monto válido mayor a cero.")
+                else:
+                    supabase.table("cda_pagos_diarios").insert({
+                        "fecha": str(fecha_pg), "agencia": ag_nombre,
+                        "tipo_pago": tipo_pg, "monto": round(float(monto_pg), 2),
+                        "moneda": moneda_pg, "user_id": u_id
+                    }).execute()
+                    st.success("✅ Pago guardado exitosamente!"); time.sleep(1); st.rerun()
 
 
 def modulo_reporte_rango(agencia_data):
@@ -653,11 +659,13 @@ def modulo_premios_tickets(agencia_data):
     if "fecha_ticket_filtro" not in st.session_state:
         st.session_state["fecha_ticket_filtro"] = obtener_ultimo_dia_cerrado(ag_nombre) or datetime.now().date()
 
-    fecha_filtro = st.date_input(
-        "📅 Ver tickets del día:",
-        value=st.session_state["fecha_ticket_filtro"],
-        key="fecha_ticket_filtro_input"
-    )
+    col_f, _ = st.columns([2, 2])
+    with col_f:
+        fecha_filtro = st.date_input(
+            "📅 Ver tickets del día:",
+            value=st.session_state["fecha_ticket_filtro"],
+            key="fecha_ticket_filtro_input"
+        )
 
     try:
         res = supabase.table("cda_premios_tickets")\
@@ -696,8 +704,8 @@ def modulo_premios_tickets(agencia_data):
 
     permitir_nuevo = not cerrado or es_supervisor
     if permitir_nuevo:
-        st.markdown("### 📝 Registrar Nuevo Premio")
         with st.container(border=True):
+            render_titulo_seccion("📝 Registrar Nuevo Premio")
             c1, c2 = st.columns(2)
             fecha_p = c1.date_input("Fecha del Sorteo", value=fecha_filtro)
             sistema_p = c2.selectbox("Sistema", ["BETM3", "GATOWEB", "KENO", "OTRO"], index=0)

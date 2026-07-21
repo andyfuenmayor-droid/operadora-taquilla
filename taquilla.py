@@ -44,7 +44,7 @@ st.markdown("""
     })();
     </script>
     <style>
-    /* Tarjeta Elegante Única del Login */
+    /* Tarjeta Form Estándar */
     [data-testid="stForm"] {
         background-color: rgba(15, 23, 42, 0.75) !important;
         backdrop-filter: blur(24px) !important;
@@ -54,8 +54,8 @@ st.markdown("""
         padding: 2.5rem 2rem !important;
         box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6) !important;
         width: 100% !important;
-        max-width: 533px !important;
-        margin: 0 auto !important;
+        max-width: 100% !important;
+        margin: 0 !important;
     }
     [data-testid="stForm"] form {
         background: transparent !important;
@@ -1386,7 +1386,31 @@ else:
         [data-testid="stAppViewBlockContainer"],
         .block-container {
             max-width: 100% !important;
-            padding: 3rem 4rem !important;
+            padding: 2rem 3rem !important;
+        }
+
+        /* Dashboard Forms - Full Responsive Width */
+        [data-testid="stForm"] {
+            background-color: rgba(15, 23, 42, 0.45) !important;
+            backdrop-filter: blur(12px) !important;
+            -webkit-backdrop-filter: blur(12px) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            border-radius: 16px !important;
+            padding: 1.5rem !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 0 1.5rem 0 !important;
+        }
+
+        @media (max-width: 768px) {
+            [data-testid="stBlockContainer"],
+            .block-container {
+                padding: 1.25rem 1rem !important;
+            }
+            [data-testid="stForm"] {
+                padding: 1rem !important;
+            }
         }
 
         /* Style Metric Cards */
@@ -1708,7 +1732,29 @@ else:
         [data-testid="stAppViewBlockContainer"],
         .block-container {
             max-width: 100% !important;
-            padding: 3rem 4rem !important;
+            padding: 2rem 3rem !important;
+        }
+
+        /* Dashboard Forms - Full Responsive Width */
+        [data-testid="stForm"] {
+            background-color: #ffffff !important;
+            border: 1px solid rgba(15, 23, 42, 0.08) !important;
+            border-radius: 16px !important;
+            padding: 1.5rem !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 0 1.5rem 0 !important;
+        }
+
+        @media (max-width: 768px) {
+            [data-testid="stBlockContainer"],
+            .block-container {
+                padding: 1.25rem 1rem !important;
+            }
+            [data-testid="stForm"] {
+                padding: 1rem !important;
+            }
         }
 
         /* Style Metric Cards */

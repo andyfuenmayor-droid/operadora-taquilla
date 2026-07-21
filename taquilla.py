@@ -457,7 +457,7 @@ def modulo_pagos(agencia_data):
             fecha_pg = c1.date_input("Fecha", value=fecha_filtro)
             moneda_pg = c2.selectbox("Moneda", ["COP", "USD", "BS"], index=0)
             monto_pg = c3.number_input("Monto", min_value=0.0, format="%.2f")
-            tipo_pg = c4.selectbox("Tipo Pago", ["Pago Móvil", "Transferencia", "Zelle", "Efectivo"])
+            tipo_pg = c4.selectbox("Tipo Pago", ["Pago Móvil", "Transferencia", "Zelle", "Punto de Venta", "Efectivo"])
             if st.form_submit_button("💾 GUARDAR PAGO", use_container_width=True):
                 if monto_pg <= 0:
                     st.error("Ingrese un monto válido mayor a cero.")

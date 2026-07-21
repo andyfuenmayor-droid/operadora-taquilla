@@ -139,6 +139,54 @@ st.markdown("""
 if "tema_oscuro" not in st.session_state:
     st.session_state.tema_oscuro = True
 
+def render_encabezado_principal(texto):
+    is_dark = st.session_state.get("tema_oscuro", True)
+    color = "#ffffff" if is_dark else "#0f172a"
+    st.markdown(f"<h2 style='margin: 0 0 4px 0; font-size: 20px; font-weight: 700; color: {color};'>{texto}</h2>", unsafe_allow_html=True)
+
+def render_subtitulo_terminal(nombre_agencia):
+    is_dark = st.session_state.get("tema_oscuro", True)
+    color = "#94a3b8" if is_dark else "#475569"
+    st.markdown(f"<div style='font-size: 14px; font-weight: 600; color: {color}; margin-bottom: 12px;'>Terminal: <b>{nombre_agencia}</b></div>", unsafe_allow_html=True)
+
+def render_titulo_seccion(texto):
+    st.markdown(f"<div style='font-size: 14px; font-weight: 700; color: #38bdf8; margin: 12px 0 8px 0;'>{texto}</div>", unsafe_allow_html=True)
+
+def render_tarjetas_metricas(t_venta, t_comis, t_premios, t_gastos, t_pagos, t_saldo):
+    is_dark = st.session_state.get("tema_oscuro", True)
+    bg_color = "rgba(30, 41, 59, 0.6)" if is_dark else "#f8fafc"
+    border_color = "rgba(255, 255, 255, 0.08)" if is_dark else "#e2e8f0"
+    title_color = "#94a3b8" if is_dark else "#64748b"
+    val_color = "#f8fafc" if is_dark else "#0f172a"
+
+    items = [
+        ("Ventas", f"${t_venta:,.2f}"),
+        ("Comision", f"${t_comis:,.2f}"),
+        ("Premios", f"${t_premios:,.2f}"),
+        ("Gastos", f"${t_gastos:,.2f}"),
+        ("Pagos", f"${t_pagos:,.2f}"),
+        ("Saldo", f"${t_saldo:,.2f}"),
+    ]
+
+    cols = st.columns(6)
+    for idx, (title, val) in enumerate(items):
+        if title == "Saldo":
+            if t_saldo > 0:
+                cur_val_color = "#34d399" if is_dark else "#16a34a"
+            elif t_saldo < 0:
+                cur_val_color = "#f87171" if is_dark else "#dc2626"
+            else:
+                cur_val_color = val_color
+        else:
+            cur_val_color = val_color
+
+        card_html = f"""<div style="background: {bg_color}; border: 1px solid {border_color}; border-radius: 8px; padding: 6px 8px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+<div style="font-size: 9px; font-weight: 700; color: {title_color}; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{title}</div>
+<div style="font-size: 12px; font-weight: 700; color: {cur_val_color}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{val}</div>
+</div>"""
+        cols[idx].markdown(card_html, unsafe_allow_html=True)
+
+
 # ? helpers de cierre diario ?
 
 def _check_cerrado_col():
@@ -218,7 +266,7 @@ def obtener_ultimo_dia_cerrado(agencia_nombre):
 
 # �?� módulos de la taquilla �?�
 def modulo_registro_taquilla(agencia_data):
-    st.header(f"🎰 Carga de Ventas: {agencia_data['nombre_agencia']}")
+    render_encabezado_principal(f"🎰 Carga de Ventas: {agencia_data['nombre_agencia']}")
     rol_usuario = st.session_state.get("cajero_actual", {}).get("rol", "cajero")
     es_supervisor = (rol_usuario == 'supervisor')
     sistemas_lista = [s.strip() for s in str(agencia_data.get("sistemas", "BETM3")).split(",")]
@@ -308,7 +356,7 @@ def modulo_registro_taquilla(agencia_data):
 
 
 def modulo_gastos(agencia_data):
-    st.header("💸 Gestión de Gastos")
+    render_encabezado_principal("💸 Gestión de Gastos")
     u_id = agencia_data['user_id']
     ag_nombre = agencia_data['nombre_agencia']
 
@@ -342,7 +390,7 @@ def modulo_gastos(agencia_data):
 
     if not cerrado:
         with st.container(border=True):
-            st.subheader("📝 Registrar Nuevo Gasto")
+            render_titulo_seccion("📝 Registrar Nuevo Gasto")
             with st.form("form_g", clear_on_submit=True):
                 c1, c2, c3 = st.columns([1, 1, 2])
                 fecha_g = c1.date_input("Fecha", value=fecha_filtro)
@@ -363,7 +411,7 @@ def modulo_gastos(agencia_data):
 
 
 def modulo_pagos(agencia_data):
-    st.header("💰 Recepción de Pagos")
+    render_encabezado_principal("💰 Recepción de Pagos")
     u_id = agencia_data['user_id']
     ag_nombre = agencia_data['nombre_agencia']
 
@@ -397,7 +445,7 @@ def modulo_pagos(agencia_data):
 
     if not cerrado:
         with st.container(border=True):
-            st.subheader("📝 Registrar Nuevo Pago")
+            render_titulo_seccion("📝 Registrar Nuevo Pago")
             with st.form("form_p", clear_on_submit=True):
                 c1, c2, c3 = st.columns([1, 1, 2])
                 fecha_pg = c1.date_input("Fecha", value=fecha_filtro)
@@ -417,8 +465,8 @@ def modulo_pagos(agencia_data):
 
 
 def modulo_reporte_rango(agencia_data):
-    st.header("📊 Reporte por Rango de Fechas")
-    st.markdown(f"**Terminal:** {agencia_data['nombre_agencia']}")
+    render_encabezado_principal("📊 Reporte por Rango de Fechas")
+    render_subtitulo_terminal(agencia_data['nombre_agencia'])
     u_id = agencia_data['user_id']
 
     hoy = datetime.now().date()
@@ -454,7 +502,7 @@ def modulo_reporte_rango(agencia_data):
     except Exception as e:
         st.error(f"Error: {e}"); return
 
-    st.subheader("📈 Resumen General")
+    render_titulo_seccion("📈 Resumen General")
     tv = float(df_v['monto_venta'].sum()) if not df_v.empty else 0
     tc = float(df_v['comision'].sum()) if not df_v.empty else 0
     tp = float(df_v['monto_premios'].sum()) if not df_v.empty else 0
@@ -462,16 +510,10 @@ def modulo_reporte_rango(agencia_data):
     tpg = float(df_p['monto'].sum()) if not df_p.empty else 0
     saldo_calculado = tv - tc - tp - tg - tpg
 
-    c1, c2, c3, c4, c5, c6 = st.columns(6)
-    c1.metric("Ventas", f"${tv:,.2f}")
-    c2.metric("Comisión", f"${tc:,.2f}")
-    c3.metric("Premios", f"${tp:,.2f}")
-    c4.metric("Gastos", f"${tg:,.2f}")
-    c5.metric("Pagos", f"${tpg:,.2f}")
-    c6.metric("Saldo", f"${saldo_calculado:,.2f}")
+    render_tarjetas_metricas(tv, tc, tp, tg, tpg, saldo_calculado)
     st.divider()
 
-    st.subheader("📋 Detalle por Día")
+    render_titulo_seccion("📋 Detalle por Día")
     if not df_v.empty:
         cols = ["fecha", "sistema", "monto_venta", "comision", "monto_premios"]
         cols = [c for c in cols if c in df_v.columns]
@@ -533,7 +575,7 @@ def modulo_reporte_rango(agencia_data):
 
 
 def modulo_cierre_diario(agencia_data):
-    st.header("🔒 Cierre Diario")
+    render_encabezado_principal("🔒 Cierre Diario")
     u_id = agencia_data['user_id']
     nom = agencia_data['nombre_agencia']
     es_supervisor = st.session_state.get("cajero_actual", {}).get("rol", "") == "supervisor"
@@ -570,17 +612,12 @@ def modulo_cierre_diario(agencia_data):
     t_pagos = float(df_pg['monto'].sum()) if not df_pg.empty else 0
     t_saldo = t_venta - t_comis - t_premios - t_gastos - t_pagos
 
-    st.subheader(f"📊 Resumen del {fecha_sel}")
-    c1, c2, c3, c4, c5, c6 = st.columns(6)
-    c1.metric("Ventas", f"${t_venta:,.2f}")
-    c2.metric("Comisión", f"${t_comis:,.2f}")
-    c3.metric("Premios", f"${t_premios:,.2f}")
-    c4.metric("Gastos", f"${t_gastos:,.2f}")
-    c5.metric("Pagos", f"${t_pagos:,.2f}")
-    c6.metric("Saldo", f"${t_saldo:,.2f}")
+    render_titulo_seccion(f"📊 Resumen del {fecha_sel}")
+    render_tarjetas_metricas(t_venta, t_comis, t_premios, t_gastos, t_pagos, t_saldo)
 
     if not df_v.empty:
-        with st.expander("📋 Detalle por Sistema", expanded=True):
+        render_titulo_seccion("📋 Detalle por Sistema")
+        with st.expander("📋 Ver Detalle por Sistema", expanded=True):
             cols = ["sistema", "monto_venta", "comision", "monto_premios"]
             cols = [c for c in cols if c in df_v.columns]
             st.dataframe(df_v[cols], use_container_width=True, hide_index=True)
@@ -606,7 +643,7 @@ def modulo_cierre_diario(agencia_data):
 
 
 def modulo_premios_tickets(agencia_data):
-    st.header("🎟️ Tickets Premiados")
+    render_encabezado_principal("🎟️ Tickets Premiados")
     rol_actual = st.session_state.get("cajero_actual", {}).get("rol", "cajero")
     es_supervisor = (rol_actual == "supervisor")
     u_id_real = str(st.session_state.get("cajero_actual", {}).get("id", agencia_data['user_id']))
@@ -844,8 +881,8 @@ def modulo_premios_tickets(agencia_data):
 
 
 def modulo_reporte_diario(agencia_data):
-    st.header("📆 Reporte Detallado por Día")
-    st.markdown(f"**Terminal:** {agencia_data['nombre_agencia']}")
+    render_encabezado_principal("📆 Reporte Detallado por Día")
+    render_subtitulo_terminal(agencia_data['nombre_agencia'])
     u_id = agencia_data['user_id']
 
     if "fecha_reporte_dia" not in st.session_state:
@@ -880,15 +917,10 @@ def modulo_reporte_diario(agencia_data):
     t_pagos = float(df_p['monto'].sum()) if not df_p.empty else 0.0
     t_saldo = t_venta - t_comis - t_premios - t_gastos - t_pagos
 
-    m1, m2, m3, m4, m5, m6 = st.columns(6)
-    m1.metric("Ventas", f"${t_venta:,.2f}")
-    m2.metric("Comision", f"${t_comis:,.2f}")
-    m3.metric("Premios", f"${t_premios:,.2f}")
-    m4.metric("Gastos", f"${t_gastos:,.2f}")
-    m5.metric("Pagos", f"${t_pagos:,.2f}")
-    m6.metric("Saldo", f"${t_saldo:,.2f}")
+    render_tarjetas_metricas(t_venta, t_comis, t_premios, t_gastos, t_pagos, t_saldo)
 
-    with st.expander("📋 Detalle por Sistema", expanded=True):
+    render_titulo_seccion("📋 Detalle por Sistema")
+    with st.expander("📋 Ver Detalle por Sistema", expanded=True):
         if not df_v.empty:
             cols = ["sistema", "monto_venta", "comision", "monto_premios"]
             cols = [c for c in cols if c in df_v.columns]

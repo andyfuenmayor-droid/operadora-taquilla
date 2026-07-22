@@ -1275,7 +1275,6 @@ if not st.session_state.taquilla_autenticada:
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
 
-        /* Apply font to everything on login page */
         :root, .stApp {
             --primary-color: #6366f1 !important;
             --background-color: #080c14 !important;
@@ -1284,50 +1283,62 @@ if not st.session_state.taquilla_autenticada:
             font-family: 'Plus Jakarta Sans', sans-serif !important;
         }
 
-        [data-testid="stHeader"], [data-testid="stSidebar"], [data-testid="collapsedControl"] {
+        [data-testid="stHeader"], 
+        [data-testid="stSidebar"], 
+        [data-testid="collapsedControl"],
+        footer, 
+        [data-testid="stDecoration"] {
             display: none !important;
         }
 
-        footer, [data-testid="stDecoration"] {
-            display: none !important;
-        }
-
-        .stApp, [data-testid="stAppViewContainer"], section.main, .main {
+        html, body, .stApp, [data-testid="stAppViewContainer"], section.main, .main {
             background-color: #080c14 !important;
             background-image: 
-                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.18) 0px, transparent 50%),
-                radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.15) 0px, transparent 50%),
+                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.12) 0px, transparent 50%),
                 radial-gradient(at 50% 100%, rgba(244, 63, 94, 0.05) 0px, transparent 50%) !important;
             background-size: cover !important;
             min-height: 100vh !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: center !important;
+            align-items: center !important;
+            margin: 0 !important;
+            padding: 0 !important;
         }
 
         [data-testid="stBlockContainer"],
         [data-testid="stAppViewBlockContainer"],
-        [data-testid="stVerticalBlock"],
-        [data-testid="stVerticalBlockBorderWrapper"],
         .block-container {
-            max-width: 585px !important;
-            padding-top: 4rem !important;
-            padding-bottom: 4rem !important;
-            margin: 0 auto !important;
+            max-width: 420px !important;
+            width: 100% !important;
+            padding: 1rem !important;
+            margin: auto !important;
             background: transparent !important;
-            background-color: transparent !important;
             border: none !important;
             box-shadow: none !important;
-            outline: none !important;
+        }
+
+        [data-testid="stVerticalBlock"],
+        [data-testid="stVerticalBlockBorderWrapper"],
+        [data-testid="stElementContainer"] {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
         }
 
         [data-testid="stForm"] {
-            background-color: rgba(15, 23, 42, 0.75) !important;
-            backdrop-filter: blur(24px) !important;
-            -webkit-backdrop-filter: blur(24px) !important;
-            border: 1px solid rgba(255, 255, 255, 0.08) !important;
-            border-radius: 24px !important;
-            padding: 2.5rem 2rem !important;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6) !important;
+            background: rgba(15, 23, 42, 0.85) !important;
+            backdrop-filter: blur(20px) !important;
+            -webkit-backdrop-filter: blur(20px) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            border-radius: 18px !important;
+            padding: 1.75rem 1.5rem !important;
+            box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
             width: 100% !important;
-            max-width: 533px !important;
+            max-width: 390px !important;
             margin: 0 auto !important;
         }
 
@@ -1335,76 +1346,81 @@ if not st.session_state.taquilla_autenticada:
             background: transparent !important;
             border: none !important;
             box-shadow: none !important;
+            padding: 0 !important;
         }
 
         [data-testid="stForm"] > div {
-            gap: 1.25rem !important;
+            gap: 0.85rem !important;
         }
 
-        /* Style Labels */
         [data-testid="stWidgetLabel"] p {
             color: #94a3b8 !important;
             font-weight: 600 !important;
-            font-size: 0.75rem !important;
-            letter-spacing: 0.05em !important;
+            font-size: 0.72rem !important;
+            letter-spacing: 0.04em !important;
             text-transform: uppercase !important;
-            margin-bottom: 0.35rem !important;
+            margin-bottom: 0.25rem !important;
         }
 
-        /* Style Inputs (Selectbox, Text, Number, Date) */
         div[data-baseweb="input"],
         div[data-baseweb="input"] > div,
         div[data-baseweb="input"] input {
             background-color: #0f172a !important;
             color: #f8fafc !important;
-            border-color: rgba(255, 255, 255, 0.08) !important;
+            border-color: rgba(255, 255, 255, 0.1) !important;
             border-radius: 10px !important;
         }
 
         div[data-baseweb="input"]:focus-within {
             border-color: #6366f1 !important;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25) !important;
         }
 
         input {
             color: #f8fafc !important;
-            font-size: 0.95rem !important;
+            font-size: 0.9rem !important;
         }
 
-        /* Style Submit Button */
         [data-testid="stFormSubmitButton"] button {
             width: 100% !important;
             background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%) !important;
             color: #ffffff !important;
             border: none !important;
-            padding: 0.75rem 1.5rem !important;
-            border-radius: 12px !important;
-            font-size: 0.95rem !important;
+            padding: 0.65rem 1.25rem !important;
+            border-radius: 10px !important;
+            font-size: 0.9rem !important;
             font-weight: 600 !important;
-            transition: all 0.25s ease-in-out !important;
+            transition: all 0.2s ease-in-out !important;
             box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35) !important;
-            margin-top: 0.5rem !important;
+            margin-top: 0.35rem !important;
         }
 
         [data-testid="stFormSubmitButton"] button:hover {
             background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%) !important;
-            box-shadow: 0 6px 18px rgba(99, 102, 241, 0.5) !important;
+            box-shadow: 0 6px 16px rgba(99, 102, 241, 0.5) !important;
             transform: translateY(-1px) !important;
-        }
-
-        [data-testid="stFormSubmitButton"] button:active {
-            transform: translateY(1px) !important;
         }
 
         [data-testid="stNotification"] {
             background-color: rgba(239, 68, 68, 0.1) !important;
             border: 1px solid rgba(239, 68, 68, 0.2) !important;
-            border-radius: 12px !important;
-            margin-top: 1rem !important;
+            border-radius: 10px !important;
+            margin-top: 0.75rem !important;
         }
 
         [data-testid="stNotification"] p {
             color: #fca5a5 !important;
-            font-size: 0.9rem !important;
+            font-size: 0.85rem !important;
+        }
+
+        @media (max-width: 480px) {
+            [data-testid="stBlockContainer"], .block-container {
+                padding: 0.5rem !important;
+            }
+            [data-testid="stForm"] {
+                padding: 1.35rem 1.1rem !important;
+                border-radius: 14px !important;
+            }
         }
         </style>
         """
@@ -1413,7 +1429,6 @@ if not st.session_state.taquilla_autenticada:
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
 
-        /* Apply font to everything on login page */
         :root, .stApp {
             --primary-color: #4f46e5 !important;
             --background-color: #f8fafc !important;
@@ -1422,48 +1437,60 @@ if not st.session_state.taquilla_autenticada:
             font-family: 'Plus Jakarta Sans', sans-serif !important;
         }
 
-        [data-testid="stHeader"], [data-testid="stSidebar"], [data-testid="collapsedControl"] {
+        [data-testid="stHeader"], 
+        [data-testid="stSidebar"], 
+        [data-testid="collapsedControl"],
+        footer, 
+        [data-testid="stDecoration"] {
             display: none !important;
         }
 
-        footer, [data-testid="stDecoration"] {
-            display: none !important;
-        }
-
-        .stApp, [data-testid="stAppViewContainer"], section.main, .main {
+        html, body, .stApp, [data-testid="stAppViewContainer"], section.main, .main {
             background-color: #f8fafc !important;
             background-image: 
-                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.04) 0px, transparent 50%),
-                radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.03) 0px, transparent 50%),
-                radial-gradient(at 50% 100%, rgba(244, 63, 94, 0.01) 0px, transparent 50%) !important;
+                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.05) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.04) 0px, transparent 50%),
+                radial-gradient(at 50% 100%, rgba(244, 63, 94, 0.02) 0px, transparent 50%) !important;
             background-size: cover !important;
             min-height: 100vh !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: center !important;
+            align-items: center !important;
+            margin: 0 !important;
+            padding: 0 !important;
         }
 
         [data-testid="stBlockContainer"],
         [data-testid="stAppViewBlockContainer"],
-        [data-testid="stVerticalBlock"],
-        [data-testid="stVerticalBlockBorderWrapper"],
         .block-container {
-            max-width: 585px !important;
-            padding-top: 4rem !important;
-            padding-bottom: 4rem !important;
-            margin: 0 auto !important;
+            max-width: 420px !important;
+            width: 100% !important;
+            padding: 1rem !important;
+            margin: auto !important;
             background: transparent !important;
-            background-color: transparent !important;
             border: none !important;
             box-shadow: none !important;
-            outline: none !important;
+        }
+
+        [data-testid="stVerticalBlock"],
+        [data-testid="stVerticalBlockBorderWrapper"],
+        [data-testid="stElementContainer"] {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
         }
 
         [data-testid="stForm"] {
             background-color: #ffffff !important;
             border: 1px solid rgba(15, 23, 42, 0.08) !important;
-            border-radius: 24px !important;
-            padding: 2.5rem 2rem !important;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+            border-radius: 18px !important;
+            padding: 1.75rem 1.5rem !important;
+            box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.07), 0 5px 15px -5px rgba(0, 0, 0, 0.04) !important;
             width: 100% !important;
-            max-width: 533px !important;
+            max-width: 390px !important;
             margin: 0 auto !important;
         }
 
@@ -1471,23 +1498,22 @@ if not st.session_state.taquilla_autenticada:
             background: transparent !important;
             border: none !important;
             box-shadow: none !important;
+            padding: 0 !important;
         }
 
         [data-testid="stForm"] > div {
-            gap: 1.25rem !important;
+            gap: 0.85rem !important;
         }
 
-        /* Style Labels */
         [data-testid="stWidgetLabel"] p {
             color: #475569 !important;
             font-weight: 600 !important;
-            font-size: 0.75rem !important;
-            letter-spacing: 0.05em !important;
+            font-size: 0.72rem !important;
+            letter-spacing: 0.04em !important;
             text-transform: uppercase !important;
-            margin-bottom: 0.35rem !important;
+            margin-bottom: 0.25rem !important;
         }
 
-        /* Style Inputs */
         div[data-baseweb="input"],
         div[data-baseweb="input"] > div,
         div[data-baseweb="input"] input {
@@ -1499,48 +1525,54 @@ if not st.session_state.taquilla_autenticada:
 
         div[data-baseweb="input"]:focus-within {
             border-color: #4f46e5 !important;
+            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.15) !important;
         }
 
         input {
             color: #0f172a !important;
-            font-size: 0.95rem !important;
+            font-size: 0.9rem !important;
         }
 
-        /* Style Submit Button */
         [data-testid="stFormSubmitButton"] button {
             width: 100% !important;
             background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%) !important;
             color: #ffffff !important;
             border: none !important;
-            padding: 0.75rem 1.5rem !important;
-            border-radius: 12px !important;
-            font-size: 0.95rem !important;
+            padding: 0.65rem 1.25rem !important;
+            border-radius: 10px !important;
+            font-size: 0.9rem !important;
             font-weight: 600 !important;
-            transition: all 0.25s ease-in-out !important;
+            transition: all 0.2s ease-in-out !important;
             box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2) !important;
-            margin-top: 0.5rem !important;
+            margin-top: 0.35rem !important;
         }
 
         [data-testid="stFormSubmitButton"] button:hover {
             background: linear-gradient(90deg, #4338ca 0%, #6d28d9 100%) !important;
-            box-shadow: 0 6px 18px rgba(79, 70, 229, 0.3) !important;
+            box-shadow: 0 6px 16px rgba(79, 70, 229, 0.3) !important;
             transform: translateY(-1px) !important;
-        }
-
-        [data-testid="stFormSubmitButton"] button:active {
-            transform: translateY(1px) !important;
         }
 
         [data-testid="stNotification"] {
             background-color: #fef2f2 !important;
             border: 1px solid #fee2e2 !important;
-            border-radius: 12px !important;
-            margin-top: 1rem !important;
+            border-radius: 10px !important;
+            margin-top: 0.75rem !important;
         }
 
         [data-testid="stNotification"] p {
             color: #991b1b !important;
-            font-size: 0.9rem !important;
+            font-size: 0.85rem !important;
+        }
+
+        @media (max-width: 480px) {
+            [data-testid="stBlockContainer"], .block-container {
+                padding: 0.5rem !important;
+            }
+            [data-testid="stForm"] {
+                padding: 1.35rem 1.1rem !important;
+                border-radius: 14px !important;
+            }
         }
         </style>
         """
@@ -1552,13 +1584,13 @@ if not st.session_state.taquilla_autenticada:
     with st.form("login_form", clear_on_submit=False):
         st.markdown(
             f"""
-            <div style="text-align: center; margin-bottom: 1.5rem;">
-                <div style="font-size: 3rem; margin-bottom: 0.5rem;">🔐</div>
-                <h2 style="color: {color_titulo}; font-size: 1.75rem; font-weight: 700; margin: 0; letter-spacing: -0.025em; line-height: 1.25;">
+            <div style="text-align: center; margin-bottom: 1rem;">
+                <div style="font-size: 2.25rem; margin-bottom: 0.25rem;">🔐</div>
+                <h2 style="color: {color_titulo}; font-size: 1.4rem; font-weight: 700; margin: 0; letter-spacing: -0.02em; line-height: 1.2;">
                     Taquilla POS
                 </h2>
-                <p style="color: {color_subtitulo}; font-size: 0.875rem; margin-top: 0.25rem; font-weight: 400;">
-                    Acceso
+                <p style="color: {color_subtitulo}; font-size: 0.8rem; margin-top: 0.2rem; font-weight: 400;">
+                    Acceso al sistema
                 </p>
             </div>
             """, 

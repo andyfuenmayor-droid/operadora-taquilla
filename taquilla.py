@@ -1304,61 +1304,58 @@ if not st.session_state.taquilla_autenticada:
             overflow: hidden !important;
         }
 
-        /* 🚀 SUPERIOR OVERRIDE: Eliminar cualquier borde o fondo de contenedores padre */
-        div[data-testid="stBlockContainer"],
+        /* 🚀 NUCLEAR RESET: Eliminar cualquier estilo residual de TODAS las cajas de Streamlit */
         div.block-container,
-        div[data-testid="stVerticalBlockBorderWrapper"],
-        div[data-testid="stVerticalBlock"],
-        div[data-testid="stElementContainer"] {
+        div.block-container div {
             background: transparent !important;
+            background-color: transparent !important;
             border: none !important;
             box-shadow: none !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            width: 100% !important;
-            max-width: 100% !important;
+            outline: none !important;
         }
 
-        /* 🎯 TARJETA (LOGIN MODAL) AISLADA Y CENTRADA */
+        /* 🎯 TARJETA (LOGIN MODAL) AISLADA Y COMPACTA */
         [data-testid="stForm"] {
             background: rgba(15, 23, 42, 0.85) !important;
+            background-color: rgba(15, 23, 42, 0.85) !important;
             backdrop-filter: blur(20px) !important;
             -webkit-backdrop-filter: blur(20px) !important;
             border: 1px solid rgba(255, 255, 255, 0.1) !important;
             border-radius: 20px !important;
-            padding: 2.25rem 1.75rem !important;
+            padding: 1.5rem 1.5rem !important; /* Reducido para quitar altura innecesaria */
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
             
-            /* Posicionamiento absoluto centrado perfecto (ignora Streamlit layout) */
+            /* Posicionamiento absoluto y restricción de altura (quitamos 50% de alto sobrante) */
             position: fixed !important;
             top: 50% !important;
             left: 50% !important;
             transform: translate(-50%, -50%) !important;
             width: 90% !important;
-            max-width: 380px !important;
+            max-width: 360px !important;
+            height: fit-content !important;
+            min-height: 0 !important;
+            margin: 0 !important;
             z-index: 99999 !important;
         }
 
-        [data-testid="stForm"] form {
-            background: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-        }
-
+        /* Re-aplicar estilos específicos a la estructura interna para evitar que el reseteo nuclear los rompa */
+        [data-testid="stForm"] form,
         [data-testid="stForm"] > div {
-            gap: 1rem !important;
+            gap: 0.75rem !important;
+            margin: 0 !important;
+            padding: 0 !important;
         }
 
         [data-testid="stWidgetLabel"] p {
             color: #94a3b8 !important;
             font-weight: 600 !important;
-            font-size: 0.75rem !important;
+            font-size: 0.7rem !important;
             letter-spacing: 0.04em !important;
             text-transform: uppercase !important;
-            margin-bottom: 0.3rem !important;
+            margin-bottom: 0.2rem !important;
         }
 
+        /* Re-aplicar estilos a los inputs que fueron limpiados por el override superior */
         div[data-baseweb="input"],
         div[data-baseweb="input"] > div,
         div[data-baseweb="input"] input {
@@ -1385,15 +1382,16 @@ if not st.session_state.taquilla_autenticada:
         [data-testid="stFormSubmitButton"] button {
             width: 100% !important;
             background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%) !important;
+            background-color: #6366f1 !important;
             color: #ffffff !important;
             border: none !important;
-            padding: 0.75rem 1.25rem !important;
+            padding: 0.6rem 1.25rem !important;
             border-radius: 12px !important;
             font-size: 0.95rem !important;
             font-weight: 600 !important;
             transition: all 0.2s ease-in-out !important;
             box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35) !important;
-            margin-top: 0.5rem !important;
+            margin-top: 0.25rem !important;
         }
 
         [data-testid="stFormSubmitButton"] button:hover {
@@ -1406,20 +1404,12 @@ if not st.session_state.taquilla_autenticada:
             background-color: rgba(239, 68, 68, 0.1) !important;
             border: 1px solid rgba(239, 68, 68, 0.2) !important;
             border-radius: 12px !important;
-            margin-top: 1rem !important;
+            margin-top: 0.5rem !important;
         }
 
         [data-testid="stNotification"] p {
             color: #fca5a5 !important;
             font-size: 0.85rem !important;
-        }
-
-        @media (max-width: 480px) {
-            [data-testid="stForm"] {
-                padding: 1.75rem 1.25rem !important;
-                border-radius: 16px !important;
-                width: 92% !important;
-            }
         }
         </style>
         """
@@ -1457,27 +1447,23 @@ if not st.session_state.taquilla_autenticada:
             overflow: hidden !important;
         }
 
-        /* 🚀 SUPERIOR OVERRIDE */
-        div[data-testid="stBlockContainer"],
+        /* 🚀 NUCLEAR RESET: Eliminar cualquier estilo residual de TODAS las cajas de Streamlit */
         div.block-container,
-        div[data-testid="stVerticalBlockBorderWrapper"],
-        div[data-testid="stVerticalBlock"],
-        div[data-testid="stElementContainer"] {
+        div.block-container div {
             background: transparent !important;
+            background-color: transparent !important;
             border: none !important;
             box-shadow: none !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            width: 100% !important;
-            max-width: 100% !important;
+            outline: none !important;
         }
 
-        /* 🎯 TARJETA (LOGIN MODAL) AISLADA */
+        /* 🎯 TARJETA (LOGIN MODAL) AISLADA Y COMPACTA */
         [data-testid="stForm"] {
+            background: #ffffff !important;
             background-color: #ffffff !important;
             border: 1px solid rgba(15, 23, 42, 0.08) !important;
             border-radius: 20px !important;
-            padding: 2.25rem 1.75rem !important;
+            padding: 1.5rem 1.5rem !important;
             box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.1), 0 10px 20px -5px rgba(0, 0, 0, 0.05) !important;
             
             position: fixed !important;
@@ -1485,28 +1471,27 @@ if not st.session_state.taquilla_autenticada:
             left: 50% !important;
             transform: translate(-50%, -50%) !important;
             width: 90% !important;
-            max-width: 380px !important;
+            max-width: 360px !important;
+            height: fit-content !important;
+            min-height: 0 !important;
+            margin: 0 !important;
             z-index: 99999 !important;
         }
 
-        [data-testid="stForm"] form {
-            background: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-        }
-
+        [data-testid="stForm"] form,
         [data-testid="stForm"] > div {
-            gap: 1rem !important;
+            gap: 0.75rem !important;
+            margin: 0 !important;
+            padding: 0 !important;
         }
 
         [data-testid="stWidgetLabel"] p {
             color: #475569 !important;
             font-weight: 600 !important;
-            font-size: 0.75rem !important;
+            font-size: 0.7rem !important;
             letter-spacing: 0.04em !important;
             text-transform: uppercase !important;
-            margin-bottom: 0.3rem !important;
+            margin-bottom: 0.2rem !important;
         }
 
         div[data-baseweb="input"],
@@ -1535,15 +1520,16 @@ if not st.session_state.taquilla_autenticada:
         [data-testid="stFormSubmitButton"] button {
             width: 100% !important;
             background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%) !important;
+            background-color: #4f46e5 !important;
             color: #ffffff !important;
             border: none !important;
-            padding: 0.75rem 1.25rem !important;
+            padding: 0.6rem 1.25rem !important;
             border-radius: 12px !important;
             font-size: 0.95rem !important;
             font-weight: 600 !important;
             transition: all 0.2s ease-in-out !important;
             box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2) !important;
-            margin-top: 0.5rem !important;
+            margin-top: 0.25rem !important;
         }
 
         [data-testid="stFormSubmitButton"] button:hover {
@@ -1556,20 +1542,12 @@ if not st.session_state.taquilla_autenticada:
             background-color: #fef2f2 !important;
             border: 1px solid #fee2e2 !important;
             border-radius: 12px !important;
-            margin-top: 1rem !important;
+            margin-top: 0.5rem !important;
         }
 
         [data-testid="stNotification"] p {
             color: #991b1b !important;
             font-size: 0.85rem !important;
-        }
-
-        @media (max-width: 480px) {
-            [data-testid="stForm"] {
-                padding: 1.75rem 1.25rem !important;
-                border-radius: 16px !important;
-                width: 92% !important;
-            }
         }
         </style>
         """

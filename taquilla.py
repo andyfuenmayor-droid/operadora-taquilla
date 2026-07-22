@@ -516,14 +516,18 @@ def modulo_gestion_bancaria(agencia_data):
                 c_idx = idx % min(len(df_cuentas), 3)
                 banco = str(row.get("banco", "Banco")).upper()
                 titular = str(row.get("titular", "N/A"))
+                doc_titular = str(row.get("documento_titular") or row.get("doc_titular") or row.get("rif") or row.get("cedula") or "").strip().upper()
                 num_cuenta = str(row.get("numero_cuenta") or row.get("identificador") or row.get("email") or "N/A")
                 moneda = str(row.get("moneda", "USD")).upper()
                 metodos = str(row.get("metodos_aceptados") or row.get("tipo_cuenta") or "General")
+
+                doc_html = f'<div style="font-size: 12px; color: {sub_color}; margin-bottom: 4px;"><b>RIF/Cédula:</b> {doc_titular}</div>' if doc_titular and doc_titular != "N/A" else ""
 
                 card_html = f"""
                 <div style="background: {card_bg}; border: 1px solid {card_border}; border-radius: 12px; padding: 14px; margin-bottom: 12px;">
                     <div style="font-size: 15px; font-weight: 700; color: {title_color}; margin-bottom: 6px;">🏦 {banco} ({moneda})</div>
                     <div style="font-size: 13px; color: {sub_color}; margin-bottom: 4px;"><b>Titular:</b> {titular}</div>
+                    {doc_html}
                     <div style="font-size: 12px; color: {sub_color}; margin-bottom: 4px;"><b>Cuenta/ID:</b> <span style="font-family: monospace; font-size: 12px; color: #f59e0b; font-weight: 600;">{num_cuenta}</span></div>
                     <div style="font-size: 11px; color: #94a3b8; margin-top: 4px;"><b>Métodos:</b> {metodos}</div>
                 </div>
@@ -531,7 +535,7 @@ def modulo_gestion_bancaria(agencia_data):
                 cols_c[c_idx].markdown(card_html, unsafe_allow_html=True)
 
             st.markdown("<br>", unsafe_allow_html=True)
-            cols_show = [c for c in ["banco", "titular", "numero_cuenta", "moneda", "tipo_cuenta", "estado"] if c in df_cuentas.columns]
+            cols_show = [c for c in ["banco", "titular", "documento_titular", "numero_cuenta", "moneda", "tipo_cuenta", "estado"] if c in df_cuentas.columns]
             if cols_show:
                 st.dataframe(df_cuentas[cols_show], use_container_width=True, hide_index=True)
         else:

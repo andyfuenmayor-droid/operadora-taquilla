@@ -489,7 +489,8 @@ def modulo_gestion_bancaria(agencia_data):
         df_cuentas = pd.DataFrame(res_c.data or [])
         if not df_cuentas.empty:
             df_cuentas.columns = [c.lower() for c in df_cuentas.columns]
-    except Exception:
+    except Exception as e:
+        st.error(f"⚠️ Error al consultar la tabla 'cuentas_bancarias' en Supabase: {e}")
         df_cuentas = pd.DataFrame()
 
     # Cargar Puntos de Venta (POS) asociados

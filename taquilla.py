@@ -484,22 +484,30 @@ def modulo_gestion_bancaria(agencia_data):
     ])
 
     # Cargar cuentas bancarias creadas por el Admin desde Supabase
+    err_cuentas = None
     try:
         res_c = supabase.table("cuentas_bancarias").select("*").execute()
         df_cuentas = pd.DataFrame(res_c.data or [])
         if not df_cuentas.empty:
             df_cuentas.columns = [c.lower() for c in df_cuentas.columns]
-    except Exception:
+            if "user_id" in df_cuentas.columns and u_id:
+                df_cuentas = df_cuentas[df_cuentas["user_id"].astype(str).str.strip() == str(u_id).strip()]
+            if "estatus" in df_cuentas.columns:
+                df_cuentas = df_cuentas[df_cuentas["estatus"].astype(str).str.upper().str.strip().isin(["ACTIVA", "ACTIVE", "TRUE", "1", ""])]
+    except Exception as e:
         df_cuentas = pd.DataFrame()
+        err_cuentas = str(e)
 
     # Cargar Puntos de Venta (POS) asociados
+    err_pos = None
     try:
         res_pos = supabase.table("puntos_venta").select("*").eq("agencia", ag_nombre).execute()
         df_pos = pd.DataFrame(res_pos.data or [])
         if not df_pos.empty:
             df_pos.columns = [c.lower() for c in df_pos.columns]
-    except Exception:
+    except Exception as e:
         df_pos = pd.DataFrame()
+        err_pos = str(e)
 
     # ==================== TAB 1: CUENTAS BANCARIAS ADMIN ====================
     with tab1:
@@ -507,35 +515,56 @@ def modulo_gestion_bancaria(agencia_data):
         if not df_cuentas.empty:
             cols_c = st.columns(min(len(df_cuentas), 3))
             is_dark = st.session_state.get("tema_oscuro", True)
-            card_bg = "rgba(30, 41, 59, 0.6)" if is_dark else "#f8fafc"
-            card_border = "rgba(99, 102, 241, 0.2)" if is_dark else "#cbd5e1"
+            
             title_color = "#38bdf8" if is_dark else "#0284c7"
-            sub_color = "#cbd5e1" if is_dark else "#334155"
+            sub_color = "#e2e8f0" if is_dark else "#1e293b"
+            label_color = "#94a3b8" if is_dark else "#64748b"
 
             for idx, (_, row) in enumerate(df_cuentas.iterrows()):
                 c_idx = idx % min(len(df_cuentas), 3)
-                banco = str(row.get("banco", "Banco")).upper()
-                titular = str(row.get("titular", "N/A"))
-                num_cuenta = str(row.get("numero_cuenta") or row.get("identificador") or row.get("email") or "N/A")
-                moneda = str(row.get("moneda", "USD")).upper()
-                metodos = str(row.get("metodos_aceptados") or row.get("tipo_cuenta") or "General")
+                with cols_c[c_idx]:
+                    banco = str(row.get("banco", "Banco")).upper()
+                    titular = str(row.get("titular", "N/A")).upper()
+                    doc_titular = str(row.get("documento_titular") or row.get("doc_titular") or "").upper()
+                    num_cuenta = str(row.get("numero_cuenta") or row.get("identificador") or row.get("email") or "N/A")
+                    moneda = str(row.get("moneda", "USD")).upper()
+                    metodos = str(row.get("metodos_aceptados") or row.get("tipo_cuenta") or "General").upper()
 
-                card_html = f"""
-                <div style="background: {card_bg}; border: 1px solid {card_border}; border-radius: 12px; padding: 14px; margin-bottom: 12px;">
-                    <div style="font-size: 15px; font-weight: 700; color: {title_color}; margin-bottom: 4px;">🏦 {banco} ({moneda})</div>
-                    <div style="font-size: 13px; color: {sub_color};"><b>Titular:</b> {titular}</div>
-                    <div style="font-size: 12px; color: {sub_color}; margin-top: 2px;"><b>Cuenta/ID:</b> <code style="font-size: 11px;">{num_cuenta}</code></div>
-                    <div style="font-size: 11px; color: #94a3b8; margin-top: 6px;"><b>Métodos:</b> {metodos}</div>
-                </div>
-                """
-                cols_c[c_idx].markdown(card_html, unsafe_allow_html=True)
+                    with st.container(border=True):
+                        st.markdown(f"""
+                        <div style="font-size: 15px; font-weight: 700; color: {title_color}; margin-bottom: 8px;">
+                            🏦 {banco} <span style="font-size: 11px; background: rgba(56, 189, 248, 0.15); padding: 2px 6px; border-radius: 4px; color: {title_color}; font-weight: 600;">({moneda})</span>
+                        </div>
+                        <div style="font-size: 13px; color: {sub_color}; margin-bottom: 4px; line-height: 1.4;">
+                            <b style="color: {label_color};">Titular:</b> {titular}
+                        </div>
+                        {f'<div style="font-size: 13px; color: {sub_color}; margin-bottom: 4px; line-height: 1.4;"><b style="color: {label_color};">Doc:</b> {doc_titular}</div>' if doc_titular and doc_titular != "N/A" else ""}
+                        <div style="font-size: 13px; color: {sub_color}; margin-bottom: 4px; line-height: 1.4;">
+                            <b style="color: {label_color};">Cuenta/ID:</b> <span style="font-family: monospace; font-size: 13px; font-weight: 600; color: #f59e0b;">{num_cuenta}</span>
+                        </div>
+                        <div style="font-size: 12px; color: {sub_color}; margin-bottom: 8px; line-height: 1.4;">
+                            <b style="color: {label_color};">Método:</b> {metodos}
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        # Texto formateado listo para copiar con 1 clic para enviar al cliente
+                        txt_copiar = f"🏦 {banco} ({moneda})\n👤 Titular: {titular}"
+                        if doc_titular and doc_titular != "N/A":
+                            txt_copiar += f"\n🪪 Doc: {doc_titular}"
+                        txt_copiar += f"\n🔢 Cuenta/ID: {num_cuenta}\n📑 Tipo: {metodos}"
+
+                        st.caption("📋 Copiar para cliente:")
+                        st.code(txt_copiar, language=None)
 
             st.markdown("<br>", unsafe_allow_html=True)
-            cols_show = [c for c in ["banco", "titular", "numero_cuenta", "moneda", "tipo_cuenta", "estado"] if c in df_cuentas.columns]
+            cols_show = [c for c in ["banco", "titular", "documento_titular", "numero_cuenta", "moneda", "tipo_cuenta", "estatus", "estado"] if c in df_cuentas.columns]
             if cols_show:
                 st.dataframe(df_cuentas[cols_show], use_container_width=True, hide_index=True)
         else:
-            st.info("ℹ️ No hay cuentas bancarias registradas en el sistema por la administración.")
+            if err_cuentas:
+                st.error(f"🚨 Error de conexión o permisos con Supabase: `{err_cuentas}`")
+            else:
+                st.info("ℹ️ No hay cuentas bancarias registradas en el sistema por la administración.")
 
     # ==================== TAB 2: PUNTOS DE VENTA (POS) ====================
     with tab2:

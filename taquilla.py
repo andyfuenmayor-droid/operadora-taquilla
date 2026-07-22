@@ -514,15 +514,8 @@ def modulo_gestion_bancaria(agencia_data):
         render_titulo_seccion("🏦 Cuentas Bancarias Registradas por el Administrador")
         
         if not df_cuentas.empty:
-            is_dark = st.session_state.get("tema_oscuro", True)
-            card_bg = "rgba(30, 41, 59, 0.6)" if is_dark else "#ffffff"
-            card_border = "rgba(99, 102, 241, 0.25)" if is_dark else "#cbd5e1"
-            title_color = "#38bdf8" if is_dark else "#0284c7"
-            sub_color = "#e2e8f0" if is_dark else "#334155"
-            label_color = "#94a3b8" if is_dark else "#64748b"
-
-            # 1. Bloque global superior para copiar TODAS las cuentas a clientes
-            lineas_todas = ["🏦 *CUENTAS BANCARIAS REGISTRADAS PARA PAGO*\n"]
+            # 1. Bloque visible superior para copiar TODAS las cuentas con un clic (botón de portapapeles)
+            lineas_todas = []
             for _, r_acc in df_cuentas.iterrows():
                 b_n = str(r_acc.get("banco", "Banco")).upper()
                 t_n = str(r_acc.get("titular", "N/A")).upper()
@@ -531,52 +524,40 @@ def modulo_gestion_bancaria(agencia_data):
                 mon_n = str(r_acc.get("moneda", "USD")).upper()
                 met_n = str(r_acc.get("metodos_aceptados") or r_acc.get("tipo_cuenta") or "General").upper()
 
-                linea_acc = f"📌 *{b_n} ({mon_n})*\n👤 Titular: {t_n}"
+                linea_acc = f"🏦 {b_n} ({mon_n})\nTitular: {t_n}"
                 if d_n and d_n != "N/A":
-                    linea_acc += f"\n🪪 Doc/RIF: {d_n}"
-                linea_acc += f"\n🔢 Cuenta/ID: {num_n}\n📑 Método: {met_n}"
+                    linea_acc += f"\nDoc/RIF: {d_n}"
+                linea_acc += f"\nCuenta/ID: {num_n}\nMétodo: {met_n}"
                 lineas_todas.append(linea_acc)
             
             texto_completo_copiar = "\n\n-------------------------\n\n".join(lineas_todas)
 
-            with st.expander("📋 Copiar Todas las Cuentas (Para Enviar a Cliente en WhatsApp / Chat)", expanded=False):
-                st.code(texto_completo_copiar, language=None)
+            st.markdown("##### 📋 Copiar TODAS las Cuentas (Mensaje para Cliente):")
+            st.code(texto_completo_copiar, language=None)
 
             st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("##### 💳 Cuentas Individuales (Haz clic en el icono 📋 arriba a la derecha de cada recuadro para copiar):")
 
-            # 2. Tarjetas visuales limpias para cada cuenta bancaria
+            # 2. Recuadros individuales por cada cuenta con su propio botón de copiado al portapapeles (📋)
             cols_c = st.columns(min(len(df_cuentas), 3))
 
             for idx, (_, row) in enumerate(df_cuentas.iterrows()):
                 c_idx = idx % min(len(df_cuentas), 3)
-                banco = str(row.get("banco", "Banco")).upper()
-                titular = str(row.get("titular", "N/A")).upper()
-                doc_titular = str(row.get("documento_titular") or row.get("doc_titular") or "").upper()
-                num_cuenta = str(row.get("numero_cuenta") or row.get("identificador") or row.get("email") or "N/A")
-                moneda = str(row.get("moneda", "USD")).upper()
-                metodos = str(row.get("metodos_aceptados") or row.get("tipo_cuenta") or "General").upper()
+                with cols_c[c_idx]:
+                    banco = str(row.get("banco", "Banco")).upper()
+                    titular = str(row.get("titular", "N/A")).upper()
+                    doc_titular = str(row.get("documento_titular") or row.get("doc_titular") or "").upper()
+                    num_cuenta = str(row.get("numero_cuenta") or row.get("identificador") or row.get("email") or "N/A")
+                    moneda = str(row.get("moneda", "USD")).upper()
+                    metodos = str(row.get("metodos_aceptados") or row.get("tipo_cuenta") or "General").upper()
 
-                doc_html = f'''<div style="font-size: 13px; color: {sub_color}; margin-bottom: 6px; line-height: 1.5;"><b style="color: {label_color};">Doc/RIF:</b> {doc_titular}</div>''' if doc_titular and doc_titular != "N/A" else ""
+                    txt_individual = f"🏦 {banco} ({moneda})\nTitular: {titular}"
+                    if doc_titular and doc_titular != "N/A":
+                        txt_individual += f"\nDoc/RIF: {doc_titular}"
+                    txt_individual += f"\nCuenta/ID: {num_cuenta}\nMétodo: {metodos}"
 
-                card_html = f"""
-                <div style="background: {card_bg}; border: 1px solid {card_border}; border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-                    <div style="font-size: 16px; font-weight: 700; color: {title_color}; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
-                        <span>🏦 {banco}</span>
-                        <span style="font-size: 11px; background: rgba(56, 189, 248, 0.18); padding: 2px 8px; border-radius: 6px; color: {title_color}; font-weight: 700;">{moneda}</span>
-                    </div>
-                    <div style="font-size: 13px; color: {sub_color}; margin-bottom: 6px; line-height: 1.5;">
-                        <b style="color: {label_color};">Titular:</b> {titular}
-                    </div>
-                    {doc_html}
-                    <div style="font-size: 13px; color: {sub_color}; margin-bottom: 6px; line-height: 1.5;">
-                        <b style="color: {label_color};">Cuenta/ID:</b> <span style="font-family: monospace; font-size: 13px; font-weight: 700; color: #f59e0b; background: rgba(245, 158, 11, 0.1); padding: 2px 6px; border-radius: 4px;">{num_cuenta}</span>
-                    </div>
-                    <div style="font-size: 12px; color: {sub_color}; line-height: 1.5;">
-                        <b style="color: {label_color};">Método:</b> {metodos}
-                    </div>
-                </div>
-                """
-                cols_c[c_idx].markdown(card_html, unsafe_allow_html=True)
+                    st.markdown(f"**🏦 {banco} ({moneda})**")
+                    st.code(txt_individual, language=None)
 
             st.markdown("<br>", unsafe_allow_html=True)
             cols_show = [c for c in ["banco", "titular", "documento_titular", "numero_cuenta", "moneda", "tipo_cuenta", "estatus", "estado"] if c in df_cuentas.columns]

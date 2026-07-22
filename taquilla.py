@@ -1304,18 +1304,21 @@ if not st.session_state.taquilla_autenticada:
             overflow: hidden !important;
         }
 
-        /* 🚀 NUCLEAR RESET: Eliminar cualquier estilo residual de TODAS las cajas de Streamlit */
+        /* 🚀 RESET EXACTO: Eliminar bordes externos de Streamlit sin romper nuestra tarjeta */
         div.block-container,
-        div.block-container div {
+        div[data-testid="stVerticalBlockBorderWrapper"],
+        div[data-testid="stVerticalBlock"] {
             background: transparent !important;
             background-color: transparent !important;
             border: none !important;
             box-shadow: none !important;
             outline: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
         }
 
         /* 🎯 TARJETA (LOGIN MODAL) AISLADA Y COMPACTA */
-        [data-testid="stForm"] {
+        div[data-testid="stForm"] {
             background: rgba(15, 23, 42, 0.85) !important;
             background-color: rgba(15, 23, 42, 0.85) !important;
             backdrop-filter: blur(20px) !important;
@@ -1447,18 +1450,21 @@ if not st.session_state.taquilla_autenticada:
             overflow: hidden !important;
         }
 
-        /* 🚀 NUCLEAR RESET: Eliminar cualquier estilo residual de TODAS las cajas de Streamlit */
+        /* 🚀 RESET EXACTO: Eliminar bordes externos de Streamlit sin romper nuestra tarjeta */
         div.block-container,
-        div.block-container div {
+        div[data-testid="stVerticalBlockBorderWrapper"],
+        div[data-testid="stVerticalBlock"] {
             background: transparent !important;
             background-color: transparent !important;
             border: none !important;
             box-shadow: none !important;
             outline: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
         }
 
         /* 🎯 TARJETA (LOGIN MODAL) AISLADA Y COMPACTA */
-        [data-testid="stForm"] {
+        div[data-testid="stForm"] {
             background: #ffffff !important;
             background-color: #ffffff !important;
             border: 1px solid rgba(15, 23, 42, 0.08) !important;

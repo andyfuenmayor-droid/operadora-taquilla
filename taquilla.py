@@ -1270,337 +1270,46 @@ if "taquilla_autenticada" not in st.session_state:
     st.session_state.taquilla_autenticada = False
 
 if not st.session_state.taquilla_autenticada:
-    if st.session_state.tema_oscuro:
-        login_css = """
-        <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+    _, col_login, _ = st.columns([1, 2, 1])
+    with col_login:
+        st.write("")
+        with st.form("login_form", clear_on_submit=False):
+            st.markdown(
+                """
+                <div style="text-align: center; margin-bottom: 1rem;">
+                    <div style="font-size: 2.25rem; margin-bottom: 0.25rem;">🔐</div>
+                    <h2 style="font-size: 1.4rem; font-weight: 700; margin: 0; letter-spacing: -0.02em; line-height: 1.2;">
+                        Taquilla POS
+                    </h2>
+                    <p style="font-size: 0.8rem; margin-top: 0.2rem; font-weight: 400; opacity: 0.7;">
+                        Acceso al sistema
+                    </p>
+                </div>
+                """, 
+                unsafe_allow_html=True
+            )
+            user_input = st.text_input("Usuario", placeholder="Ingresa tu usuario").strip()
+            key_input = st.text_input("Clave", type="password", placeholder="Ingresa tu clave").strip()
+            submitted = st.form_submit_button("Iniciar Sesión", use_container_width=True)
 
-        :root, .stApp {
-            --primary-color: #6366f1 !important;
-            --background-color: #080c14 !important;
-            --secondary-background-color: #0f172a !important;
-            --text-color: #f8fafc !important;
-            font-family: 'Plus Jakarta Sans', sans-serif !important;
-        }
-
-        [data-testid="stHeader"], 
-        [data-testid="stSidebar"], 
-        [data-testid="collapsedControl"],
-        footer, 
-        [data-testid="stDecoration"] {
-            display: none !important;
-        }
-
-        html, body, .stApp, [data-testid="stAppViewContainer"], section.main, .main {
-            background-color: #080c14 !important;
-            background-image: 
-                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
-                radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.12) 0px, transparent 50%),
-                radial-gradient(at 50% 100%, rgba(244, 63, 94, 0.05) 0px, transparent 50%) !important;
-            background-size: cover !important;
-            min-height: 100vh !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            overflow: hidden !important;
-        }
-
-        /* 🚀 RESET EXACTO: Eliminar bordes externos de Streamlit sin romper nuestra tarjeta */
-        div.block-container,
-        div[data-testid="stVerticalBlockBorderWrapper"],
-        div[data-testid="stVerticalBlock"] {
-            background: transparent !important;
-            background-color: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            outline: none !important;
-            padding: 0 !important;
-            margin: 0 !important;
-        }
-
-        /* 🎯 TARJETA (LOGIN MODAL) AISLADA Y COMPACTA */
-        div[data-testid="stForm"] {
-            background: rgba(15, 23, 42, 0.85) !important;
-            background-color: rgba(15, 23, 42, 0.85) !important;
-            backdrop-filter: blur(20px) !important;
-            -webkit-backdrop-filter: blur(20px) !important;
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
-            border-radius: 20px !important;
-            padding: 1.5rem 1.5rem !important; /* Reducido para quitar altura innecesaria */
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
-            
-            /* Posicionamiento absoluto y restricción de altura (quitamos 50% de alto sobrante) */
-            position: fixed !important;
-            top: 50% !important;
-            left: 50% !important;
-            transform: translate(-50%, -50%) !important;
-            width: 90% !important;
-            max-width: 360px !important;
-            height: fit-content !important;
-            min-height: 0 !important;
-            margin: 0 !important;
-            z-index: 99999 !important;
-        }
-
-        /* Re-aplicar estilos específicos a la estructura interna para evitar que el reseteo nuclear los rompa */
-        [data-testid="stForm"] form,
-        [data-testid="stForm"] > div {
-            gap: 0.75rem !important;
-            margin: 0 !important;
-            padding: 0 !important;
-        }
-
-        [data-testid="stWidgetLabel"] p {
-            color: #94a3b8 !important;
-            font-weight: 600 !important;
-            font-size: 0.7rem !important;
-            letter-spacing: 0.04em !important;
-            text-transform: uppercase !important;
-            margin-bottom: 0.2rem !important;
-        }
-
-        /* Re-aplicar estilos a los inputs que fueron limpiados por el override superior */
-        div[data-baseweb="input"],
-        div[data-baseweb="input"] > div,
-        div[data-baseweb="input"] input {
-            background-color: #0f172a !important;
-            color: #f8fafc !important;
-            border-radius: 12px !important;
-        }
-
-        div[data-baseweb="input"] > div {
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
-            padding: 0.2rem 0.5rem !important;
-        }
-
-        div[data-baseweb="input"]:focus-within > div {
-            border-color: #6366f1 !important;
-            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25) !important;
-        }
-
-        input {
-            color: #f8fafc !important;
-            font-size: 0.95rem !important;
-        }
-
-        [data-testid="stFormSubmitButton"] button {
-            width: 100% !important;
-            background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%) !important;
-            background-color: #6366f1 !important;
-            color: #ffffff !important;
-            border: none !important;
-            padding: 0.6rem 1.25rem !important;
-            border-radius: 12px !important;
-            font-size: 0.95rem !important;
-            font-weight: 600 !important;
-            transition: all 0.2s ease-in-out !important;
-            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35) !important;
-            margin-top: 0.25rem !important;
-        }
-
-        [data-testid="stFormSubmitButton"] button:hover {
-            background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%) !important;
-            box-shadow: 0 6px 16px rgba(99, 102, 241, 0.5) !important;
-            transform: translateY(-1px) !important;
-        }
-
-        [data-testid="stNotification"] {
-            background-color: rgba(239, 68, 68, 0.1) !important;
-            border: 1px solid rgba(239, 68, 68, 0.2) !important;
-            border-radius: 12px !important;
-            margin-top: 0.5rem !important;
-        }
-
-        [data-testid="stNotification"] p {
-            color: #fca5a5 !important;
-            font-size: 0.85rem !important;
-        }
-        </style>
-        """
-    else:
-        login_css = """
-        <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
-
-        :root, .stApp {
-            --primary-color: #4f46e5 !important;
-            --background-color: #f8fafc !important;
-            --secondary-background-color: #ffffff !important;
-            --text-color: #0f172a !important;
-            font-family: 'Plus Jakarta Sans', sans-serif !important;
-        }
-
-        [data-testid="stHeader"], 
-        [data-testid="stSidebar"], 
-        [data-testid="collapsedControl"],
-        footer, 
-        [data-testid="stDecoration"] {
-            display: none !important;
-        }
-
-        html, body, .stApp, [data-testid="stAppViewContainer"], section.main, .main {
-            background-color: #f8fafc !important;
-            background-image: 
-                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.05) 0px, transparent 50%),
-                radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.04) 0px, transparent 50%),
-                radial-gradient(at 50% 100%, rgba(244, 63, 94, 0.02) 0px, transparent 50%) !important;
-            background-size: cover !important;
-            min-height: 100vh !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            overflow: hidden !important;
-        }
-
-        /* 🚀 RESET EXACTO: Eliminar bordes externos de Streamlit sin romper nuestra tarjeta */
-        div.block-container,
-        div[data-testid="stVerticalBlockBorderWrapper"],
-        div[data-testid="stVerticalBlock"] {
-            background: transparent !important;
-            background-color: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            outline: none !important;
-            padding: 0 !important;
-            margin: 0 !important;
-        }
-
-        /* 🎯 TARJETA (LOGIN MODAL) AISLADA Y COMPACTA */
-        div[data-testid="stForm"] {
-            background: #ffffff !important;
-            background-color: #ffffff !important;
-            border: 1px solid rgba(15, 23, 42, 0.08) !important;
-            border-radius: 20px !important;
-            padding: 1.5rem 1.5rem !important;
-            box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.1), 0 10px 20px -5px rgba(0, 0, 0, 0.05) !important;
-            
-            position: fixed !important;
-            top: 50% !important;
-            left: 50% !important;
-            transform: translate(-50%, -50%) !important;
-            width: 90% !important;
-            max-width: 360px !important;
-            height: fit-content !important;
-            min-height: 0 !important;
-            margin: 0 !important;
-            z-index: 99999 !important;
-        }
-
-        [data-testid="stForm"] form,
-        [data-testid="stForm"] > div {
-            gap: 0.75rem !important;
-            margin: 0 !important;
-            padding: 0 !important;
-        }
-
-        [data-testid="stWidgetLabel"] p {
-            color: #475569 !important;
-            font-weight: 600 !important;
-            font-size: 0.7rem !important;
-            letter-spacing: 0.04em !important;
-            text-transform: uppercase !important;
-            margin-bottom: 0.2rem !important;
-        }
-
-        div[data-baseweb="input"],
-        div[data-baseweb="input"] > div,
-        div[data-baseweb="input"] input {
-            background-color: #ffffff !important;
-            color: #0f172a !important;
-            border-radius: 12px !important;
-        }
-
-        div[data-baseweb="input"] > div {
-            border: 1px solid rgba(15, 23, 42, 0.12) !important;
-            padding: 0.2rem 0.5rem !important;
-        }
-
-        div[data-baseweb="input"]:focus-within > div {
-            border-color: #4f46e5 !important;
-            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.15) !important;
-        }
-
-        input {
-            color: #0f172a !important;
-            font-size: 0.95rem !important;
-        }
-
-        [data-testid="stFormSubmitButton"] button {
-            width: 100% !important;
-            background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%) !important;
-            background-color: #4f46e5 !important;
-            color: #ffffff !important;
-            border: none !important;
-            padding: 0.6rem 1.25rem !important;
-            border-radius: 12px !important;
-            font-size: 0.95rem !important;
-            font-weight: 600 !important;
-            transition: all 0.2s ease-in-out !important;
-            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2) !important;
-            margin-top: 0.25rem !important;
-        }
-
-        [data-testid="stFormSubmitButton"] button:hover {
-            background: linear-gradient(90deg, #4338ca 0%, #6d28d9 100%) !important;
-            box-shadow: 0 6px 16px rgba(79, 70, 229, 0.3) !important;
-            transform: translateY(-1px) !important;
-        }
-
-        [data-testid="stNotification"] {
-            background-color: #fef2f2 !important;
-            border: 1px solid #fee2e2 !important;
-            border-radius: 12px !important;
-            margin-top: 0.5rem !important;
-        }
-
-        [data-testid="stNotification"] p {
-            color: #991b1b !important;
-            font-size: 0.85rem !important;
-        }
-        </style>
-        """
-    st.markdown(login_css, unsafe_allow_html=True)
-    
-    color_titulo = "#ffffff" if st.session_state.tema_oscuro else "#0f172a"
-    color_subtitulo = "#64748b" if st.session_state.tema_oscuro else "#475569"
-
-    with st.form("login_form", clear_on_submit=False):
-        st.markdown(
-            f"""
-            <div style="text-align: center; margin-bottom: 1rem;">
-                <div style="font-size: 2.25rem; margin-bottom: 0.25rem;">🔐</div>
-                <h2 style="color: {color_titulo}; font-size: 1.4rem; font-weight: 700; margin: 0; letter-spacing: -0.02em; line-height: 1.2;">
-                    Taquilla POS
-                </h2>
-                <p style="color: {color_subtitulo}; font-size: 0.8rem; margin-top: 0.2rem; font-weight: 400;">
-                    Acceso al sistema
-                </p>
-            </div>
-            """, 
-            unsafe_allow_html=True
-        )
-        user_input = st.text_input("Usuario", placeholder="Ingresa tu usuario").strip()
-        key_input = st.text_input("Clave", type="password", placeholder="Ingresa tu clave").strip()
-        submitted = st.form_submit_button("Iniciar Sesión")
-
-
-
-    if submitted:
-        res_user = supabase.table("taquilla_usuarios").select("*").ilike("usuario", user_input).eq("clave", key_input).execute()
-        res_data = res_user.data or []
-        if res_data:
-            user_data = res_data[0]
-            res_agencia = supabase.table("agencias").select("*").execute()
-            df_todas = pd.DataFrame(res_agencia.data or [])
-            raw_id = str(user_data["agencia_id"]).strip()
-            match = df_todas[df_todas["id"].astype(str) == raw_id]
-            if not match.empty:
-                st.session_state.taquilla_autenticada = True
-                st.session_state.agencia_actual = match.iloc[0].to_dict()
-                st.session_state.cajero_actual = {"id": user_data["id"], "usuario": user_data["usuario"], "rol": user_data["rol"], "nombre": user_data.get("nombre_cajero", user_data["usuario"])}
-                st.rerun()
+        if submitted:
+            res_user = supabase.table("taquilla_usuarios").select("*").ilike("usuario", user_input).eq("clave", key_input).execute()
+            res_data = res_user.data or []
+            if res_data:
+                user_data = res_data[0]
+                res_agencia = supabase.table("agencias").select("*").execute()
+                df_todas = pd.DataFrame(res_agencia.data or [])
+                raw_id = str(user_data["agencia_id"]).strip()
+                match = df_todas[df_todas["id"].astype(str) == raw_id]
+                if not match.empty:
+                    st.session_state.taquilla_autenticada = True
+                    st.session_state.agencia_actual = match.iloc[0].to_dict()
+                    st.session_state.cajero_actual = {"id": user_data["id"], "usuario": user_data["usuario"], "rol": user_data["rol"], "nombre": user_data.get("nombre_cajero", user_data["usuario"])}
+                    st.rerun()
+                else:
+                    st.error("Agencia no encontrada.")
             else:
-                st.error("Agencia no encontrada.")
-        else:
-            st.error("Credenciales incorrectas.")
+                st.error("Credenciales incorrectas.")
 else:
     _check_cerrado_col()
     ag = st.session_state.agencia_actual

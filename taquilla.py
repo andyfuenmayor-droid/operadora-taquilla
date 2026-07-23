@@ -1344,12 +1344,17 @@ def modulo_reporte_diario(agencia_data):
             lines.append("  TICKETS PREMIADOS")
             lines.append("-" * 36)
             df_t_pago = df_t[df_t["estado"] == "RECLAMADO"] if "estado" in df_t.columns else df_t
+            total_t_pago = 0.0
             for _, r in df_t_pago.iterrows():
                 t_sis = r.get('sistema', '')
                 t_mon = r.get('moneda', '')
                 t_est = r.get('estado', '')
                 t_est = "PAGO" if t_est == "RECLAMADO" else t_est
-                lines.append(f"  {r.get('numero_ticket','?'):>8s}  {float(r['monto']):>10,.2f}  {t_mon} {t_sis}  {t_est}")
+                monto_val = float(r.get('monto', 0))
+                total_t_pago += monto_val
+                lines.append(f"  {r.get('numero_ticket','?'):>8s}  {monto_val:>10,.2f}  {t_mon} {t_sis}  {t_est}")
+            lines.append("-" * 36)
+            lines.append(f"  TOTAL TICKETS:   ${total_t_pago:>10,.2f}")
             lines.append(line)
 
         if not df_g.empty:
@@ -1357,6 +1362,8 @@ def modulo_reporte_diario(agencia_data):
             lines.append("-" * 36)
             for _, r in df_g.iterrows():
                 lines.append(f"  {r.get('concepto','?')}  ${float(r['monto']):>10,.2f}")
+            lines.append("-" * 36)
+            lines.append(f"  TOTAL GASTOS:    ${t_gastos:>10,.2f}")
             lines.append(line)
 
         if not df_p.empty:
@@ -1364,6 +1371,8 @@ def modulo_reporte_diario(agencia_data):
             lines.append("-" * 36)
             for _, r in df_p.iterrows():
                 lines.append(f"  {r.get('tipo_pago','?')}  ${float(r['monto']):>10,.2f}")
+            lines.append("-" * 36)
+            lines.append(f"  TOTAL PAGOS:     ${t_pagos:>10,.2f}")
             lines.append(line)
 
         lines.append("  Generado: " + datetime.now().strftime("%Y-%m-%d %H:%M"))

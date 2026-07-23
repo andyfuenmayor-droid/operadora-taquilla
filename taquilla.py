@@ -823,9 +823,11 @@ def modulo_reporte_rango(agencia_data):
     saldo_ant = obtener_saldo_anterior(nom, d)
     t_saldo_final = saldo_ant + saldo_calculado
 
+    render_tarjetas_metricas(tv, tc, tp, tg, tpg, saldo_calculado)
+
     st.markdown(
         f"""
-        <div style="background-color: rgba(13, 27, 34, 0.4); padding: 1rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); margin-bottom: 1rem; text-align: center;">
+        <div style="background-color: rgba(13, 27, 34, 0.4); padding: 1rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); margin-top: 1rem; text-align: center;">
             <span style="font-size: 0.85rem; color: #94a3b8;">Saldo Anterior al {d}:</span> <b style="font-size: 1rem; color: #ffffff;">${saldo_ant:,.2f}</b>
             <span style="margin: 0 1rem; color: rgba(255,255,255,0.2);">|</span>
             <span style="font-size: 0.85rem; color: #94a3b8;">Resultado del Período:</span> <b style="font-size: 1rem; color: #ffffff;">${saldo_calculado:,.2f}</b>
@@ -835,8 +837,6 @@ def modulo_reporte_rango(agencia_data):
         """,
         unsafe_allow_html=True
     )
-
-    render_tarjetas_metricas(tv, tc, tp, tg, tpg, saldo_calculado)
     st.divider()
 
     render_titulo_seccion("📋 Detalle por Día")
@@ -954,9 +954,11 @@ def modulo_cierre_diario(agencia_data):
 
     render_titulo_seccion(f"📊 Resumen del {fecha_sel}")
     
+    render_tarjetas_metricas(t_venta, t_comis, t_premios, t_gastos, t_pagos, t_saldo_dia)
+
     st.markdown(
         f"""
-        <div style="background-color: rgba(13, 27, 34, 0.4); padding: 1rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); margin-bottom: 1rem; text-align: center;">
+        <div style="background-color: rgba(13, 27, 34, 0.4); padding: 1rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); margin-top: 1rem; text-align: center;">
             <span style="font-size: 0.85rem; color: #94a3b8;">Saldo Anterior:</span> <b style="font-size: 1rem; color: #ffffff;">${saldo_ant:,.2f}</b>
             <span style="margin: 0 1rem; color: rgba(255,255,255,0.2);">|</span>
             <span style="font-size: 0.85rem; color: #94a3b8;">Resultado del Día:</span> <b style="font-size: 1rem; color: #ffffff;">${t_saldo_dia:,.2f}</b>
@@ -966,8 +968,6 @@ def modulo_cierre_diario(agencia_data):
         """,
         unsafe_allow_html=True
     )
-
-    render_tarjetas_metricas(t_venta, t_comis, t_premios, t_gastos, t_pagos, t_saldo_dia)
 
     if not df_v.empty:
         render_titulo_seccion("📋 Detalle por Sistema")
@@ -1288,9 +1288,11 @@ def modulo_reporte_diario(agencia_data):
     saldo_ant = obtener_saldo_anterior(nom, fecha_sel)
     t_saldo_final = saldo_ant + t_saldo
 
+    render_tarjetas_metricas(t_venta, t_comis, t_premios, t_gastos, t_pagos, t_saldo)
+
     st.markdown(
         f"""
-        <div style="background-color: rgba(13, 27, 34, 0.4); padding: 1rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); margin-bottom: 1rem; text-align: center;">
+        <div style="background-color: rgba(13, 27, 34, 0.4); padding: 1rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); margin-top: 1rem; text-align: center;">
             <span style="font-size: 0.85rem; color: #94a3b8;">Saldo Anterior:</span> <b style="font-size: 1rem; color: #ffffff;">${saldo_ant:,.2f}</b>
             <span style="margin: 0 1rem; color: rgba(255,255,255,0.2);">|</span>
             <span style="font-size: 0.85rem; color: #94a3b8;">Resultado del Día:</span> <b style="font-size: 1rem; color: #ffffff;">${t_saldo:,.2f}</b>
@@ -1300,8 +1302,6 @@ def modulo_reporte_diario(agencia_data):
         """,
         unsafe_allow_html=True
     )
-
-    render_tarjetas_metricas(t_venta, t_comis, t_premios, t_gastos, t_pagos, t_saldo)
 
     render_titulo_seccion("📋 Detalle por Sistema")
     with st.expander("📋 Ver Detalle por Sistema", expanded=True):

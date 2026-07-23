@@ -1290,12 +1290,22 @@ if not st.session_state.taquilla_autenticada:
             )
             user_input = st.text_input("Usuario", placeholder="Ingresa tu usuario").strip()
             key_input = st.text_input("Clave", type="password", placeholder="Ingresa tu clave").strip()
+            
+            # Contenedor para spinner y mensajes de error dentro del formulario
+            status_placeholder = st.empty()
+            
             submitted = st.form_submit_button("Iniciar Sesión", use_container_width=True)
 
         if submitted:
-            with st.spinner("Verificando usuario..."):
-                res_user = supabase.table("taquilla_usuarios").select("*").ilike("usuario", user_input).eq("clave", key_input).execute()
-                res_data = res_user.data or []
+            if not user_input or not key_input:
+                status_placeholder.error("Por favor, ingrese usuario y clave.")
+            else:
+                with status_placeholder:
+                    with st.spinner("Verificando usuario..."):
+                        time.sleep(0.5)
+                        res_user = supabase.table("taquilla_usuarios").select("*").ilike("usuario", user_input).eq("clave", key_input).execute()
+                        res_data = res_user.data or []
+                
                 if res_data:
                     user_data = res_data[0]
                     res_agencia = supabase.table("agencias").select("*").execute()
@@ -1308,9 +1318,9 @@ if not st.session_state.taquilla_autenticada:
                         st.session_state.cajero_actual = {"id": user_data["id"], "usuario": user_data["usuario"], "rol": user_data["rol"], "nombre": user_data.get("nombre_cajero", user_data["usuario"])}
                         st.rerun()
                     else:
-                        st.error("Agencia no encontrada.")
+                        status_placeholder.error("Agencia no encontrada.")
                 else:
-                    st.error("Credenciales incorrectas.")
+                    status_placeholder.error("Credenciales incorrectas.")
 else:
     _check_cerrado_col()
     ag = st.session_state.agencia_actual

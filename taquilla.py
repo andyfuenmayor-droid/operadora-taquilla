@@ -46,7 +46,7 @@ st.markdown("""
     <style>
     /* Tarjeta Form Estándar */
     [data-testid="stForm"] {
-        background-color: rgba(15, 23, 42, 0.75) !important;
+        background-color: rgba(13, 27, 34, 0.75) !important;
         backdrop-filter: blur(24px) !important;
         -webkit-backdrop-filter: blur(24px) !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
@@ -76,13 +76,13 @@ st.markdown("""
     div[data-baseweb="input"],
     div[data-baseweb="input"] > div,
     div[data-baseweb="input"] input {
-        background-color: #0f172a !important;
+        background-color: #0d1b22 !important;
         color: #f8fafc !important;
         border-color: rgba(255, 255, 255, 0.08) !important;
         border-radius: 10px !important;
     }
     div[data-baseweb="input"]:focus-within {
-        border-color: #6366f1 !important;
+        border-color: #00c853 !important;
     }
     input {
         color: #f8fafc !important;
@@ -90,14 +90,14 @@ st.markdown("""
     }
     [data-testid="stFormSubmitButton"] button {
         width: 100% !important;
-        background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%) !important;
+        background: linear-gradient(90deg, #00c853 0%, #00e676 100%) !important;
         color: #ffffff !important;
         border: none !important;
         padding: 0.75rem 1.5rem !important;
         border-radius: 12px !important;
         font-size: 0.95rem !important;
         font-weight: 600 !important;
-        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35) !important;
+        box-shadow: 0 4px 12px rgba(0, 200, 83, 0.35) !important;
         margin-top: 0.5rem !important;
     }
     [data-testid="collapsedControl"] {
@@ -107,7 +107,7 @@ st.markdown("""
         position: fixed !important;
         top: 10px !important;
         left: 10px !important;
-        background-color: #1e293b !important;
+        background-color: #0d1b22 !important;
         color: #ffffff !important;
         border: 1px solid rgba(255, 255, 255, 0.2) !important;
         border-radius: 8px !important;
@@ -133,7 +133,8 @@ st.markdown("""
         visibility: hidden !important;
     }
     </style>
-""", unsafe_allow_html=True)
+""", 
+unsafe_allow_html=True)
 
 
 if "tema_oscuro" not in st.session_state:
@@ -1334,15 +1335,15 @@ else:
 
         /* Global theme variables overrides */
         :root, .stApp {
-            --primary-color: #6366f1 !important;
-            --background-color: #0b0f19 !important;
-            --secondary-background-color: #0f172a !important;
+            --primary-color: #00c853 !important;
+            --background-color: #071217 !important;
+            --secondary-background-color: #0d1b22 !important;
             --text-color: #f8fafc !important;
             font-family: 'Plus Jakarta Sans', sans-serif !important;
         }
 
         [data-testid="stHeader"] {
-            background-color: rgba(11, 15, 25, 0.8) !important;
+            background-color: rgba(7, 18, 23, 0.8) !important;
             backdrop-filter: blur(12px) !important;
             -webkit-backdrop-filter: blur(12px) !important;
             border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
@@ -1354,16 +1355,16 @@ else:
 
         /* Page background colors - dark mode */
         .stApp, [data-testid="stAppViewContainer"], section.main, .main {
-            background-color: #0b0f19 !important;
+            background-color: #071217 !important;
             background-image: 
-                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.06) 0px, transparent 40%),
-                radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.04) 0px, transparent 40%) !important;
+                radial-gradient(at 0% 0%, rgba(0, 200, 83, 0.06) 0px, transparent 40%),
+                radial-gradient(at 100% 100%, rgba(0, 210, 182, 0.04) 0px, transparent 40%) !important;
             background-size: cover !important;
             min-height: 100vh !important;
         }
 
         [data-testid="stSidebar"], [data-testid="stSidebar"] > div {
-            background-color: #0f172a !important;
+            background-color: #0d1b22 !important;
             border-right: 1px solid rgba(255, 255, 255, 0.06) !important;
         }
 
@@ -1376,7 +1377,7 @@ else:
 
         /* Dashboard Forms - Full Responsive Width */
         [data-testid="stForm"] {
-            background-color: rgba(15, 23, 42, 0.45) !important;
+            background-color: rgba(13, 27, 34, 0.45) !important;
             backdrop-filter: blur(12px) !important;
             -webkit-backdrop-filter: blur(12px) !important;
             border: 1px solid rgba(255, 255, 255, 0.08) !important;
@@ -1400,7 +1401,7 @@ else:
 
         /* Style Metric Cards */
         [data-testid="stMetric"] {
-            background-color: rgba(15, 23, 42, 0.45) !important;
+            background-color: rgba(13, 27, 34, 0.45) !important;
             backdrop-filter: blur(10px) !important;
             -webkit-backdrop-filter: blur(10px) !important;
             border: 1px solid rgba(255, 255, 255, 0.06) !important;
@@ -1412,7 +1413,7 @@ else:
         [data-testid="stMetric"]:hover {
             transform: translateY(-2px) !important;
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2) !important;
-            border-color: rgba(99, 102, 241, 0.25) !important;
+            border-color: rgba(0, 200, 83, 0.25) !important;
         }
         [data-testid="stMetricLabel"] p {
             color: #94a3b8 !important;
@@ -1429,7 +1430,7 @@ else:
 
         /* Style Cards / Containers */
         div[data-testid="stVerticalBlockBorderWrapper"] {
-            background-color: rgba(15, 23, 42, 0.35) !important;
+            background-color: rgba(13, 27, 34, 0.35) !important;
             backdrop-filter: blur(12px) !important;
             -webkit-backdrop-filter: blur(12px) !important;
             border: 1px solid rgba(255, 255, 255, 0.06) !important;
@@ -1452,7 +1453,7 @@ else:
         div[data-baseweb="input"],
         div[data-baseweb="textarea"],
         div[data-baseweb="select"] {
-            background-color: #0f172a !important;
+            background-color: #0d1b22 !important;
             border: 1px solid rgba(255, 255, 255, 0.08) !important;
             border-radius: 10px !important;
         }
@@ -1464,13 +1465,13 @@ else:
         }
         input, select, textarea {
             color: #f8fafc !important;
-            background-color: #0f172a !important;
+            background-color: #0d1b22 !important;
         }
         div[data-baseweb="input"]:focus-within,
         div[data-baseweb="textarea"]:focus-within,
         div[data-baseweb="select"]:focus-within {
-            border-color: #6366f1 !important;
-            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25) !important;
+            border-color: #00c853 !important;
+            box-shadow: 0 0 0 2px rgba(0, 200, 83, 0.25) !important;
         }
 
         /* Input SVGs / Icons */
@@ -1505,7 +1506,7 @@ else:
         div[role="dialog"],
         ul[role="listbox"],
         li[role="option"] {
-            background-color: #0f172a !important;
+            background-color: #0d1b22 !important;
             border-color: rgba(255, 255, 255, 0.1) !important;
             color: #f8fafc !important;
         }
@@ -1513,7 +1514,7 @@ else:
         /* Dropdown options text color */
         li[role="option"] {
             color: #f8fafc !important;
-            background-color: #0f172a !important;
+            background-color: #0d1b22 !important;
             transition: background-color 0.15s ease !important;
         }
         li[role="option"]:hover,
@@ -1524,7 +1525,7 @@ else:
 
         /* Target Date Picker calendar container styling */
         div[data-baseweb="calendar"] {
-            background-color: #0f172a !important;
+            background-color: #0d1b22 !important;
             border: 1px solid rgba(255, 255, 255, 0.1) !important;
         }
         div[data-baseweb="calendar"] * {
@@ -1547,7 +1548,7 @@ else:
         }
         div[data-baseweb="calendar"] [aria-selected="true"],
         div[data-baseweb="calendar"] [aria-selected="true"] * {
-            background-color: #6366f1 !important;
+            background-color: #00c853 !important;
             color: #ffffff !important;
             border-radius: 50% !important;
         }
@@ -1584,20 +1585,20 @@ else:
 
         [data-testid="stBaseButton-primary"] button,
         button[data-testid="stBaseButton-primary"] {
-            background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%) !important;
+            background: linear-gradient(90deg, #00c853 0%, #00e676 100%) !important;
             color: #ffffff !important;
             border: none !important;
             border-radius: 10px !important;
             font-weight: 600 !important;
             padding: 0.5rem 1rem !important;
-            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3) !important;
+            box-shadow: 0 4px 12px rgba(0, 200, 83, 0.3) !important;
             transition: all 0.2s ease-in-out !important;
             width: 100% !important;
         }
         [data-testid="stBaseButton-primary"] button:hover,
         button[data-testid="stBaseButton-primary"]:hover {
-            background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%) !important;
-            box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4) !important;
+            background: linear-gradient(90deg, #00b24a 0%, #00c853 100%) !important;
+            box-shadow: 0 6px 16px rgba(0, 200, 83, 0.4) !important;
             transform: translateY(-1px) !important;
         }
 
@@ -1616,7 +1617,7 @@ else:
 
         /* Expanders styling */
         [data-testid="stExpander"] {
-            background-color: rgba(15, 23, 42, 0.25) !important;
+            background-color: rgba(13, 27, 34, 0.25) !important;
             border: 1px solid rgba(255, 255, 255, 0.06) !important;
             border-radius: 12px !important;
         }
@@ -1627,7 +1628,7 @@ else:
 
         /* Preformatted Text blocks (st.text) */
         pre, code, [data-testid="stText"] {
-            background-color: #0f172a !important;
+            background-color: #0d1b22 !important;
             color: #cbd5e1 !important;
             border: 1px solid rgba(255, 255, 255, 0.08) !important;
             border-radius: 8px !important;
@@ -1636,7 +1637,7 @@ else:
 
         /* HTML Tables styling */
         table {
-            background-color: #0f172a !important;
+            background-color: #0d1b22 !important;
             color: #cbd5e1 !important;
             border-collapse: collapse !important;
             width: 100% !important;
@@ -1649,7 +1650,7 @@ else:
             padding: 0.75rem 1rem !important;
         }
         td {
-            background-color: #0f172a !important;
+            background-color: #0d1b22 !important;
             color: #cbd5e1 !important;
             border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
             padding: 0.75rem 1rem !important;
@@ -1680,15 +1681,15 @@ else:
 
         /* Global theme variables overrides */
         :root, .stApp {
-            --primary-color: #4f46e5 !important;
-            --background-color: #f8fafc !important;
+            --primary-color: #00c853 !important;
+            --background-color: #f0f7f4 !important;
             --secondary-background-color: #ffffff !important;
             --text-color: #0f172a !important;
             font-family: 'Plus Jakarta Sans', sans-serif !important;
         }
 
         [data-testid="stHeader"] {
-            background-color: rgba(248, 250, 252, 0.8) !important;
+            background-color: rgba(240, 247, 244, 0.8) !important;
             backdrop-filter: blur(12px) !important;
             -webkit-backdrop-filter: blur(12px) !important;
             border-bottom: 1px solid rgba(15, 23, 42, 0.05) !important;
@@ -1700,10 +1701,10 @@ else:
 
         /* Page background colors - light mode */
         .stApp, [data-testid="stAppViewContainer"], section.main, .main {
-            background-color: #f8fafc !important;
+            background-color: #f0f7f4 !important;
             background-image: 
-                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.04) 0px, transparent 40%),
-                radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.03) 0px, transparent 40%) !important;
+                radial-gradient(at 0% 0%, rgba(0, 200, 83, 0.04) 0px, transparent 40%),
+                radial-gradient(at 100% 100%, rgba(0, 210, 182, 0.03) 0px, transparent 40%) !important;
             background-size: cover !important;
             min-height: 100vh !important;
         }
@@ -1754,7 +1755,7 @@ else:
         [data-testid="stMetric"]:hover {
             transform: translateY(-2px) !important;
             box-shadow: 0 8px 12px -3px rgba(0, 0, 0, 0.1) !important;
-            border-color: rgba(79, 70, 229, 0.3) !important;
+            border-color: rgba(0, 200, 83, 0.3) !important;
         }
         [data-testid="stMetricLabel"] p {
             color: #475569 !important;
@@ -1809,8 +1810,8 @@ else:
         div[data-baseweb="input"]:focus-within,
         div[data-baseweb="textarea"]:focus-within,
         div[data-baseweb="select"]:focus-within {
-            border-color: #4f46e5 !important;
-            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2) !important;
+            border-color: #00c853 !important;
+            box-shadow: 0 0 0 2px rgba(0, 200, 83, 0.15) !important;
         }
 
         /* Input SVGs / Icons */
@@ -1887,7 +1888,7 @@ else:
         }
         div[data-baseweb="calendar"] [aria-selected="true"],
         div[data-baseweb="calendar"] [aria-selected="true"] * {
-            background-color: #4f46e5 !important;
+            background-color: #00c853 !important;
             color: #ffffff !important;
             border-radius: 50% !important;
         }
@@ -1923,20 +1924,20 @@ else:
 
         [data-testid="stBaseButton-primary"] button,
         button[data-testid="stBaseButton-primary"] {
-            background: linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%) !important;
+            background: linear-gradient(90deg, #00c853 0%, #00e676 100%) !important;
             color: #ffffff !important;
             border: none !important;
             border-radius: 10px !important;
             font-weight: 600 !important;
             padding: 0.5rem 1rem !important;
-            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2) !important;
+            box-shadow: 0 4px 12px rgba(0, 200, 83, 0.2) !important;
             transition: all 0.2s ease-in-out !important;
             width: 100% !important;
         }
         [data-testid="stBaseButton-primary"] button:hover,
         button[data-testid="stBaseButton-primary"]:hover {
-            background: linear-gradient(90deg, #4338ca 0%, #6d28d9 100%) !important;
-            box-shadow: 0 6px 16px rgba(79, 70, 229, 0.3) !important;
+            background: linear-gradient(90deg, #00b24a 0%, #00c853 100%) !important;
+            box-shadow: 0 6px 16px rgba(0, 200, 83, 0.3) !important;
             transform: translateY(-1px) !important;
         }
 
@@ -2032,19 +2033,19 @@ else:
             st.rerun()
 
     if st.session_state.tema_oscuro:
-        card_bg = "rgba(30, 41, 59, 0.45)"
+        card_bg = "rgba(13, 27, 34, 0.45)"
         card_border = "rgba(255, 255, 255, 0.06)"
         text_val_color = "#f8fafc"
-        badge_bg = "rgba(99, 102, 241, 0.15)"
-        badge_border = "rgba(99, 102, 241, 0.25)"
-        badge_text = "#a5b4fc"
+        badge_bg = "rgba(0, 200, 83, 0.15)"
+        badge_border = "rgba(0, 200, 83, 0.25)"
+        badge_text = "#69f0ae"
     else:
         card_bg = "#f1f5f9"
         card_border = "rgba(15, 23, 42, 0.08)"
         text_val_color = "#0f172a"
-        badge_bg = "rgba(79, 70, 229, 0.1)"
-        badge_border = "rgba(79, 70, 229, 0.2)"
-        badge_text = "#4f46e5"
+        badge_bg = "rgba(0, 200, 83, 0.1)"
+        badge_border = "rgba(0, 200, 83, 0.2)"
+        badge_text = "#00c853"
 
     opciones = ["Carga de Ventas", "Tickets Premiados", "Gestión de Gastos", "Gestión de Pagos", "Gestión Bancaria", "Reporte Diario", "Reporte por Rango", "Cierre Diario"]
 

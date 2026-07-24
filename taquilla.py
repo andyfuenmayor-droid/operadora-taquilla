@@ -644,7 +644,7 @@ def modulo_gestion_bancaria(agencia_data):
 
     # ==================== TAB 3: REGISTRAR PAGO ====================
     with tab3:
-        render_titulo_seccion("💸 Registrar Pago Recibido (Punto de Venta / Pago Móvil / Zelle)")
+        render_titulo_seccion("💸 Registrar Pago Recibido (POS / BioPago / Cuentas Admin / Efectivo)")
 
         fecha_hoy = datetime.now().date()
         cerrado = dia_esta_cerrado(ag_nombre, fecha_hoy)
@@ -654,37 +654,75 @@ def modulo_gestion_bancaria(agencia_data):
         with st.form("form_reg_pago_bancario", clear_on_submit=True):
             col_m1, col_m2, col_m3 = st.columns([2, 2, 2])
             fecha_pago = col_m1.date_input("Fecha de Operación", value=fecha_hoy)
-            metodo_pago = col_m2.selectbox("Método de Pago*", ["Punto de Venta", "Pago Móvil", "Zelle"])
+            metodo_pago = col_m2.selectbox("Método de Pago*", [
+                "Punto de Venta", 
+                "BioPago", 
+                "Pago Móvil", 
+                "Zelle", 
+                "Transferencia Bancaria", 
+                "Depósito Bancario", 
+                "Binance / Cripto", 
+                "PayPal", 
+                "Efectivo (Remanente Saldo por Cobrar)", 
+                "Otro (Cuenta Admin)"
+            ])
             moneda_pago = col_m3.selectbox("Moneda*", ["USD", "BS", "COP"], index=0)
 
             col_d1, col_d2 = st.columns([3, 3])
             
             if metodo_pago == "Punto de Venta":
-                lista_pos = df_pos[df_pos["estado"].astype(str).str.upper() == "ACTIVO"]["nombre_pos"].tolist() if not df_pos.empty and "nombre_pos" in df_pos.columns and "estado" in df_pos.columns else []
-                if not lista_pos:
-                    lista_pos = ["POS Taquilla General"]
-                pos_o_cuenta = col_d1.selectbox("Seleccione Punto de Venta (POS)*", lista_pos)
+                lista_pos_opciones = []
+                if not df_pos.empty and "estado" in df_pos.columns:
+                    df_pos_activos = df_pos[df_pos["estado"].astype(str).str.upper() == "ACTIVO"]
+                    for _, r_pos in df_pos_activos.iterrows():
+                        p_nom = str(r_pos.get("nombre_pos", "")).strip()
+                        c_asoc = str(r_pos.get("cuenta_resumen", "")).strip()
+                        if c_asoc and c_asoc != "N/A":
+                            lista_pos_opciones.append(f"{p_nom} (Cuenta Admin: {c_asoc})")
+                        else:
+                            lista_pos_opciones.append(p_nom)
+                if not lista_pos_opciones:
+                    lista_pos_opciones = ["POS Taquilla General"]
+                pos_o_cuenta = col_d1.selectbox("Seleccione Punto de Venta (POS)*", lista_pos_opciones)
+
+            elif "Efectivo" in metodo_pago:
+                pos_o_cuenta = col_d1.selectbox(
+                    "Destino de Fondos*", 
+                    ["Caja Taquilla (Remanente en Saldo por Cobrar)"]
+                )
+
             else:
                 opciones_c = []
                 if not df_cuentas.empty:
                     for _, r in df_cuentas.iterrows():
-                        opciones_c.append(f"{r.get('banco', 'Banco')} - {r.get('numero_cuenta') or r.get('email') or ''}")
+                        b_name = str(r.get("banco", "Banco")).strip()
+                        n_acc = str(r.get("numero_cuenta") or r.get("identificador") or r.get("email") or "").strip()
+                        mon = str(r.get("moneda", "USD")).strip().upper()
+                        tit = str(r.get("titular", "")).strip()
+                        desc = f"{b_name}"
+                        if n_acc and n_acc != "N/A":
+                            desc += f" - {n_acc}"
+                        if mon:
+                            desc += f" ({mon})"
+                        if tit and tit != "N/A":
+                            desc += f" - {tit}"
+                        opciones_c.append(desc)
                 if not opciones_c:
                     opciones_c = ["Cuenta Admin Registrada"]
-                pos_o_cuenta = col_d1.selectbox("Cuenta Destino Admin*", opciones_c)
+                pos_o_cuenta = col_d1.selectbox(f"Seleccione Cuenta Admin Destino ({metodo_pago})*", opciones_c)
 
-            referencia = col_d2.text_input("Número de Referencia / Comprobante*", placeholder="Ej: 987654 / Últimos 6 dígitos")
+            referencia = col_d2.text_input("Número de Referencia / Comprobante*", placeholder="Ej: 987654 / Últimos 6 dígitos / N/A si es Efectivo")
 
             col_v1, col_v2, col_v3 = st.columns([2, 3, 3])
             monto_pago = col_v1.number_input("Monto Recibido*", min_value=0.0, format="%.2f")
-            concepto = col_v2.selectbox("Concepto de Operación*", ["Compra de Tickets", "Apuesta", "Recarga / Abono", "Otro"])
+            concepto = col_v2.selectbox("Concepto de Operación*", ["Compra de Tickets", "Apuesta", "Recarga / Abono", "Remanente Saldo por Cobrar", "Otro"])
             datos_cliente = col_v3.text_input("Datos del Pagador / Titular", placeholder="Ej: V-14567890 / Pedro Pérez")
 
             if st.form_submit_button("💾 REGISTRAR PAGO BANCARIO", use_container_width=True):
                 if monto_pago <= 0:
                     st.error("Ingrese un monto válido mayor a cero.")
                 elif not referencia.strip():
-                    st.error("Debe proporcionar un número de referencia o comprobante.")
+                    st.error("Debe proporcionar un número de referencia o comprobante (ingrese 'N/A' si es Efectivo).")
                 else:
                     try:
                         # 1. Guardar en tabla cda_pagos_bancarios
@@ -735,13 +773,25 @@ def modulo_gestion_bancaria(agencia_data):
             df_pb = pd.DataFrame()
 
         if not df_pb.empty:
-            df_pos_m = df_pb[df_pb["metodo_pago"].astype(str).str.upper() == "PUNTO DE VENTA"]
-            df_pm_m = df_pb[df_pb["metodo_pago"].astype(str).str.upper() == "PAGO MÓVIL"]
-            df_zelle_m = df_pb[df_pb["metodo_pago"].astype(str).str.upper() == "ZELLE"]
+            met_col = df_pb["metodo_pago"].astype(str).str.upper()
+            df_pos_m = df_pb[met_col == "PUNTO DE VENTA"]
+            df_biopago_m = df_pb[met_col == "BIOPAGO"]
+            df_pm_m = df_pb[met_col == "PAGO MÓVIL"]
+            df_zelle_m = df_pb[met_col == "ZELLE"]
+            df_transf_m = df_pb[met_col.str.contains("TRANSFERENCIA|DEPÓSITO|DEPOSITO", regex=True, na=False)]
+            df_efectivo_m = df_pb[met_col.str.contains("EFECTIVO", regex=True, na=False)]
+            df_otros_m = df_pb[
+                ~met_col.isin(["PUNTO DE VENTA", "BIOPAGO", "PAGO MÓVIL", "ZELLE"]) &
+                ~met_col.str.contains("TRANSFERENCIA|DEPÓSITO|DEPOSITO|EFECTIVO", regex=True, na=False)
+            ]
 
             tot_pos = float(df_pos_m["monto"].sum()) if not df_pos_m.empty else 0.0
+            tot_biopago = float(df_biopago_m["monto"].sum()) if not df_biopago_m.empty else 0.0
             tot_pm = float(df_pm_m["monto"].sum()) if not df_pm_m.empty else 0.0
             tot_zelle = float(df_zelle_m["monto"].sum()) if not df_zelle_m.empty else 0.0
+            tot_transf = float(df_transf_m["monto"].sum()) if not df_transf_m.empty else 0.0
+            tot_efectivo = float(df_efectivo_m["monto"].sum()) if not df_efectivo_m.empty else 0.0
+            tot_otros = float(df_otros_m["monto"].sum()) if not df_otros_m.empty else 0.0
             tot_total = float(df_pb["monto"].sum())
 
             is_dark = st.session_state.get("tema_oscuro", True)
@@ -750,18 +800,21 @@ def modulo_gestion_bancaria(agencia_data):
             txt_label = "#94a3b8" if is_dark else "#64748b"
             txt_val = "#f8fafc" if is_dark else "#0f172a"
 
-            cols_m = st.columns(4)
+            cols_m = st.columns(7)
             met_cards = [
-                ("📟 Punto de Venta", f"${tot_pos:,.2f}"),
+                ("📟 POS", f"${tot_pos:,.2f}"),
+                ("👆 BioPago", f"${tot_biopago:,.2f}"),
                 ("📲 Pago Móvil", f"${tot_pm:,.2f}"),
                 ("💵 Zelle", f"${tot_zelle:,.2f}"),
-                ("🏛️ Total Bancario", f"${tot_total:,.2f}")
+                ("🏦 Transf/Dep", f"${tot_transf:,.2f}"),
+                ("💵 Efectivo (Por Cobrar)", f"${tot_efectivo:,.2f}"),
+                ("🏛️ Total General", f"${tot_total:,.2f}")
             ]
 
             for i, (l_title, l_val) in enumerate(met_cards):
                 card_h = f"""<div style="background: {bg_card}; border: 1px solid {border_card}; border-radius: 8px; padding: 8px; text-align: center;">
                 <div style="font-size: 10px; font-weight: 700; color: {txt_label}; text-transform: uppercase;">{l_title}</div>
-                <div style="font-size: 14px; font-weight: 700; color: { '#34d399' if 'Total' in l_title else txt_val };">{l_val}</div>
+                <div style="font-size: 13px; font-weight: 700; color: { '#34d399' if 'Total' in l_title else txt_val };">{l_val}</div>
                 </div>"""
                 cols_m[i].markdown(card_h, unsafe_allow_html=True)
 

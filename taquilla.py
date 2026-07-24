@@ -507,7 +507,7 @@ def modulo_pagos(agencia_data):
             fecha_pg = c1.date_input("Fecha", value=fecha_filtro)
             moneda_pg = c2.selectbox("Moneda", ["COP", "USD", "BS"], index=0)
             monto_pg = c3.number_input("Monto", min_value=0.0, format="%.2f")
-            tipo_pg = c4.selectbox("Tipo Pago", ["Pago Móvil", "Transferencia", "Zelle", "Punto de Venta", "Efectivo"])
+            tipo_pg = c4.selectbox("Tipo Pago", ["Efectivo"])
             if st.form_submit_button("💾 GUARDAR PAGO", use_container_width=True):
                 if monto_pg <= 0:
                     st.error("Ingrese un monto válido mayor a cero.")
@@ -533,12 +533,36 @@ def modulo_gestion_bancaria(agencia_data):
         "📊 Historial y Resumen"
     ])
 
-    # Cargar cuentas bancarias creadas por el Admin desde Supabase
+    # Cargar cuentas bancarias asignadas a esta agencia por el Admin desde Supabase
     try:
+        cuentas_ids_asignadas = []
+        try:
+            res_ag_asig = supabase.table("agencias").select("cuentas_asignadas").eq("nombre_agencia", ag_nombre).execute()
+            if res_ag_asig.data:
+                c_asig_txt = str(res_ag_asig.data[0].get("cuentas_asignadas", ""))
+                for item in c_asig_txt.split(","):
+                    if item.strip():
+                        try:
+                            c_id_parsed = int(item.strip().split(" - ")[0])
+                            cuentas_ids_asignadas.append(c_id_parsed)
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+
         res_c = supabase.table("cuentas_bancarias").select("*").execute()
-        df_cuentas = pd.DataFrame(res_c.data or [])
-        if not df_cuentas.empty:
-            df_cuentas.columns = [c.lower() for c in df_cuentas.columns]
+        df_cuentas_all = pd.DataFrame(res_c.data or [])
+        if not df_cuentas_all.empty:
+            df_cuentas_all.columns = [c.lower() for c in df_cuentas_all.columns]
+            
+            cond_ag = df_cuentas_all["agencia_asignada"].astype(str).str.upper().str.strip() == ag_nombre.upper() if "agencia_asignada" in df_cuentas_all.columns else pd.Series(False, index=df_cuentas_all.index)
+            cond_id = df_cuentas_all["id"].astype(int).isin(cuentas_ids_asignadas) if ("id" in df_cuentas_all.columns and cuentas_ids_asignadas) else pd.Series(False, index=df_cuentas_all.index)
+            
+            df_cuentas = df_cuentas_all[cond_ag | cond_id].copy()
+            if df_cuentas.empty and not cuentas_ids_asignadas:
+                df_cuentas = df_cuentas_all[df_cuentas_all.get("user_id", "").astype(str).str.strip() == str(u_id).strip()].copy()
+        else:
+            df_cuentas = pd.DataFrame()
     except Exception as e:
         st.error(f"⚠️ Error al consultar la tabla 'cuentas_bancarias' en Supabase: {e}")
         df_cuentas = pd.DataFrame()

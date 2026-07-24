@@ -29,7 +29,7 @@ st.markdown("""
     </head>
     <script>
     (function() {
-        var V = "2026.07.20-v3.1.0";
+        var V = "2026.07.24-v3.2.0";
         var cur = localStorage.getItem("taquilla_build_v3");
         if (!cur) {
             localStorage.setItem("taquilla_build_v3", V);

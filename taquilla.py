@@ -523,19 +523,20 @@ def modulo_pagos(agencia_data):
 def modulo_gestion_bancaria(agencia_data):
     render_encabezado_principal("🏛️ Gestión Bancaria")
     render_subtitulo_terminal(agencia_data['nombre_agencia'])
-    u_id = agencia_data['user_id']
-    ag_nombre = agencia_data['nombre_agencia']
+    u_id = str(agencia_data['user_id']).strip()
+    ag_nombre = str(agencia_data['nombre_agencia']).strip()
 
     tab1, tab2, tab3, tab4 = st.tabs([
-        "💳 Cuentas Admin", 
-        "📟 Puntos de Venta (POS)", 
+        "🏦 Cuentas Bancarias", 
+        "📟 Dispositivos de Pago (POS / Biopago)", 
         "💸 Registrar Pago", 
         "📊 Historial y Resumen"
     ])
 
-    # 1. Cargar cuentas bancarias asignadas a esta agencia por el Admin desde Supabase
+    # ---------------------------------------------------------
+    # 1. OBTENER CUENTAS ASIGNADAS Y DISPOSITIVOS DE PAGO DESDE SUPABASE
+    # ---------------------------------------------------------
     cuentas_ids_asignadas = []
-    c_asig_raw = []
     try:
         res_ag_asig = supabase.table("agencias").select("cuentas_asignadas").eq("nombre_agencia", ag_nombre).execute()
         if res_ag_asig.data:
@@ -543,7 +544,6 @@ def modulo_gestion_bancaria(agencia_data):
             for item in c_asig_txt.split(","):
                 item_str = item.strip()
                 if item_str:
-                    c_asig_raw.append(item_str)
                     try:
                         c_id_parsed = int(item_str.split(" - ")[0])
                         cuentas_ids_asignadas.append(c_id_parsed)
@@ -552,167 +552,208 @@ def modulo_gestion_bancaria(agencia_data):
     except Exception:
         pass
 
+    # A) CARGA DE CUENTAS BANCARIAS
+    df_cuentas = pd.DataFrame()
     try:
         res_c = supabase.table("cuentas_bancarias").select("*").execute()
         df_cuentas_all = pd.DataFrame(res_c.data or [])
         if not df_cuentas_all.empty:
-            df_cuentas_all.columns = [c.lower() for c in df_cuentas_all.columns]
+            df_cuentas_all.columns = [c.lower().strip() for c in df_cuentas_all.columns]
             
-            # Condición A: agencia_asignada coincide con ag_nombre o es TODAS/GENERAL
-            if "agencia_asignada" in df_cuentas_all.columns:
-                cond_ag = df_cuentas_all["agencia_asignada"].astype(str).str.upper().str.strip().isin([ag_nombre.upper(), "TODAS", "TODOS", "GENERAL"])
+            # Excluir registros que sean dispositivos de pago en fallback
+            if "tipo_cuenta" in df_cuentas_all.columns:
+                df_c_only = df_cuentas_all[df_cuentas_all["tipo_cuenta"].astype(str).str.upper() != "DISPOSITIVO DE PAGO"].copy()
             else:
-                cond_ag = pd.Series(False, index=df_cuentas_all.index)
-            
-            # Condición B: ID coincide con cuentas_ids_asignadas
-            cond_id = df_cuentas_all["id"].astype(int).isin(cuentas_ids_asignadas) if ("id" in df_cuentas_all.columns and cuentas_ids_asignadas) else pd.Series(False, index=df_cuentas_all.index)
-            
-            df_cuentas = df_cuentas_all[cond_ag | cond_id].copy()
-            
-            # Fallback: si no hay asignación específica por ID ni agencia, usar las del user_id admin
-            if df_cuentas.empty and not cuentas_ids_asignadas:
-                if "user_id" in df_cuentas_all.columns:
-                    df_cuentas = df_cuentas_all[df_cuentas_all["user_id"].astype(str).str.strip() == str(u_id).strip()].copy()
-                else:
-                    df_cuentas = df_cuentas_all.copy()
-            
-            # Filtrar solo activas si existe la columna estatus o estado
-            if "estatus" in df_cuentas.columns:
-                df_cuentas = df_cuentas[df_cuentas["estatus"].astype(str).str.upper() != "INACTIVA"]
-            elif "estado" in df_cuentas.columns:
-                df_cuentas = df_cuentas[df_cuentas["estado"].astype(str).str.upper() != "INACTIVO"]
+                df_c_only = df_cuentas_all.copy()
 
-        else:
-            df_cuentas = pd.DataFrame()
+            cond_ag = pd.Series(False, index=df_c_only.index)
+            if "agencia_asignada" in df_c_only.columns:
+                ag_col = df_c_only["agencia_asignada"].astype(str).str.upper().str.strip()
+                cond_ag = ag_col.isin([ag_nombre.upper(), "TODAS", "TODOS", "GENERAL", "DISPONIBLE"])
+            elif "metodos_aceptados" in df_c_only.columns:
+                met_col = df_c_only["metodos_aceptados"].astype(str).str.upper().str.strip()
+                cond_ag = met_col.str.contains(ag_nombre.upper(), na=False)
+
+            cond_id = df_c_only["id"].astype(int).isin(cuentas_ids_asignadas) if ("id" in df_c_only.columns and cuentas_ids_asignadas) else pd.Series(False, index=df_c_only.index)
+
+            df_cuentas = df_c_only[cond_ag | cond_id].copy()
+
+            if df_cuentas.empty and not cuentas_ids_asignadas:
+                if "user_id" in df_c_only.columns:
+                    df_cuentas = df_c_only[df_c_only["user_id"].astype(str).str.strip() == u_id].copy()
+                else:
+                    df_cuentas = df_c_only.copy()
+
+            if not df_cuentas.empty:
+                if "id" in df_cuentas.columns:
+                    df_cuentas["id"] = pd.to_numeric(df_cuentas["id"], errors="coerce")
+                    df_cuentas = df_cuentas.sort_values("id")
     except Exception as e:
-        st.error(f"⚠️ Error al consultar la tabla 'cuentas_bancarias' en Supabase: {e}")
         df_cuentas = pd.DataFrame()
 
-    # 2. Cargar Puntos de Venta (POS) asociados a esta agencia
-    try:
-        res_pos = supabase.table("puntos_venta").select("*").execute()
-        df_pos_all = pd.DataFrame(res_pos.data or [])
-        if not df_pos_all.empty:
-            df_pos_all.columns = [c.lower() for c in df_pos_all.columns]
-            
-            cond_pos_ag = df_pos_all["agencia"].astype(str).str.upper().str.strip().isin([ag_nombre.upper(), "TODAS", "TODOS", "GENERAL"]) if "agencia" in df_pos_all.columns else pd.Series(False, index=df_pos_all.index)
-            cond_pos_uid = df_pos_all["user_id"].astype(str).str.strip() == str(u_id).strip() if "user_id" in df_pos_all.columns else pd.Series(False, index=df_pos_all.index)
-            
-            df_pos = df_pos_all[cond_pos_ag | cond_pos_uid].copy()
-        else:
-            df_pos = pd.DataFrame()
-    except Exception:
-        df_pos = pd.DataFrame()
+    # Normalización de columnas para la tabla Cuentas Bancarias
+    if not df_cuentas.empty:
+        if "estatus" not in df_cuentas.columns:
+            df_cuentas["estatus"] = df_cuentas.get("estado", "ACTIVA")
+        if "saldo_inicial" not in df_cuentas.columns:
+            df_cuentas["saldo_inicial"] = 0.0
+        if "agencia_asignada" not in df_cuentas.columns:
+            df_cuentas["agencia_asignada"] = ag_nombre
+        if "tipo_cuenta" not in df_cuentas.columns:
+            df_cuentas["tipo_cuenta"] = "CORRIENTE"
+        if "numero_cuenta" not in df_cuentas.columns:
+            df_cuentas["numero_cuenta"] = df_cuentas.get("identificador", df_cuentas.get("email", "N/A"))
 
-    # Intento de cargar dispositivos_pago como fallback/complemento si la tabla existe
+    # B) CARGA DE DISPOSITIVOS DE PAGO (POS / BIOPAGO)
+    df_dispositivos = pd.DataFrame()
     try:
         res_disp = supabase.table("dispositivos_pago").select("*").execute()
-        df_disp = pd.DataFrame(res_disp.data or [])
-        if not df_disp.empty:
-            df_disp.columns = [c.lower() for c in df_disp.columns]
-            if "agencia" in df_disp.columns:
-                df_disp_filtrado = df_disp[df_disp["agencia"].astype(str).str.upper().str.strip().isin([ag_nombre.upper(), "TODAS", "TODOS", "GENERAL"])].copy()
-                if not df_disp_filtrado.empty:
-                    df_pos = pd.concat([df_pos, df_disp_filtrado], ignore_index=True)
-                    if "id" in df_pos.columns:
-                        df_pos = df_pos.drop_duplicates(subset=["id"])
+        df_disp_all = pd.DataFrame(res_disp.data or [])
+        if not df_disp_all.empty:
+            df_disp_all.columns = [c.lower().strip() for c in df_disp_all.columns]
+            
+            cond_d_ag = pd.Series(False, index=df_disp_all.index)
+            if "agencia_asignada" in df_disp_all.columns:
+                d_ag_col = df_disp_all["agencia_asignada"].astype(str).str.upper().str.strip()
+                cond_d_ag = d_ag_col.isin([ag_nombre.upper(), "TODAS", "TODOS", "GENERAL", "DISPONIBLE"])
+            elif "agencia" in df_disp_all.columns:
+                d_ag_col = df_disp_all["agencia"].astype(str).str.upper().str.strip()
+                cond_d_ag = d_ag_col.isin([ag_nombre.upper(), "TODAS", "TODOS", "GENERAL", "DISPONIBLE"])
+
+            cond_d_uid = df_disp_all["user_id"].astype(str).str.strip() == u_id if "user_id" in df_disp_all.columns else pd.Series(False, index=df_disp_all.index)
+            df_dispositivos = df_disp_all[cond_d_ag | cond_d_uid].copy()
+    except Exception:
+        df_dispositivos = pd.DataFrame()
+
+    # Complementar con puntos_venta o cuentas_bancarias tipo DISPOSITIVO DE PAGO
+    try:
+        res_pv = supabase.table("puntos_venta").select("*").execute()
+        df_pv_all = pd.DataFrame(res_pv.data or [])
+        if not df_pv_all.empty:
+            df_pv_all.columns = [c.lower().strip() for c in df_pv_all.columns]
+            cond_pv = df_pv_all["agencia"].astype(str).str.upper().str.strip().isin([ag_nombre.upper(), "TODAS", "TODOS", "GENERAL"]) if "agencia" in df_pv_all.columns else pd.Series(True, index=df_pv_all.index)
+            df_pv_filtrado = df_pv_all[cond_pv].copy()
+            if not df_pv_filtrado.empty:
+                if df_dispositivos.empty:
+                    df_dispositivos = df_pv_filtrado
+                else:
+                    df_dispositivos = pd.concat([df_dispositivos, df_pv_filtrado], ignore_index=True)
+                    if "id" in df_dispositivos.columns:
+                        df_dispositivos = df_dispositivos.drop_duplicates(subset=["id"])
     except Exception:
         pass
 
-    # ==================== TAB 1: CUENTAS BANCARIAS ADMIN ====================
+    # Normalización de columnas para la tabla Dispositivos de Pago
+    if not df_dispositivos.empty:
+        if "alias_nombre" not in df_dispositivos.columns:
+            df_dispositivos["alias_nombre"] = df_dispositivos.get("nombre_dispositivo", df_dispositivos.get("nombre_pos", df_dispositivos.get("titular", "POS TAQUILLA")))
+        if "tipo_dispositivo" not in df_dispositivos.columns:
+            df_dispositivos["tipo_dispositivo"] = df_dispositivos.get("banco", "PUNTO DE VENTA (POS)")
+        if "serial_tid" not in df_dispositivos.columns:
+            df_dispositivos["serial_tid"] = df_dispositivos.get("serial_pos", df_dispositivos.get("numero_cuenta", "S/N"))
+        if "cuenta_asociada" not in df_dispositivos.columns:
+            df_dispositivos["cuenta_asociada"] = df_dispositivos.get("cuenta_banco", df_dispositivos.get("cuenta_resumen", df_dispositivos.get("documento_titular", "SIN CUENTA")))
+        if "agencia_asignada" not in df_dispositivos.columns:
+            df_dispositivos["agencia_asignada"] = df_dispositivos.get("agencia", ag_nombre)
+        if "moneda" not in df_dispositivos.columns:
+            df_dispositivos["moneda"] = "USD"
+        if "estatus" not in df_dispositivos.columns:
+            df_dispositivos["estatus"] = df_dispositivos.get("estado", "ACTIVO")
+        if "notas" not in df_dispositivos.columns:
+            df_dispositivos["notas"] = ""
+
+        if "id" in df_dispositivos.columns:
+            df_dispositivos["id"] = pd.to_numeric(df_dispositivos["id"], errors="coerce")
+            df_dispositivos = df_dispositivos.sort_values("id")
+
+    # ==================== TAB 1: CUENTAS BANCARIAS ====================
     with tab1:
-        render_titulo_seccion(f"🏦 Cuentas Bancarias Asignadas a esta Taquilla ({ag_nombre})")
+        st.subheader("🏦 Cuentas Bancarias Asignadas")
+        st.caption("Consulta de cuentas bancarias registradas por el administrador y asignadas a esta taquilla.")
+        
+        total_cuentas = len(df_cuentas) if not df_cuentas.empty else 0
+        cuentas_activas = len(df_cuentas[df_cuentas['estatus'].astype(str).str.upper() == 'ACTIVA']) if (not df_cuentas.empty and 'estatus' in df_cuentas.columns) else total_cuentas
+        monedas_sop = len(df_cuentas['moneda'].unique()) if (not df_cuentas.empty and 'moneda' in df_cuentas.columns) else 0
+
+        col_m1, col_m2, col_m3 = st.columns(3)
+        with col_m1:
+            st.metric("Total Cuentas Asignadas", total_cuentas)
+        with col_m2:
+            st.metric("Cuentas Activas", cuentas_activas)
+        with col_m3:
+            st.metric("Monedas Soportadas", monedas_sop)
+
+        st.markdown("---")
+        st.markdown("##### 📜 Cuentas Bancarias Registradas")
+
         if not df_cuentas.empty:
-            cols_c = st.columns(min(len(df_cuentas), 3))
-            is_dark = st.session_state.get("tema_oscuro", True)
-            card_bg = "rgba(30, 41, 59, 0.6)" if is_dark else "#f8fafc"
-            card_border = "rgba(99, 102, 241, 0.2)" if is_dark else "#cbd5e1"
-            title_color = "#38bdf8" if is_dark else "#0284c7"
-            sub_color = "#cbd5e1" if is_dark else "#334155"
+            columnas_mostrar_c = ["id", "banco", "titular", "numero_cuenta", "moneda", "tipo_cuenta", "agencia_asignada", "saldo_inicial", "estatus"]
+            cols_existentes_c = [c for c in columnas_mostrar_c if c in df_cuentas.columns]
 
-            for idx, (_, row) in enumerate(df_cuentas.iterrows()):
-                c_idx = idx % min(len(df_cuentas), 3)
-                banco = str(row.get("banco", "Banco")).upper()
-                titular = str(row.get("titular", "N/A"))
-                doc_titular = str(row.get("documento_titular") or row.get("doc_titular") or row.get("rif") or row.get("cedula") or "").strip().upper()
-                num_cuenta = str(row.get("numero_cuenta") or row.get("identificador") or row.get("email") or "N/A")
-                moneda = str(row.get("moneda", "USD")).upper()
-                metodos = str(row.get("metodos_aceptados") or row.get("tipo_cuenta") or "General")
-
-                doc_html = f'<div style="font-size: 12px; color: {sub_color}; margin-bottom: 4px;"><b>RIF/Cédula:</b> {doc_titular}</div>' if doc_titular and doc_titular != "N/A" else ""
-
-                card_html = f"""
-                <div style="background: {card_bg}; border: 1px solid {card_border}; border-radius: 12px; padding: 14px; margin-bottom: 12px;">
-                    <div style="font-size: 15px; font-weight: 700; color: {title_color}; margin-bottom: 6px;">🏦 {banco} ({moneda})</div>
-                    <div style="font-size: 13px; color: {sub_color}; margin-bottom: 4px;"><b>Titular:</b> {titular}</div>
-                    {doc_html}
-                    <div style="font-size: 12px; color: {sub_color}; margin-bottom: 4px;"><b>Cuenta/ID:</b> <span style="font-family: monospace; font-size: 12px; color: #f59e0b; font-weight: 600;">{num_cuenta}</span></div>
-                    <div style="font-size: 11px; color: #94a3b8; margin-top: 4px;"><b>Métodos:</b> {metodos}</div>
-                </div>
-                """
-                cols_c[c_idx].markdown(card_html, unsafe_allow_html=True)
-
-            st.markdown("<br>", unsafe_allow_html=True)
-            cols_show = [c for c in ["banco", "titular", "documento_titular", "numero_cuenta", "moneda", "tipo_cuenta", "metodos_aceptados", "agencia_asignada"] if c in df_cuentas.columns]
-            if cols_show:
-                st.dataframe(df_cuentas[cols_show], use_container_width=True, hide_index=True)
+            st.dataframe(
+                df_cuentas[cols_existentes_c],
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "id": st.column_config.NumberColumn("Nº", format="%d"),
+                    "banco": "Banco / Entidad",
+                    "titular": "Titular",
+                    "numero_cuenta": "N° Cuenta / Tel / Email",
+                    "moneda": "Moneda",
+                    "tipo_cuenta": "Tipo",
+                    "agencia_asignada": "Agencia Asignada",
+                    "saldo_inicial": st.column_config.NumberColumn("Saldo Inicial", format="%.2f"),
+                    "estatus": "Estatus"
+                }
+            )
         else:
-            st.info("ℹ️ No hay cuentas bancarias asignadas a esta agencia por el administrador.")
+            st.info("ℹ️ No hay cuentas bancarias asignadas a esta taquilla por la administración.")
 
-    # ==================== TAB 2: PUNTOS DE VENTA (POS) ====================
+    # ==================== TAB 2: DISPOSITIVOS DE PAGO (POS / BIOPAGO) ====================
     with tab2:
-        render_titulo_seccion(f"📟 Gestión de Puntos de Venta (POS) - {ag_nombre}")
+        st.subheader("📟 Dispositivos de Pago Asignados (POS / Biopago)")
+        st.caption("Puntos de Venta (POS) y dispositivos de cobro asignados a esta taquilla por la administración.")
 
-        with st.form("form_crear_pos", clear_on_submit=True):
-            st.markdown("##### ➕ Registrar Nuevo Punto de Venta (POS)")
-            c1, c2, c3 = st.columns([3, 3, 4])
-            nombre_pos = c1.text_input("Nombre / Alias del POS*", placeholder="Ej: POS Taquilla 1, Flexipos Credicard")
-            serial_pos = c2.text_input("Serial / Código Terminal", placeholder="Ej: SN-987654321")
-            
-            opciones_cuentas = []
-            if not df_cuentas.empty:
-                for _, r in df_cuentas.iterrows():
-                    b_name = str(r.get("banco", "Banco")).strip().upper()
-                    n_acc = str(r.get("numero_cuenta") or r.get("identificador") or r.get("email") or "").strip()
-                    mon = str(r.get("moneda", "USD")).strip().upper()
-                    opciones_cuentas.append(f"{b_name} - {n_acc} ({mon})")
-            else:
-                opciones_cuentas = ["Cuenta Principal Admin"]
+        total_disp = len(df_dispositivos) if not df_dispositivos.empty else 0
+        disp_activos = len(df_dispositivos[df_dispositivos['estatus'].astype(str).str.upper().isin(['ACTIVO', 'ACTIVA'])]) if (not df_dispositivos.empty and 'estatus' in df_dispositivos.columns) else total_disp
 
-            cuenta_asociada = c3.selectbox("Cuenta Bancaria Admin Asociada*", opciones_cuentas)
-            estado_pos = st.selectbox("Estado del POS", ["Activo", "Inactivo"], index=0)
+        col_d1, col_d2, col_d3 = st.columns(3)
+        with col_d1:
+            st.metric("Total Dispositivos", total_disp)
+        with col_d2:
+            st.metric("Dispositivos Activos", disp_activos)
+        with col_d3:
+            st.metric("Tipos Soportados", "POS / Biopago / QR / Datáfono")
 
-            if st.form_submit_button("💾 GUARDAR PUNTO DE VENTA", use_container_width=True):
-                if not nombre_pos.strip():
-                    st.error("Debe ingresar un nombre o alias para el Punto de Venta.")
-                else:
-                    try:
-                        supabase.table("puntos_venta").insert({
-                            "nombre_pos": nombre_pos.strip().upper(),
-                            "serial_pos": serial_pos.strip().upper() if serial_pos else "N/A",
-                            "cuenta_resumen": cuenta_asociada,
-                            "agencia": ag_nombre,
-                            "user_id": u_id,
-                            "estado": estado_pos,
-                            "created_at": datetime.now().isoformat()
-                        }).execute()
-                        st.success("✅ Punto de Venta (POS) guardado exitosamente!")
-                        time.sleep(1)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error al guardar el POS: {e}")
+        st.markdown("---")
+        st.markdown("##### 📜 Dispositivos de Pago Registrados")
 
-        st.divider()
-        render_titulo_seccion("📋 Puntos de Venta Registrados")
-        if not df_pos.empty:
-            cols_show_pos = [c for c in ["nombre_pos", "serial_pos", "cuenta_resumen", "estado", "agencia", "created_at"] if c in df_pos.columns]
-            st.dataframe(df_pos[cols_show_pos], use_container_width=True, hide_index=True)
+        if not df_dispositivos.empty:
+            columnas_mostrar_d = ["id", "alias_nombre", "tipo_dispositivo", "serial_tid", "cuenta_asociada", "agencia_asignada", "moneda", "estatus", "notas"]
+            cols_existentes_d = [c for c in columnas_mostrar_d if c in df_dispositivos.columns]
+
+            st.dataframe(
+                df_dispositivos[cols_existentes_d],
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "id": st.column_config.NumberColumn("Nº", format="%d"),
+                    "alias_nombre": "Alias / Nombre",
+                    "tipo_dispositivo": "Tipo Dispositivo",
+                    "serial_tid": "Serial / TID",
+                    "cuenta_asociada": "Cuenta Asociada",
+                    "agencia_asignada": "Agencia Asignada",
+                    "moneda": "Moneda",
+                    "estatus": "Estatus",
+                    "notas": "Notas"
+                }
+            )
         else:
-            st.info("ℹ️ No hay Puntos de Venta registrados para esta taquilla.")
+            st.info("ℹ️ No hay dispositivos de pago (POS / Biopago) asignados a esta taquilla.")
 
     # ==================== TAB 3: REGISTRAR PAGO ====================
     with tab3:
-        render_titulo_seccion("💸 Registrar Pago Recibido (Cuentas y POS Asignados)")
+        render_titulo_seccion("💸 Registrar Pago Recibido")
 
         fecha_hoy = datetime.now().date()
         cerrado = dia_esta_cerrado(ag_nombre, fecha_hoy)
@@ -738,26 +779,27 @@ def modulo_gestion_bancaria(agencia_data):
 
             col_d1, col_d2 = st.columns([3, 3])
             
-            if metodo_pago == "Punto de Venta":
+            if metodo_pago in ["Punto de Venta", "BioPago"]:
                 lista_pos_opciones = []
-                if not df_pos.empty:
-                    df_pos_activos = df_pos[df_pos["estado"].astype(str).str.upper() == "ACTIVO"] if "estado" in df_pos.columns else df_pos
-                    if df_pos_activos.empty:
-                        df_pos_activos = df_pos
-                    for _, r_pos in df_pos_activos.iterrows():
-                        p_nom = str(r_pos.get("nombre_pos", "")).strip()
-                        c_asoc = str(r_pos.get("cuenta_resumen", "")).strip()
-                        s_pos = str(r_pos.get("serial_pos", "")).strip()
-                        lbl = f"{p_nom}"
-                        if s_pos and s_pos != "N/A":
-                            lbl += f" (Serial: {s_pos})"
-                        if c_asoc and c_asoc != "N/A":
+                if not df_dispositivos.empty:
+                    df_disp_activos = df_dispositivos[df_dispositivos["estatus"].astype(str).str.upper().isin(["ACTIVO", "ACTIVA"])] if "estatus" in df_dispositivos.columns else df_dispositivos
+                    if df_disp_activos.empty:
+                        df_disp_activos = df_dispositivos
+                    for _, r_disp in df_disp_activos.iterrows():
+                        alias = str(r_disp.get("alias_nombre", "")).strip()
+                        tipo = str(r_disp.get("tipo_dispositivo", "")).strip()
+                        s_tid = str(r_disp.get("serial_tid", "")).strip()
+                        c_asoc = str(r_disp.get("cuenta_asociada", "")).strip()
+                        lbl = f"{alias} ({tipo})"
+                        if s_tid and s_tid != "S/N" and s_tid != "N/A":
+                            lbl += f" | TID: {s_tid}"
+                        if c_asoc and c_asoc != "SIN CUENTA":
                             lbl += f" - [{c_asoc}]"
                         lista_pos_opciones.append(lbl)
                 
                 if not lista_pos_opciones:
                     lista_pos_opciones = ["POS Taquilla General"]
-                pos_o_cuenta = col_d1.selectbox("Seleccione Punto de Venta (POS) Asignado*", lista_pos_opciones)
+                pos_o_cuenta = col_d1.selectbox(f"Seleccione Dispositivo de Pago Asignado ({metodo_pago})*", lista_pos_opciones)
 
             elif "Efectivo" in metodo_pago:
                 pos_o_cuenta = col_d1.selectbox(
@@ -770,20 +812,18 @@ def modulo_gestion_bancaria(agencia_data):
                 if not df_cuentas.empty:
                     for _, r in df_cuentas.iterrows():
                         b_name = str(r.get("banco", "Banco")).strip().upper()
+                        tit = str(r.get("titular", "")).strip()
                         n_acc = str(r.get("numero_cuenta") or r.get("identificador") or r.get("email") or "").strip()
                         mon = str(r.get("moneda", "USD")).strip().upper()
-                        tit = str(r.get("titular", "")).strip()
-                        met_acc = str(r.get("metodos_aceptados") or r.get("tipo_cuenta") or "").strip()
+                        tipo_c = str(r.get("tipo_cuenta", "")).strip()
                         
-                        desc = f"{b_name}"
+                        desc = f"{b_name} | {tit}"
                         if n_acc and n_acc != "N/A":
-                            desc += f" - {n_acc}"
+                            desc += f" - N°: {n_acc}"
                         if mon:
                             desc += f" ({mon})"
-                        if tit and tit != "N/A":
-                            desc += f" | {tit}"
-                        if met_acc:
-                            desc += f" [{met_acc}]"
+                        if tipo_c:
+                            desc += f" [{tipo_c}]"
                         opciones_c.append(desc)
                 if not opciones_c:
                     opciones_c = ["Cuenta Admin Registrada"]

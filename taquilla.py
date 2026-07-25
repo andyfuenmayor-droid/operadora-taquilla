@@ -607,25 +607,61 @@ def modulo_gestion_bancaria(agencia_data):
     # B) CARGA DE DISPOSITIVOS DE PAGO (POS / BIOPAGO)
     df_dispositivos = pd.DataFrame()
     try:
-        res_disp = supabase.table("dispositivos_pago").select("*").execute()
-        df_disp_all = pd.DataFrame(res_disp.data or [])
-        if not df_disp_all.empty:
-            df_disp_all.columns = [c.lower().strip() for c in df_disp_all.columns]
+        if not df_cuentas_all.empty:
+            cond_tipo_disp = pd.Series(False, index=df_cuentas_all.index)
+            if "tipo_cuenta" in df_cuentas_all.columns:
+                cond_tipo_disp = cond_tipo_disp | (df_cuentas_all["tipo_cuenta"].astype(str).str.upper().str.strip() == "DISPOSITIVO DE PAGO")
+            if "banco" in df_cuentas_all.columns:
+                cond_tipo_disp = cond_tipo_disp | (df_cuentas_all["banco"].astype(str).str.upper().str.strip().str.startswith("DISPOSITIVO"))
             
-            cond_d_ag = pd.Series(False, index=df_disp_all.index)
-            if "agencia_asignada" in df_disp_all.columns:
-                d_ag_col = df_disp_all["agencia_asignada"].astype(str).str.upper().str.strip()
-                cond_d_ag = d_ag_col.isin([ag_nombre.upper(), "TODAS", "TODOS", "GENERAL", "DISPONIBLE"])
-            elif "agencia" in df_disp_all.columns:
-                d_ag_col = df_disp_all["agencia"].astype(str).str.upper().str.strip()
-                cond_d_ag = d_ag_col.isin([ag_nombre.upper(), "TODAS", "TODOS", "GENERAL", "DISPONIBLE"])
+            df_disp_cb = df_cuentas_all[cond_tipo_disp].copy()
 
-            cond_d_uid = df_disp_all["user_id"].astype(str).str.strip() == u_id if "user_id" in df_disp_all.columns else pd.Series(False, index=df_disp_all.index)
-            df_dispositivos = df_disp_all[cond_d_ag | cond_d_uid].copy()
+            if not df_disp_cb.empty:
+                cond_d_ag = pd.Series(False, index=df_disp_cb.index)
+                if "agencia_asignada" in df_disp_cb.columns:
+                    d_ag_col = df_disp_cb["agencia_asignada"].astype(str).str.upper().str.strip()
+                    cond_d_ag = cond_d_ag | d_ag_col.isin([ag_nombre.upper(), "TODAS", "TODOS", "GENERAL", "DISPONIBLE"])
+                
+                if "metodos_aceptados" in df_disp_cb.columns:
+                    met_col = df_disp_cb["metodos_aceptados"].astype(str).str.upper().str.strip()
+                    cond_d_ag = cond_d_ag | met_col.str.contains(ag_nombre.upper(), na=False)
+
+                if "id" in df_disp_cb.columns and cuentas_ids_asignadas:
+                    cond_d_id = df_disp_cb["id"].astype(int).isin(cuentas_ids_asignadas)
+                    cond_d_ag = cond_d_ag | cond_d_id
+
+                cond_d_uid = pd.Series(False, index=df_disp_cb.index)
+                if "user_id" in df_disp_cb.columns and not cuentas_ids_asignadas:
+                    cond_d_uid = df_disp_cb["user_id"].astype(str).str.strip() == u_id
+
+                df_dispositivos = df_disp_cb[cond_d_ag | cond_d_uid].copy()
     except Exception:
         df_dispositivos = pd.DataFrame()
 
-    # Complementar con puntos_venta o cuentas_bancarias tipo DISPOSITIVO DE PAGO
+    # Complementar con dispositivos_pago o puntos_venta si existen datos
+    try:
+        res_disp = supabase.table("dispositivos_pago").select("*").execute()
+        df_disp_legacy = pd.DataFrame(res_disp.data or [])
+        if not df_disp_legacy.empty:
+            df_disp_legacy.columns = [c.lower().strip() for c in df_disp_legacy.columns]
+            cond_d_ag_leg = pd.Series(False, index=df_disp_legacy.index)
+            if "agencia_asignada" in df_disp_legacy.columns:
+                d_ag_col = df_disp_legacy["agencia_asignada"].astype(str).str.upper().str.strip()
+                cond_d_ag_leg = d_ag_col.isin([ag_nombre.upper(), "TODAS", "TODOS", "GENERAL", "DISPONIBLE"])
+            elif "agencia" in df_disp_legacy.columns:
+                d_ag_col = df_disp_legacy["agencia"].astype(str).str.upper().str.strip()
+                cond_d_ag_leg = d_ag_col.isin([ag_nombre.upper(), "TODAS", "TODOS", "GENERAL", "DISPONIBLE"])
+
+            cond_d_uid_leg = df_disp_legacy["user_id"].astype(str).str.strip() == u_id if "user_id" in df_disp_legacy.columns else pd.Series(False, index=df_disp_legacy.index)
+            df_disp_legacy_filt = df_disp_legacy[cond_d_ag_leg | cond_d_uid_leg].copy()
+            if not df_disp_legacy_filt.empty:
+                if df_dispositivos.empty:
+                    df_dispositivos = df_disp_legacy_filt
+                else:
+                    df_dispositivos = pd.concat([df_dispositivos, df_disp_legacy_filt], ignore_index=True)
+    except Exception:
+        pass
+
     try:
         res_pv = supabase.table("puntos_venta").select("*").execute()
         df_pv_all = pd.DataFrame(res_pv.data or [])
@@ -638,10 +674,11 @@ def modulo_gestion_bancaria(agencia_data):
                     df_dispositivos = df_pv_filtrado
                 else:
                     df_dispositivos = pd.concat([df_dispositivos, df_pv_filtrado], ignore_index=True)
-                    if "id" in df_dispositivos.columns:
-                        df_dispositivos = df_dispositivos.drop_duplicates(subset=["id"])
     except Exception:
         pass
+
+    if not df_dispositivos.empty and "id" in df_dispositivos.columns:
+        df_dispositivos = df_dispositivos.drop_duplicates(subset=["id"])
 
     # Normalización de columnas para la tabla Dispositivos de Pago
     if not df_dispositivos.empty:
@@ -649,6 +686,8 @@ def modulo_gestion_bancaria(agencia_data):
             df_dispositivos["alias_nombre"] = df_dispositivos.get("nombre_dispositivo", df_dispositivos.get("nombre_pos", df_dispositivos.get("titular", "POS TAQUILLA")))
         if "tipo_dispositivo" not in df_dispositivos.columns:
             df_dispositivos["tipo_dispositivo"] = df_dispositivos.get("banco", "PUNTO DE VENTA (POS)")
+        if "tipo_dispositivo" in df_dispositivos.columns:
+            df_dispositivos["tipo_dispositivo"] = df_dispositivos["tipo_dispositivo"].astype(str).str.replace("DISPOSITIVO: ", "", regex=False)
         if "serial_tid" not in df_dispositivos.columns:
             df_dispositivos["serial_tid"] = df_dispositivos.get("serial_pos", df_dispositivos.get("numero_cuenta", "S/N"))
         if "cuenta_asociada" not in df_dispositivos.columns:

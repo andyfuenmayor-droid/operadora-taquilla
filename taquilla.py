@@ -942,7 +942,7 @@ def modulo_gestion_bancaria(agencia_data):
 
             col_v1, col_v2 = st.columns([2, 4])
             monto_pago = col_v1.number_input("Monto Recibido*", min_value=0.0, format="%.2f")
-            concepto = col_v2.selectbox("Concepto de Operación*", ["Compra de Tickets", "Recibos"])
+            concepto = col_v2.selectbox("Concepto de Operación*", ["Compra de Tickets", "Recibos Punto Venta"])
 
             if st.form_submit_button("💾 REGISTRAR PAGO BANCARIO", use_container_width=True):
                 if monto_pago <= 0:

@@ -289,14 +289,16 @@ def reabrir_dia(agencia_nombre, fecha, cajero_id=None):
         st.error(f"Error al reabrir el día: {e}")
         return False
 
-def obtener_ultimo_dia_cerrado(agencia_nombre):
+def obtener_ultimo_dia_cerrado(agencia_nombre, cajero_id=None):
     """Retorna la última fecha cerrada, o None si no hay ninguna."""
     try:
-        res = supabase.table("cda_reportes_diarios")\
+        q = supabase.table("cda_reportes_diarios")\
             .select("fecha")\
             .eq("nombre_agency", agencia_nombre)\
-            .eq("cerrado", True)\
-            .order("fecha", desc=True)\
+            .eq("cerrado", True)
+        if cajero_id:
+            q = q.eq("cajero_id", str(cajero_id))
+        res = q.order("fecha", desc=True)\
             .limit(1)\
             .execute()
         if res.data:
@@ -1253,19 +1255,22 @@ def modulo_cierre_diario(agencia_data):
     render_encabezado_principal("🔒 Cierre Diario")
     u_id = agencia_data['user_id']
     nom = agencia_data['nombre_agencia']
-    es_supervisor = st.session_state.get("cajero_actual", {}).get("rol", "") == "supervisor"
+    cajero_info = st.session_state.get("cajero_actual", {})
+    cajero_id = cajero_info.get("id")
+    es_supervisor = (cajero_info.get("rol", "") == "supervisor")
 
-    if "fecha_cierre" not in st.session_state:
-        st.session_state["fecha_cierre"] = datetime.now().date()
+    ult_fecha = obtener_ultimo_dia_cerrado(nom, cajero_id=cajero_id if not es_supervisor else None)
+    fecha_defecto = ult_fecha if ult_fecha else datetime.now().date()
+
+    if "fecha_cierre" not in st.session_state or st.session_state.get("last_cierre_cajero") != str(cajero_id):
+        st.session_state["fecha_cierre"] = fecha_defecto
+        st.session_state["last_cierre_cajero"] = str(cajero_id)
 
     fecha_sel = st.date_input(
         "📅 Seleccione el día a cerrar:",
         value=st.session_state["fecha_cierre"],
         key="fecha_cierre_input"
     )
-
-    cajero_info = st.session_state.get("cajero_actual", {})
-    cajero_id = cajero_info.get("id")
 
     cerrado = dia_esta_cerrado(nom, fecha_sel, cajero_id=cajero_id if not es_supervisor else None)
 
@@ -1867,7 +1872,8 @@ else:
     _check_saldo_taquilla_table()
     ag = st.session_state.agencia_actual
     cajero = st.session_state.cajero_actual
-    ultimo_cierre = obtener_ultimo_dia_cerrado(ag['nombre_agencia'])
+    cajero_id_sb = None if cajero.get('rol') == 'supervisor' else cajero.get('id')
+    ultimo_cierre = obtener_ultimo_dia_cerrado(ag['nombre_agencia'], cajero_id=cajero_id_sb)
 
     if st.session_state.tema_oscuro:
         dashboard_css = """

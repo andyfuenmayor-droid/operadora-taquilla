@@ -1993,46 +1993,72 @@ else:
             border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
         }
 
-        /* 🟢 Sidebar Navigation Styling (Matching main.py screenshot) 🟢 */
+        /* 🟢 Compact Sidebar Navigation Styling (Zero Background, Zero Scrolling) 🟢 */
+        [data-testid="stSidebar"] [data-testid="stSidebarUserContent"] {
+            padding-top: 0.75rem !important;
+        }
+
+        [data-testid="stSidebar"] [data-testid="stElementContainer"] {
+            margin-bottom: 2px !important;
+            margin-top: 0px !important;
+        }
+
+        [data-testid="stSidebar"] [data-testid="stButton"] {
+            margin-bottom: 2px !important;
+        }
+
         [data-testid="stSidebar"] [data-testid="stButton"] button {
             justify-content: flex-start !important;
             text-align: left !important;
-            font-size: 0.92rem !important;
+            font-size: 0.88rem !important;
             font-weight: 600 !important;
-            padding: 8px 12px !important;
-            border-radius: 8px !important;
-            transition: all 0.2s ease !important;
-            margin-bottom: 2px !important;
+            padding: 4px 10px !important;
+            min-height: 32px !important;
+            height: 32px !important;
+            line-height: 1.2 !important;
+            border-radius: 6px !important;
+            transition: all 0.15s ease !important;
+            margin: 0 !important;
             background: transparent !important;
             background-color: transparent !important;
             border: none !important;
+            outline: none !important;
             box-shadow: none !important;
             color: #ffffff !important;
+            width: 100% !important;
         }
-        /* Active Item: Solid Green Button (matching Auditoría Híbrida in main.py) */
+
+        /* Active Item: Solid Green Button */
         [data-testid="stSidebar"] [data-testid="stButton"] button[kind="primary"],
         [data-testid="stSidebar"] [data-testid="stButton"] button[data-testid="baseButton-primary"] {
             background-color: #00c853 !important;
+            background: #00c853 !important;
             color: #ffffff !important;
             font-weight: 700 !important;
             border: none !important;
-            border-radius: 8px !important;
-            box-shadow: 0 4px 12px rgba(0, 200, 83, 0.35) !important;
+            border-radius: 6px !important;
+            box-shadow: 0 2px 8px rgba(0, 200, 83, 0.3) !important;
         }
+
         /* Inactive Item Hover */
         [data-testid="stSidebar"] [data-testid="stButton"] button[kind="secondary"]:hover,
         [data-testid="stSidebar"] [data-testid="stButton"] button[data-testid="baseButton-secondary"]:hover {
             background-color: rgba(255, 255, 255, 0.08) !important;
+            background: rgba(255, 255, 255, 0.08) !important;
             color: #ffffff !important;
         }
+
         /* Logout Button Specific Outlined Card Style */
-        [data-testid="stSidebar"] button[key="btn_logout_sidebar"] {
+        [data-testid="stSidebar"] button[key="btn_logout_sidebar"],
+        [data-testid="stSidebar"] button[key="btn_logout_sidebar"]:hover {
             border: 1px solid rgba(255, 255, 255, 0.15) !important;
             background-color: rgba(255, 255, 255, 0.03) !important;
             justify-content: center !important;
             text-align: center !important;
-            border-radius: 10px !important;
-            margin-top: 0.5rem !important;
+            border-radius: 8px !important;
+            min-height: 36px !important;
+            height: 36px !important;
+            margin-top: 0.25rem !important;
         }
 
         [data-testid="stBlockContainer"],
@@ -2729,20 +2755,20 @@ else:
     ]
 
     with st.sidebar:
-        sidebar_info = f"""<div style="background-color: {card_bg}; border: 1px solid {card_border}; padding: 1.25rem; border-radius: 16px; margin-bottom: 1rem;">
-<div style="font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">Terminal</div>
-<div style="font-size: 1.1rem; font-weight: 700; color: {text_val_color}; margin-bottom: 0.75rem;">🏢 {ag['nombre_agencia'].upper()}</div>
-<div style="font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">Usuario</div>
-<div style="font-size: 0.95rem; font-weight: 600; color: {text_val_color}; margin-bottom: 0.75rem;">👤 {(cajero.get('nombre') or cajero.get('usuario') or 'USUARIO').upper()}</div>
-<div style="font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">Rol</div>
-<div style="display: inline-block; background-color: {badge_bg}; border: 1px solid {badge_border}; color: {badge_text}; font-size: 0.75rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem;">{cajero['rol'].upper()}</div>
-<div style="font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem;">Último Cierre</div>
-<div style="font-size: 0.9rem; font-weight: 500; color: { '#34d399' if ultimo_cierre else '#fb7185' }; font-family: inherit;">📅 {ultimo_cierre if ultimo_cierre else 'Sin cierres registrados'}</div>
+        sidebar_info = f"""<div style="background-color: {card_bg}; border: 1px solid {card_border}; padding: 0.85rem 1rem; border-radius: 12px; margin-bottom: 0.5rem;">
+<div style="font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.1rem;">Terminal</div>
+<div style="font-size: 1rem; font-weight: 700; color: {text_val_color}; margin-bottom: 0.5rem;">🏢 {ag['nombre_agencia'].upper()}</div>
+<div style="font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.1rem;">Usuario</div>
+<div style="font-size: 0.9rem; font-weight: 600; color: {text_val_color}; margin-bottom: 0.5rem;">👤 {(cajero.get('nombre') or cajero.get('usuario') or 'USUARIO').upper()}</div>
+<div style="font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.1rem;">Rol</div>
+<div style="display: inline-block; background-color: {badge_bg}; border: 1px solid {badge_border}; color: {badge_text}; font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.4rem; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">{cajero['rol'].upper()}</div>
+<div style="font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.1rem;">Último Cierre</div>
+<div style="font-size: 0.85rem; font-weight: 500; color: { '#34d399' if ultimo_cierre else '#fb7185' }; font-family: inherit;">📅 {ultimo_cierre if ultimo_cierre else 'Sin cierres'}</div>
 </div>"""
         st.markdown(sidebar_info, unsafe_allow_html=True)
 
         st.markdown(
-            f"""<div style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">📌 MENÚ DE OPERACIONES</div>""",
+            f"""<div style="font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.3rem;">📌 MENÚ DE OPERACIONES</div>""",
             unsafe_allow_html=True
         )
 

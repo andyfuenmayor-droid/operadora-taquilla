@@ -320,16 +320,16 @@ def _check_saldo_taquilla_table():
             )
     return st.session_state["check_saldo_ok"]
 
-def obtener_saldo_anterior(agencia_nombre, fecha_sel):
+def obtener_saldo_anterior(agencia_nombre, fecha_sel, cajero_id=None):
     """Retorna el saldo restante del último día cerrado anterior a fecha_sel."""
     try:
-        res = supabase.table("saldo_taquilla")\
+        q = supabase.table("saldo_taquilla")\
             .select("saldo_restante")\
             .eq("nombre_agency", agencia_nombre)\
-            .lt("fecha", str(fecha_sel))\
-            .order("fecha", desc=True)\
-            .limit(1)\
-            .execute()
+            .lt("fecha", str(fecha_sel))
+        if cajero_id is not None:
+            q = q.eq("cajero_id", cajero_id)
+        res = q.order("fecha", desc=True).limit(1).execute()
         if res.data:
             return float(res.data[0]["saldo_restante"])
     except Exception:
@@ -491,7 +491,8 @@ def modulo_gastos(agencia_data):
                         "fecha": str(fecha_g), "agencia": ag_nombre,
                         "concepto": concepto_g.upper().strip(),
                         "monto": round(float(monto_g), 2),
-                        "moneda": moneda_g, "user_id": u_id
+                        "moneda": moneda_g, "user_id": u_id,
+                        "cajero_id": st.session_state.get("cajero_actual", {}).get("id")
                     }).execute()
                     st.success("✅ Gasto guardado exitosamente!"); time.sleep(1); st.rerun()
 
@@ -547,7 +548,8 @@ def modulo_pagos(agencia_data):
                     supabase.table("cda_pagos_diarios").insert({
                         "fecha": str(fecha_pg), "agencia": ag_nombre,
                         "tipo_pago": tipo_pg, "monto": round(float(monto_pg), 2),
-                        "moneda": moneda_pg, "user_id": u_id
+                        "moneda": moneda_pg, "user_id": u_id,
+                        "cajero_id": st.session_state.get("cajero_actual", {}).get("id")
                     }).execute()
                     st.success("✅ Pago guardado exitosamente!"); time.sleep(1); st.rerun()
 
@@ -1104,6 +1106,21 @@ def modulo_reporte_rango(agencia_data):
         if not df_g.empty and 'fecha' in df_g.columns: df_g['fecha'] = pd.to_datetime(df_g['fecha']).dt.date
         if not df_p.empty and 'fecha' in df_p.columns: df_p['fecha'] = pd.to_datetime(df_p['fecha']).dt.date
         if not df_t.empty and 'fecha' in df_t.columns: df_t['fecha'] = pd.to_datetime(df_t['fecha']).dt.date
+
+        cajero_info = st.session_state.get("cajero_actual", {})
+        rol_usuario = cajero_info.get("rol", "cajero")
+        cajero_id = cajero_info.get("id")
+        es_supervisor = (rol_usuario == 'supervisor')
+
+        if not es_supervisor and cajero_id:
+            if not df_v.empty and "cajero_id" in df_v.columns:
+                df_v = df_v[df_v["cajero_id"].astype(str) == str(cajero_id)]
+            if not df_g.empty and "cajero_id" in df_g.columns:
+                df_g = df_g[df_g["cajero_id"].astype(str) == str(cajero_id)]
+            if not df_p.empty and "cajero_id" in df_p.columns:
+                df_p = df_p[df_p["cajero_id"].astype(str) == str(cajero_id)]
+            if not df_t.empty and "cajero_id" in df_t.columns:
+                df_t = df_t[df_t["cajero_id"].astype(str) == str(cajero_id)]
     except Exception as e:
         st.error(f"Error: {e}"); return
 
@@ -1117,7 +1134,7 @@ def modulo_reporte_rango(agencia_data):
 
     # Calcular Saldo Anterior y Saldo Final
     nom = agencia_data['nombre_agencia']
-    saldo_ant = obtener_saldo_anterior(nom, d)
+    saldo_ant = obtener_saldo_anterior(nom, d, cajero_id=cajero_id if not es_supervisor else None)
     t_saldo_final = saldo_ant + saldo_calculado
 
     render_tarjetas_metricas(tv, tc, tp, tg, tpg, saldo_calculado)
@@ -1227,6 +1244,17 @@ def modulo_cierre_diario(agencia_data):
         if not df_v.empty: df_v.columns = [c.lower() for c in df_v.columns]
         if not df_g.empty: df_g.columns = [c.lower() for c in df_g.columns]
         if not df_pg.empty: df_pg.columns = [c.lower() for c in df_pg.columns]
+
+        cajero_info = st.session_state.get("cajero_actual", {})
+        cajero_id = cajero_info.get("id")
+
+        if not es_supervisor and cajero_id:
+            if not df_v.empty and "cajero_id" in df_v.columns:
+                df_v = df_v[df_v["cajero_id"].astype(str) == str(cajero_id)]
+            if not df_g.empty and "cajero_id" in df_g.columns:
+                df_g = df_g[df_g["cajero_id"].astype(str) == str(cajero_id)]
+            if not df_pg.empty and "cajero_id" in df_pg.columns:
+                df_pg = df_pg[df_pg["cajero_id"].astype(str) == str(cajero_id)]
     except Exception as e:
         st.error(f"Error: {e}"); return
 
@@ -1238,12 +1266,15 @@ def modulo_cierre_diario(agencia_data):
     t_saldo_dia = t_venta - t_comis - t_premios - t_gastos - t_pagos
 
     # Calcular Saldo Anterior y Saldo Final
-    saldo_ant = obtener_saldo_anterior(nom, fecha_sel)
+    saldo_ant = obtener_saldo_anterior(nom, fecha_sel, cajero_id=cajero_id if not es_supervisor else None)
     t_saldo_final = saldo_ant + t_saldo_dia
 
     if cerrado:
         try:
-            res_hoy = supabase.table("saldo_taquilla").select("saldo_restante").eq("nombre_agency", nom).eq("fecha", str(fecha_sel)).execute()
+            q_hoy = supabase.table("saldo_taquilla").select("saldo_restante").eq("nombre_agency", nom).eq("fecha", str(fecha_sel))
+            if not es_supervisor and cajero_id:
+                q_hoy = q_hoy.eq("cajero_id", cajero_id)
+            res_hoy = q_hoy.execute()
             if res_hoy.data:
                 t_saldo_final = float(res_hoy.data[0]["saldo_restante"])
         except Exception:
@@ -1569,6 +1600,11 @@ def modulo_reporte_diario(agencia_data):
         key="fecha_reporte_dia_input"
     )
 
+    cajero_info = st.session_state.get("cajero_actual", {})
+    rol_actual = cajero_info.get("rol", "cajero")
+    cajero_id = cajero_info.get("id")
+    es_supervisor = (rol_actual == "supervisor")
+
     try:
         df_v = pd.DataFrame(supabase.table("cda_reportes_diarios")
             .select("*").eq("nombre_agency", agencia_data['nombre_agencia']).eq("fecha", str(fecha_sel)).execute().data or [])
@@ -1582,6 +1618,16 @@ def modulo_reporte_diario(agencia_data):
         if not df_g.empty: df_g.columns = [c.lower() for c in df_g.columns]
         if not df_p.empty: df_p.columns = [c.lower() for c in df_p.columns]
         if not df_t.empty: df_t.columns = [c.lower() for c in df_t.columns]
+
+        if not es_supervisor and cajero_id:
+            if not df_v.empty and "cajero_id" in df_v.columns:
+                df_v = df_v[df_v["cajero_id"].astype(str) == str(cajero_id)]
+            if not df_g.empty and "cajero_id" in df_g.columns:
+                df_g = df_g[df_g["cajero_id"].astype(str) == str(cajero_id)]
+            if not df_p.empty and "cajero_id" in df_p.columns:
+                df_p = df_p[df_p["cajero_id"].astype(str) == str(cajero_id)]
+            if not df_t.empty and "cajero_id" in df_t.columns:
+                df_t = df_t[df_t["cajero_id"].astype(str) == str(cajero_id)]
     except Exception as e:
         st.error(f"Error: {e}"); return
 
@@ -1594,7 +1640,7 @@ def modulo_reporte_diario(agencia_data):
 
     # Calcular Saldo Anterior y Saldo Final
     nom = agencia_data['nombre_agencia']
-    saldo_ant = obtener_saldo_anterior(nom, fecha_sel)
+    saldo_ant = obtener_saldo_anterior(nom, fecha_sel, cajero_id=cajero_id if not es_supervisor else None)
     t_saldo_final = saldo_ant + t_saldo
 
     render_tarjetas_metricas(t_venta, t_comis, t_premios, t_gastos, t_pagos, t_saldo)

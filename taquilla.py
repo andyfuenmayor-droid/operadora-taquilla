@@ -886,27 +886,22 @@ def modulo_gestion_bancaria(agencia_data):
         fecha_pago = col_top1.date_input("Fecha de Operación", value=fecha_hoy, key="reg_fecha_pago")
         pos_o_cuenta = col_top2.selectbox("Seleccione Dispositivo / Cuenta de Pago Asignado*", lista_opciones_destino, key="reg_destino_unificado")
 
-        # Auto-detectar la moneda y el método según la cuenta/dispositivo seleccionado
+        # Auto-detectar la moneda y el método según la cuenta/dispositivo seleccionado (sin permitir cambio manual)
         meta_sel = mapa_destinos.get(pos_o_cuenta, {"moneda": "USD", "metodo": "Punto de Venta"})
-        moneda_detectada = meta_sel.get("moneda", "USD")
-        metodo_detectado = meta_sel.get("metodo", "Punto de Venta")
+        moneda_pago = meta_sel.get("moneda", "USD")
+        metodo_pago = meta_sel.get("metodo", "Punto de Venta")
 
-        if moneda_detectada not in ["USD", "BS", "COP"]:
-            if "BS" in moneda_detectada or "VES" in moneda_detectada:
-                moneda_detectada = "BS"
-            elif "COP" in moneda_detectada:
-                moneda_detectada = "COP"
+        if moneda_pago not in ["USD", "BS", "COP"]:
+            if "BS" in moneda_pago or "VES" in moneda_pago:
+                moneda_pago = "BS"
+            elif "COP" in moneda_pago:
+                moneda_pago = "COP"
             else:
-                moneda_detectada = "USD"
+                moneda_pago = "USD"
 
-        opciones_moneda = ["USD", "BS", "COP"]
-        idx_mon = opciones_moneda.index(moneda_detectada) if moneda_detectada in opciones_moneda else 0
-
-        idx_met = metodos_bancarios_opciones.index(metodo_detectado) if metodo_detectado in metodos_bancarios_opciones else 0
-
-        col_m1, col_m2 = st.columns([3, 3])
-        metodo_pago = col_m1.selectbox("Método de Pago*", metodos_bancarios_opciones, index=idx_met, key=f"reg_met_{pos_o_cuenta}")
-        moneda_pago = col_m2.selectbox("Moneda*", opciones_moneda, index=idx_mon, key=f"reg_mon_{pos_o_cuenta}")
+        col_inf1, col_inf2 = st.columns([3, 3])
+        col_inf1.text_input("Moneda (Definida por la cuenta/dispositivo)*", value=moneda_pago, disabled=True, key=f"dis_mon_{pos_o_cuenta}")
+        col_inf2.text_input("Método de Pago Asignado*", value=metodo_pago, disabled=True, key=f"dis_met_{pos_o_cuenta}")
 
         with st.form("form_reg_pago_bancario", clear_on_submit=True):
             col_f1, col_f2 = st.columns([3, 3])

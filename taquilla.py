@@ -1993,6 +1993,33 @@ else:
             border-right: 1px solid rgba(255, 255, 255, 0.06) !important;
         }
 
+        /* Sidebar Navigation Menu Pill Styling */
+        [data-testid="stSidebar"] [data-testid="stRadio"] > div {
+            gap: 6px !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stRadio"] label {
+            background-color: rgba(255, 255, 255, 0.03) !important;
+            border: 1px solid rgba(255, 255, 255, 0.06) !important;
+            border-radius: 10px !important;
+            padding: 8px 12px !important;
+            cursor: pointer !important;
+            transition: all 0.2s ease !important;
+            width: 100% !important;
+            font-size: 0.9rem !important;
+            font-weight: 500 !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stRadio"] label:hover {
+            background-color: rgba(0, 200, 83, 0.1) !important;
+            border-color: rgba(0, 200, 83, 0.3) !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stRadio"] label[data-checked="true"],
+        [data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) {
+            background: linear-gradient(135deg, rgba(0, 200, 83, 0.25), rgba(0, 200, 83, 0.1)) !important;
+            border: 1px solid #00c853 !important;
+            color: #ffffff !important;
+            font-weight: 600 !important;
+        }
+
         [data-testid="stBlockContainer"],
         [data-testid="stAppViewBlockContainer"],
         .block-container {
@@ -2672,7 +2699,17 @@ else:
         badge_border = "rgba(0, 200, 83, 0.2)"
         badge_text = "#00c853"
 
-    opciones = ["Carga de Ventas", "Tickets Premiados", "Gestión de Gastos", "Gestión de Pagos", "Gestión Bancaria", "Reporte Diario", "Reporte por Rango", "Cierre Diario"]
+    menu_map = {
+        "🎰 Carga de Ventas": "Carga de Ventas",
+        "🎟️ Tickets Premiados": "Tickets Premiados",
+        "💸 Gestión de Gastos": "Gestión de Gastos",
+        "💰 Recepción de Pagos": "Gestión de Pagos",
+        "🏦 Gestión Bancaria": "Gestión Bancaria",
+        "📆 Reporte Diario": "Reporte Diario",
+        "📊 Reporte por Rango": "Reporte por Rango",
+        "🔒 Cierre Diario": "Cierre Diario"
+    }
+    opciones_display = list(menu_map.keys())
 
     with st.sidebar:
         sidebar_info = f"""<div style="background-color: {card_bg}; border: 1px solid {card_border}; padding: 1.25rem; border-radius: 16px; margin-bottom: 1rem;">
@@ -2688,15 +2725,16 @@ else:
         st.markdown(sidebar_info, unsafe_allow_html=True)
 
         st.markdown(
-            f"""<div style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">📌 Seleccione Operación</div>""",
+            f"""<div style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">📌 MENÚ DE OPERACIONES</div>""",
             unsafe_allow_html=True
         )
-        opcion = st.selectbox(
+        opcion_sel = st.radio(
             "Seleccione operación:",
-            opciones,
-            key="opcion_operacion_sidebar",
+            opciones_display,
+            key="opcion_operacion_fixed_radio",
             label_visibility="collapsed"
         )
+        opcion = menu_map[opcion_sel]
 
         st.divider()
         if st.button("🚪 Cerrar Sesión", use_container_width=True, key="btn_logout_sidebar"):

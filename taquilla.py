@@ -1993,9 +1993,20 @@ else:
             border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
         }
 
-        /* 🟢 Estilo Panel Pro - Botón Activo Verde Sólido (Screenshot User) 🟢 */
+        /* 🟢 Estilo Panel Pro - Botón Activo Verde Sólido (Sin círculos) 🟢 */
         [data-testid="stSidebar"] [data-testid="stRadio"] > div {
             gap: 6px !important;
+        }
+        /* Ocultar los círculos del radio button */
+        [data-testid="stSidebar"] [data-testid="stRadio"] label > div:first-child,
+        [data-testid="stSidebar"] [data-testid="stRadio"] label input[type="radio"],
+        [data-testid="stSidebar"] [data-testid="stRadio"] label [role="radio"] {
+            display: none !important;
+            visibility: hidden !important;
+            width: 0 !important;
+            height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
         }
         [data-testid="stSidebar"] [data-testid="stRadio"] label {
             background: transparent !important;
@@ -2008,6 +2019,8 @@ else:
             font-size: 0.92rem !important;
             font-weight: 600 !important;
             color: #ffffff !important;
+            display: flex !important;
+            align-items: center !important;
         }
         [data-testid="stSidebar"] [data-testid="stRadio"] label:hover {
             background: rgba(255, 255, 255, 0.08) !important;

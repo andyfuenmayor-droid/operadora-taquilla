@@ -799,87 +799,116 @@ def modulo_gestion_bancaria(agencia_data):
         if cerrado:
             st.warning(f"🔒 El día {fecha_hoy} está cerrado. Los registros se guardarán con la fecha actual.")
 
-        with st.form("form_reg_pago_bancario", clear_on_submit=True):
-            col_m1, col_m2, col_m3 = st.columns([2, 2, 2])
-            fecha_pago = col_m1.date_input("Fecha de Operación", value=fecha_hoy)
-            metodo_pago = col_m2.selectbox("Método de Pago*", [
-                "Punto de Venta", 
-                "BioPago", 
-                "Pago Móvil", 
-                "Zelle", 
-                "Transferencia Bancaria", 
-                "Depósito Bancario", 
-                "Binance / Cripto", 
-                "PayPal", 
-                "Efectivo (Remanente Saldo por Cobrar)", 
-                "Otro (Cuenta Admin)"
-            ])
-            moneda_pago = col_m3.selectbox("Moneda*", ["USD", "BS", "COP"], index=0)
+        metodos_bancarios_opciones = [
+            "Punto de Venta", 
+            "BioPago", 
+            "Pago Móvil", 
+            "Zelle", 
+            "Transferencia Bancaria", 
+            "Depósito Bancario", 
+            "Binance / Cripto", 
+            "PayPal", 
+            "Otro (Cuenta Admin)"
+        ]
 
-            col_d1, col_d2 = st.columns([3, 3])
-            
-            if metodo_pago in ["Punto de Venta", "BioPago"]:
-                lista_pos_opciones = []
-                if not df_dispositivos.empty:
-                    df_disp_activos = df_dispositivos[df_dispositivos["estatus"].astype(str).str.upper().isin(["ACTIVO", "ACTIVA"])] if "estatus" in df_dispositivos.columns else df_dispositivos
-                    if df_disp_activos.empty:
-                        df_disp_activos = df_dispositivos
-                    for _, r_disp in df_disp_activos.iterrows():
-                        alias = str(r_disp.get("alias_nombre", "")).strip()
-                        tipo = str(r_disp.get("tipo_dispositivo", "")).strip()
-                        s_tid = str(r_disp.get("serial_tid", "")).strip()
-                        c_asoc = str(r_disp.get("cuenta_asociada", "")).strip()
-                        lbl = f"{alias} ({tipo})"
-                        if s_tid and s_tid != "S/N" and s_tid != "N/A":
-                            lbl += f" | TID: {s_tid}"
-                        if c_asoc and c_asoc != "SIN CUENTA":
-                            lbl += f" - [{c_asoc}]"
-                        lista_pos_opciones.append(lbl)
-                
-                if not lista_pos_opciones:
-                    lista_pos_opciones = ["POS Taquilla General"]
-                pos_o_cuenta = col_d1.selectbox(f"Seleccione Dispositivo de Pago Asignado ({metodo_pago})*", lista_pos_opciones)
+        col_m1, col_m2, col_m3 = st.columns([2, 2, 2])
+        fecha_pago = col_m1.date_input("Fecha de Operación", value=fecha_hoy, key="reg_fecha_pago")
+        metodo_pago = col_m2.selectbox("Método de Pago*", metodos_bancarios_opciones, key="reg_metodo_pago")
 
-            elif "Efectivo" in metodo_pago:
-                pos_o_cuenta = col_d1.selectbox(
-                    "Destino de Fondos*", 
-                    ["Caja Taquilla (Remanente en Saldo por Cobrar)"]
-                )
+        # Construir opciones y mapa de monedas según el método seleccionado
+        mapa_monedas = {}
+        lista_opciones_destino = []
+        lbl_destino = "Seleccione Destino de Fondos*"
 
+        if metodo_pago in ["Punto de Venta", "BioPago"]:
+            lbl_destino = f"Seleccione Dispositivo de Pago Asignado ({metodo_pago})*"
+            if not df_dispositivos.empty:
+                df_disp_activos = df_dispositivos[df_dispositivos["estatus"].astype(str).str.upper().isin(["ACTIVO", "ACTIVA"])] if "estatus" in df_dispositivos.columns else df_dispositivos
+                if df_disp_activos.empty:
+                    df_disp_activos = df_dispositivos
+                for _, r_disp in df_disp_activos.iterrows():
+                    alias = str(r_disp.get("alias_nombre", "")).strip()
+                    tipo = str(r_disp.get("tipo_dispositivo", "")).strip()
+                    s_tid = str(r_disp.get("serial_tid", "")).strip()
+                    c_asoc = str(r_disp.get("cuenta_asociada", "")).strip()
+                    mon_item = str(r_disp.get("moneda", "USD")).strip().upper() or "USD"
+
+                    lbl = f"{alias} ({tipo})"
+                    if s_tid and s_tid != "S/N" and s_tid != "N/A":
+                        lbl += f" | TID: {s_tid}"
+                    if c_asoc and c_asoc != "SIN CUENTA":
+                        lbl += f" - [{c_asoc}]"
+                    lbl += f" ({mon_item})"
+
+                    lista_opciones_destino.append(lbl)
+                    mapa_monedas[lbl] = mon_item
+
+            if not lista_opciones_destino:
+                lbl_def = "POS Taquilla General (USD)"
+                lista_opciones_destino = [lbl_def]
+                mapa_monedas[lbl_def] = "USD"
+
+        else:
+            lbl_destino = f"Seleccione Cuenta Admin Destino ({metodo_pago})*"
+            if not df_cuentas.empty:
+                for _, r in df_cuentas.iterrows():
+                    b_name = str(r.get("banco", "Banco")).strip().upper()
+                    tit = str(r.get("titular", "")).strip()
+                    n_acc = str(r.get("numero_cuenta") or r.get("identificador") or r.get("email") or "").strip()
+                    mon_item = str(r.get("moneda", "USD")).strip().upper() or "USD"
+                    tipo_c = str(r.get("tipo_cuenta", "")).strip()
+
+                    desc = f"{b_name} | {tit}"
+                    if n_acc and n_acc != "N/A":
+                        desc += f" - N°: {n_acc}"
+                    if mon_item:
+                        desc += f" ({mon_item})"
+                    if tipo_c:
+                        desc += f" [{tipo_c}]"
+
+                    lista_opciones_destino.append(desc)
+                    mapa_monedas[desc] = mon_item
+
+            if not lista_opciones_destino:
+                lbl_def = "Cuenta Admin Registrada (USD)"
+                lista_opciones_destino = [lbl_def]
+                mapa_monedas[lbl_def] = "USD"
+
+        col_d1, col_d2 = st.columns([4, 2])
+        pos_o_cuenta = col_d1.selectbox(lbl_destino, lista_opciones_destino, key="reg_destino_pago")
+
+        # Auto-detectar la moneda de la cuenta / dispositivo seleccionado
+        moneda_detectada = mapa_monedas.get(pos_o_cuenta, "USD")
+        if moneda_detectada not in ["USD", "BS", "COP"]:
+            if "BS" in moneda_detectada or "VES" in moneda_detectada:
+                moneda_detectada = "BS"
+            elif "COP" in moneda_detectada:
+                moneda_detectada = "COP"
             else:
-                opciones_c = []
-                if not df_cuentas.empty:
-                    for _, r in df_cuentas.iterrows():
-                        b_name = str(r.get("banco", "Banco")).strip().upper()
-                        tit = str(r.get("titular", "")).strip()
-                        n_acc = str(r.get("numero_cuenta") or r.get("identificador") or r.get("email") or "").strip()
-                        mon = str(r.get("moneda", "USD")).strip().upper()
-                        tipo_c = str(r.get("tipo_cuenta", "")).strip()
-                        
-                        desc = f"{b_name} | {tit}"
-                        if n_acc and n_acc != "N/A":
-                            desc += f" - N°: {n_acc}"
-                        if mon:
-                            desc += f" ({mon})"
-                        if tipo_c:
-                            desc += f" [{tipo_c}]"
-                        opciones_c.append(desc)
-                if not opciones_c:
-                    opciones_c = ["Cuenta Admin Registrada"]
-                pos_o_cuenta = col_d1.selectbox(f"Seleccione Cuenta Admin Destino ({metodo_pago})*", opciones_c)
+                moneda_detectada = "USD"
 
-            referencia = col_d2.text_input("Número de Referencia / Comprobante*", placeholder="Ej: 987654 / Últimos 6 dígitos / N/A si es Efectivo")
+        opciones_moneda = ["USD", "BS", "COP"]
+        idx_mon = opciones_moneda.index(moneda_detectada) if moneda_detectada in opciones_moneda else 0
 
-            col_v1, col_v2, col_v3 = st.columns([2, 3, 3])
+        moneda_pago = col_m3.selectbox("Moneda*", opciones_moneda, index=idx_mon, key=f"reg_moneda_{pos_o_cuenta}")
+
+        with col_d2:
+            st.info(f"💳 **Destino Activo**: `{metodo_pago}`\n\n🔤 **Moneda**: `{moneda_pago}`")
+
+        with st.form("form_reg_pago_bancario", clear_on_submit=True):
+            col_f1, col_f2 = st.columns([3, 3])
+            referencia = col_f1.text_input("Número de Referencia / Comprobante*", placeholder="Ej: 987654 / Últimos 6 dígitos")
+            datos_cliente = col_f2.text_input("Datos del Pagador / Titular", placeholder="Ej: V-14567890 / Pedro Pérez")
+
+            col_v1, col_v2 = st.columns([2, 4])
             monto_pago = col_v1.number_input("Monto Recibido*", min_value=0.0, format="%.2f")
             concepto = col_v2.selectbox("Concepto de Operación*", ["Compra de Tickets", "Apuesta", "Recarga / Abono", "Remanente Saldo por Cobrar", "Otro"])
-            datos_cliente = col_v3.text_input("Datos del Pagador / Titular", placeholder="Ej: V-14567890 / Pedro Pérez")
 
             if st.form_submit_button("💾 REGISTRAR PAGO BANCARIO", use_container_width=True):
                 if monto_pago <= 0:
                     st.error("Ingrese un monto válido mayor a cero.")
                 elif not referencia.strip():
-                    st.error("Debe proporcionar un número de referencia o comprobante (ingrese 'N/A' si es Efectivo).")
+                    st.error("Debe proporcionar un número de referencia o comprobante.")
                 else:
                     try:
                         # 1. Guardar en tabla cda_pagos_bancarios

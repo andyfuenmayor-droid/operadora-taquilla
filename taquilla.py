@@ -1993,35 +1993,46 @@ else:
             border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
         }
 
-        /* 🟢 Sidebar Fixed Button Navigation Styling (Zero Circles) 🟢 */
+        /* 🟢 Sidebar Navigation Styling (Matching main.py screenshot) 🟢 */
         [data-testid="stSidebar"] [data-testid="stButton"] button {
             justify-content: flex-start !important;
             text-align: left !important;
             font-size: 0.92rem !important;
             font-weight: 600 !important;
-            padding: 10px 14px !important;
+            padding: 8px 12px !important;
             border-radius: 8px !important;
             transition: all 0.2s ease !important;
-            margin-bottom: 4px !important;
+            margin-bottom: 2px !important;
+            background: transparent !important;
+            background-color: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            color: #ffffff !important;
         }
+        /* Active Item: Solid Green Button (matching Auditoría Híbrida in main.py) */
         [data-testid="stSidebar"] [data-testid="stButton"] button[kind="primary"],
         [data-testid="stSidebar"] [data-testid="stButton"] button[data-testid="baseButton-primary"] {
             background-color: #00c853 !important;
             color: #ffffff !important;
             font-weight: 700 !important;
             border: none !important;
+            border-radius: 8px !important;
             box-shadow: 0 4px 12px rgba(0, 200, 83, 0.35) !important;
         }
-        [data-testid="stSidebar"] [data-testid="stButton"] button[kind="secondary"],
-        [data-testid="stSidebar"] [data-testid="stButton"] button[data-testid="baseButton-secondary"] {
-            background-color: transparent !important;
-            color: #ffffff !important;
-            border: none !important;
-        }
+        /* Inactive Item Hover */
         [data-testid="stSidebar"] [data-testid="stButton"] button[kind="secondary"]:hover,
         [data-testid="stSidebar"] [data-testid="stButton"] button[data-testid="baseButton-secondary"]:hover {
             background-color: rgba(255, 255, 255, 0.08) !important;
             color: #ffffff !important;
+        }
+        /* Logout Button Specific Outlined Card Style */
+        [data-testid="stSidebar"] button[key="btn_logout_sidebar"] {
+            border: 1px solid rgba(255, 255, 255, 0.15) !important;
+            background-color: rgba(255, 255, 255, 0.03) !important;
+            justify-content: center !important;
+            text-align: center !important;
+            border-radius: 10px !important;
+            margin-top: 0.5rem !important;
         }
 
         [data-testid="stBlockContainer"],

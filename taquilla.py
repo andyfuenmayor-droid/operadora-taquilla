@@ -935,53 +935,59 @@ def modulo_gestion_bancaria(agencia_data):
         col_inf1.text_input("Moneda (Definida por la cuenta/dispositivo)*", value=moneda_pago, disabled=True, key=f"dis_mon_{pos_o_cuenta}")
         col_inf2.text_input("Método de Pago Asignado*", value=metodo_pago, disabled=True, key=f"dis_met_{pos_o_cuenta}")
 
-        with st.form("form_reg_pago_bancario", clear_on_submit=True):
+        # Campos de Pago (Monto primero, luego Concepto)
+        col_v1, col_v2 = st.columns([2, 4])
+        monto_pago = col_v1.number_input("Monto Recibido*", min_value=0.0, format="%.2f", key="reg_monto_pago")
+        concepto = col_v2.selectbox("Concepto de Operación*", ["Compra de Tickets", "Recibos Punto Venta"], key="reg_concepto_pago")
+
+        # Campos dinámicos según el concepto seleccionado
+        if concepto == "Compra de Tickets":
             col_f1, col_f2 = st.columns([3, 3])
-            referencia = col_f1.text_input("Número de Referencia / Comprobante*", placeholder="Ej: 987654 / Últimos 6 dígitos")
-            datos_cliente = col_f2.text_input("Datos del Pagador / Titular", placeholder="Ej: V-14567890 / Pedro Pérez")
+            referencia = col_f1.text_input("Número de Referencia / Comprobante*", placeholder="Ej: 987654 / Últimos 6 dígitos", key="reg_ref_pago")
+            datos_cliente = col_f2.text_input("Datos del Pagador / Titular", placeholder="Ej: V-14567890 / Pedro Pérez", key="reg_datos_cliente")
+        else:
+            referencia = st.text_input("Número de Referencia / Comprobante*", placeholder="Ej: 987654 / Últimos 6 dígitos", key="reg_ref_pago")
+            datos_cliente = ""
 
-            col_v1, col_v2 = st.columns([2, 4])
-            monto_pago = col_v1.number_input("Monto Recibido*", min_value=0.0, format="%.2f")
-            concepto = col_v2.selectbox("Concepto de Operación*", ["Compra de Tickets", "Recibos Punto Venta"])
+        # Botón de envío
+        if st.button("💾 REGISTRAR PAGO BANCARIO", use_container_width=True, type="primary"):
+            if monto_pago <= 0:
+                st.error("Ingrese un monto válido mayor a cero.")
+            elif not referencia.strip():
+                st.error("Debe proporcionar un número de referencia o comprobante.")
+            else:
+                try:
+                    # 1. Guardar en tabla cda_pagos_bancarios
+                    data_bancaria = {
+                        "fecha": str(fecha_pago),
+                        "agencia": ag_nombre,
+                        "metodo_pago": metodo_pago,
+                        "monto": round(float(monto_pago), 2),
+                        "moneda": moneda_pago,
+                        "referencia": referencia.strip().upper(),
+                        "concepto": concepto,
+                        "datos_pagador": datos_cliente.strip().upper() if datos_cliente else "N/A",
+                        "pos_o_cuenta": pos_o_cuenta,
+                        "user_id": u_id,
+                        "created_at": datetime.now().isoformat()
+                    }
+                    supabase.table("cda_pagos_bancarios").insert(data_bancaria).execute()
 
-            if st.form_submit_button("💾 REGISTRAR PAGO BANCARIO", use_container_width=True):
-                if monto_pago <= 0:
-                    st.error("Ingrese un monto válido mayor a cero.")
-                elif not referencia.strip():
-                    st.error("Debe proporcionar un número de referencia o comprobante.")
-                else:
-                    try:
-                        # 1. Guardar en tabla cda_pagos_bancarios
-                        data_bancaria = {
-                            "fecha": str(fecha_pago),
-                            "agencia": ag_nombre,
-                            "metodo_pago": metodo_pago,
-                            "monto": round(float(monto_pago), 2),
-                            "moneda": moneda_pago,
-                            "referencia": referencia.strip().upper(),
-                            "concepto": concepto,
-                            "datos_pagador": datos_cliente.strip().upper() if datos_cliente else "N/A",
-                            "pos_o_cuenta": pos_o_cuenta,
-                            "user_id": u_id,
-                            "created_at": datetime.now().isoformat()
-                        }
-                        supabase.table("cda_pagos_bancarios").insert(data_bancaria).execute()
+                    # 2. Registrar en cda_pagos_diarios para mantener unificados los reportes diarios
+                    supabase.table("cda_pagos_diarios").insert({
+                        "fecha": str(fecha_pago),
+                        "agencia": ag_nombre,
+                        "tipo_pago": f"{metodo_pago} (Ref: {referencia.strip().upper()})",
+                        "monto": round(float(monto_pago), 2),
+                        "moneda": moneda_pago,
+                        "user_id": u_id
+                    }).execute()
 
-                        # 2. Registrar en cda_pagos_diarios para mantener unificados los reportes diarios
-                        supabase.table("cda_pagos_diarios").insert({
-                            "fecha": str(fecha_pago),
-                            "agencia": ag_nombre,
-                            "tipo_pago": f"{metodo_pago} (Ref: {referencia.strip().upper()})",
-                            "monto": round(float(monto_pago), 2),
-                            "moneda": moneda_pago,
-                            "user_id": u_id
-                        }).execute()
-
-                        st.success(f"✅ Pago por {metodo_pago} (Ref: {referencia}) registrado exitosamente!")
-                        time.sleep(1)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error al guardar transacción: {e}")
+                    st.success(f"✅ Pago por {metodo_pago} (Ref: {referencia}) registrado exitosamente!")
+                    time.sleep(1)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al guardar transacción: {e}")
 
     # ==================== TAB 4: HISTORIAL Y RESUMEN ====================
     with tab4:

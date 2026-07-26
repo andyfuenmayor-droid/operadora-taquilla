@@ -1258,6 +1258,12 @@ def modulo_cierre_diario(agencia_data):
     if "fecha_cierre" not in st.session_state:
         st.session_state["fecha_cierre"] = datetime.now().date()
 
+    fecha_sel = st.date_input(
+        "📅 Seleccione el día a cerrar:",
+        value=st.session_state["fecha_cierre"],
+        key="fecha_cierre_input"
+    )
+
     cajero_info = st.session_state.get("cajero_actual", {})
     cajero_id = cajero_info.get("id")
 

@@ -1993,46 +1993,35 @@ else:
             border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
         }
 
-        /* 🟢 Estilo Panel Pro - Botón Activo Verde Sólido (Sin círculos) 🟢 */
-        [data-testid="stSidebar"] [data-testid="stRadio"] > div {
-            gap: 6px !important;
-        }
-        /* Ocultar los círculos del radio button */
-        [data-testid="stSidebar"] [data-testid="stRadio"] label > div:first-child,
-        [data-testid="stSidebar"] [data-testid="stRadio"] label input[type="radio"],
-        [data-testid="stSidebar"] [data-testid="stRadio"] label [role="radio"] {
-            display: none !important;
-            visibility: hidden !important;
-            width: 0 !important;
-            height: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-        }
-        [data-testid="stSidebar"] [data-testid="stRadio"] label {
-            background: transparent !important;
-            border: none !important;
-            border-radius: 8px !important;
-            padding: 10px 14px !important;
-            cursor: pointer !important;
-            transition: all 0.2s ease !important;
-            width: 100% !important;
+        /* 🟢 Sidebar Fixed Button Navigation Styling (Zero Circles) 🟢 */
+        [data-testid="stSidebar"] [data-testid="stButton"] button {
+            justify-content: flex-start !important;
+            text-align: left !important;
             font-size: 0.92rem !important;
             font-weight: 600 !important;
-            color: #ffffff !important;
-            display: flex !important;
-            align-items: center !important;
+            padding: 10px 14px !important;
+            border-radius: 8px !important;
+            transition: all 0.2s ease !important;
+            margin-bottom: 4px !important;
         }
-        [data-testid="stSidebar"] [data-testid="stRadio"] label:hover {
-            background: rgba(255, 255, 255, 0.08) !important;
-            color: #ffffff !important;
-        }
-        [data-testid="stSidebar"] [data-testid="stRadio"] label[data-checked="true"],
-        [data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) {
+        [data-testid="stSidebar"] [data-testid="stButton"] button[kind="primary"],
+        [data-testid="stSidebar"] [data-testid="stButton"] button[data-testid="baseButton-primary"] {
             background-color: #00c853 !important;
             color: #ffffff !important;
             font-weight: 700 !important;
-            border-radius: 8px !important;
+            border: none !important;
             box-shadow: 0 4px 12px rgba(0, 200, 83, 0.35) !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stButton"] button[kind="secondary"],
+        [data-testid="stSidebar"] [data-testid="stButton"] button[data-testid="baseButton-secondary"] {
+            background-color: transparent !important;
+            color: #ffffff !important;
+            border: none !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stButton"] button[kind="secondary"]:hover,
+        [data-testid="stSidebar"] [data-testid="stButton"] button[data-testid="baseButton-secondary"]:hover {
+            background-color: rgba(255, 255, 255, 0.08) !important;
+            color: #ffffff !important;
         }
 
         [data-testid="stBlockContainer"],
@@ -2714,17 +2703,19 @@ else:
         badge_border = "rgba(0, 200, 83, 0.2)"
         badge_text = "#00c853"
 
-    menu_map = {
-        "🎰 Carga de Ventas": "Carga de Ventas",
-        "🎟️ Tickets Premiados": "Tickets Premiados",
-        "💸 Gestión de Gastos": "Gestión de Gastos",
-        "💰 Recepción de Pagos": "Gestión de Pagos",
-        "🏦 Gestión Bancaria": "Gestión Bancaria",
-        "📆 Reporte Diario": "Reporte Diario",
-        "📊 Reporte por Rango": "Reporte por Rango",
-        "🔒 Cierre Diario": "Cierre Diario"
-    }
-    opciones_display = list(menu_map.keys())
+    if "opcion_actual" not in st.session_state:
+        st.session_state["opcion_actual"] = "Carga de Ventas"
+
+    menu_items = [
+        ("🎰 Carga de Ventas", "Carga de Ventas"),
+        ("🎟️ Tickets Premiados", "Tickets Premiados"),
+        ("💸 Gestión de Gastos", "Gestión de Gastos"),
+        ("💰 Recepción de Pagos", "Gestión de Pagos"),
+        ("🏦 Gestión Bancaria", "Gestión Bancaria"),
+        ("📆 Reporte Diario", "Reporte Diario"),
+        ("📊 Reporte por Rango", "Reporte por Rango"),
+        ("🔒 Cierre Diario", "Cierre Diario")
+    ]
 
     with st.sidebar:
         sidebar_info = f"""<div style="background-color: {card_bg}; border: 1px solid {card_border}; padding: 1.25rem; border-radius: 16px; margin-bottom: 1rem;">
@@ -2743,17 +2734,21 @@ else:
             f"""<div style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">📌 MENÚ DE OPERACIONES</div>""",
             unsafe_allow_html=True
         )
-        opcion_sel = st.radio(
-            "Seleccione operación:",
-            opciones_display,
-            key="opcion_operacion_fixed_radio",
-            label_visibility="collapsed"
-        )
-        opcion = menu_map[opcion_sel]
+
+        for label_disp, val_opcion in menu_items:
+            is_active = (st.session_state["opcion_actual"] == val_opcion)
+            btn_type = "primary" if is_active else "secondary"
+            if st.button(label_disp, key=f"nav_btn_{val_opcion}", type=btn_type, use_container_width=True):
+                st.session_state["opcion_actual"] = val_opcion
+                st.rerun()
 
         st.divider()
         if st.button("🚪 Cerrar Sesión", use_container_width=True, key="btn_logout_sidebar"):
             st.session_state.taquilla_autenticada = False; st.rerun()
+
+    opcion = st.session_state["opcion_actual"]
+
+
 
     if opcion == "Carga de Ventas": modulo_registro_taquilla(ag)
     elif opcion == "Gestión de Gastos": modulo_gastos(ag)

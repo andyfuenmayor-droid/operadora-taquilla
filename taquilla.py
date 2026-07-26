@@ -340,12 +340,14 @@ def obtener_saldo_anterior(agencia_nombre, fecha_sel):
 # �?� módulos de la taquilla �?�
 def modulo_registro_taquilla(agencia_data):
     render_encabezado_principal(f"🎰 Carga de Ventas: {agencia_data['nombre_agencia']}")
-    rol_usuario = st.session_state.get("cajero_actual", {}).get("rol", "cajero")
+    cajero_info = st.session_state.get("cajero_actual", {})
+    rol_usuario = cajero_info.get("rol", "cajero")
+    cajero_id = cajero_info.get("id")
     es_supervisor = (rol_usuario == 'supervisor')
     sistemas_lista = [s.strip() for s in str(agencia_data.get("sistemas", "BETM3")).split(",")]
 
     if "fecha_carga_actual" not in st.session_state:
-        st.session_state["fecha_carga_actual"] = obtener_ultimo_dia_cerrado(agencia_data['nombre_agencia']) or datetime.now().date()
+        st.session_state["fecha_carga_actual"] = datetime.now().date()
 
     col_f, _ = st.columns([2, 2])
     with col_f:
@@ -366,11 +368,13 @@ def modulo_registro_taquilla(agencia_data):
             return
 
     try:
-        res_existentes = supabase.table("cda_reportes_diarios")\
+        query_v = supabase.table("cda_reportes_diarios")\
             .select("*")\
             .eq("nombre_agency", agencia_data['nombre_agencia'])\
-            .eq("fecha", fecha_carga_iso)\
-            .execute()
+            .eq("fecha", fecha_carga_iso)
+        if not es_supervisor and cajero_id:
+            query_v = query_v.eq("cajero_id", cajero_id)
+        res_existentes = query_v.execute()
         df_existentes = pd.DataFrame(res_existentes.data or [])
         if not df_existentes.empty:
             df_existentes.columns = [c.lower() for c in df_existentes.columns]
@@ -385,7 +389,10 @@ def modulo_registro_taquilla(agencia_data):
             existe_en_db = False
             v_val, c_val, p_val = 0.0, 0.0, 0.0
             if not df_existentes.empty:
-                match = df_existentes[df_existentes["sistema"] == sist]
+                if not es_supervisor and cajero_id and "cajero_id" in df_existentes.columns:
+                    match = df_existentes[(df_existentes["sistema"] == sist) & (df_existentes["cajero_id"].astype(str) == str(cajero_id))]
+                else:
+                    match = df_existentes[df_existentes["sistema"] == sist]
                 if not match.empty:
                     existe_en_db = True
                     row = match.iloc[0]
@@ -410,15 +417,17 @@ def modulo_registro_taquilla(agencia_data):
                         "neto": venta - comision - monto_premios_existente,
                         "moneda": "COP",
                         "user_id": agencia_data['user_id'],
-                        "cajero_id": st.session_state.get("cajero_actual", {}).get("id")
+                        "cajero_id": cajero_id
                     }
                     if existe_en_db:
-                        supabase.table("cda_reportes_diarios")\
+                        q_update = supabase.table("cda_reportes_diarios")\
                             .update(data)\
                             .eq("nombre_agency", agencia_data['nombre_agencia'])\
                             .eq("fecha", fecha_carga_iso)\
-                            .eq("sistema", sist)\
-                            .execute()
+                            .eq("sistema", sist)
+                        if not es_supervisor and cajero_id:
+                            q_update = q_update.eq("cajero_id", cajero_id)
+                        q_update.execute()
                         st.success(f"✅ {sist} guardado!")
                     else:
                         data["nombre_agency"] = agencia_data['nombre_agencia']
@@ -436,7 +445,7 @@ def modulo_gastos(agencia_data):
     ag_nombre = agencia_data['nombre_agencia']
 
     if "fecha_gasto_filtro" not in st.session_state:
-        st.session_state["fecha_gasto_filtro"] = obtener_ultimo_dia_cerrado(ag_nombre) or datetime.now().date()
+        st.session_state["fecha_gasto_filtro"] = datetime.now().date()
 
     col_f, _ = st.columns([2, 2])
     with col_f:
@@ -493,7 +502,7 @@ def modulo_pagos(agencia_data):
     ag_nombre = agencia_data['nombre_agencia']
 
     if "fecha_pago_filtro" not in st.session_state:
-        st.session_state["fecha_pago_filtro"] = obtener_ultimo_dia_cerrado(ag_nombre) or datetime.now().date()
+        st.session_state["fecha_pago_filtro"] = datetime.now().date()
 
     col_f, _ = st.columns([2, 2])
     with col_f:
@@ -1197,7 +1206,7 @@ def modulo_cierre_diario(agencia_data):
     es_supervisor = st.session_state.get("cajero_actual", {}).get("rol", "") == "supervisor"
 
     if "fecha_cierre" not in st.session_state:
-        st.session_state["fecha_cierre"] = obtener_ultimo_dia_cerrado(nom) or datetime.now().date()
+        st.session_state["fecha_cierre"] = datetime.now().date()
 
     fecha_sel = st.date_input(
         "📅 Seleccione el día a cerrar:",
@@ -1258,11 +1267,23 @@ def modulo_cierre_diario(agencia_data):
     )
 
     if not df_v.empty:
-        render_titulo_seccion("📋 Detalle por Sistema")
-        with st.expander("📋 Ver Detalle por Sistema", expanded=True):
+        render_titulo_seccion("📋 Detalle por Sistema y Cajero")
+        with st.expander("📋 Ver Detalle por Sistema y Cajero", expanded=True):
             cols = ["sistema", "monto_venta", "comision", "monto_premios"]
             cols = [c for c in cols if c in df_v.columns]
-            st.dataframe(df_v[cols], use_container_width=True, hide_index=True)
+            try:
+                res_u = supabase.table("taquilla_usuarios").select("id, usuario, nombre_cajero").execute()
+                u_map = {str(u["id"]): u.get("nombre_cajero") or u.get("usuario") for u in (res_u.data or [])}
+                if "cajero_id" in df_v.columns:
+                    df_v_display = df_v.copy()
+                    df_v_display["cajero"] = df_v_display["cajero_id"].astype(str).map(lambda x: u_map.get(x, f"ID {x}" if x != "None" and x != "nan" else "General"))
+                    cols_display = ["sistema", "cajero", "monto_venta", "comision", "monto_premios"]
+                    cols_display = [c for c in cols_display if c in df_v_display.columns]
+                    st.dataframe(df_v_display[cols_display], use_container_width=True, hide_index=True)
+                else:
+                    st.dataframe(df_v[cols], use_container_width=True, hide_index=True)
+            except Exception:
+                st.dataframe(df_v[cols], use_container_width=True, hide_index=True)
 
     st.divider()
 
@@ -1303,7 +1324,7 @@ def modulo_premios_tickets(agencia_data):
     ag_nombre = agencia_data['nombre_agencia']
 
     if "fecha_ticket_filtro" not in st.session_state:
-        st.session_state["fecha_ticket_filtro"] = obtener_ultimo_dia_cerrado(ag_nombre) or datetime.now().date()
+        st.session_state["fecha_ticket_filtro"] = datetime.now().date()
 
     col_f, _ = st.columns([2, 2])
     with col_f:
@@ -1540,7 +1561,7 @@ def modulo_reporte_diario(agencia_data):
     u_id = agencia_data['user_id']
 
     if "fecha_reporte_dia" not in st.session_state:
-        st.session_state["fecha_reporte_dia"] = obtener_ultimo_dia_cerrado(agencia_data['nombre_agencia']) or datetime.now().date()
+        st.session_state["fecha_reporte_dia"] = datetime.now().date()
 
     fecha_sel = st.date_input(
         "📅 Seleccione el día:",

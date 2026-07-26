@@ -359,8 +359,12 @@ def modulo_registro_taquilla(agencia_data):
     es_supervisor = (rol_usuario == 'supervisor')
     sistemas_lista = [s.strip() for s in str(agencia_data.get("sistemas", "BETM3")).split(",")]
 
-    if "fecha_carga_actual" not in st.session_state:
-        st.session_state["fecha_carga_actual"] = datetime.now().date()
+    ult_fecha = obtener_ultimo_dia_cerrado(agencia_data['nombre_agencia'], cajero_id=cajero_id if not es_supervisor else None)
+    fecha_defecto = ult_fecha if ult_fecha else datetime.now().date()
+
+    if "fecha_carga_actual" not in st.session_state or st.session_state.get("last_carga_cajero") != str(cajero_id):
+        st.session_state["fecha_carga_actual"] = fecha_defecto
+        st.session_state["last_carga_cajero"] = str(cajero_id)
 
     col_f, _ = st.columns([2, 2])
     with col_f:
@@ -455,8 +459,12 @@ def modulo_gastos(agencia_data):
     cajero_id = cajero_info.get("id")
     es_supervisor = (rol_usuario == 'supervisor')
 
-    if "fecha_gasto_filtro" not in st.session_state:
-        st.session_state["fecha_gasto_filtro"] = datetime.now().date()
+    ult_fecha = obtener_ultimo_dia_cerrado(ag_nombre, cajero_id=cajero_id if not es_supervisor else None)
+    fecha_defecto = ult_fecha if ult_fecha else datetime.now().date()
+
+    if "fecha_gasto_filtro" not in st.session_state or st.session_state.get("last_gasto_cajero") != str(cajero_id):
+        st.session_state["fecha_gasto_filtro"] = fecha_defecto
+        st.session_state["last_gasto_cajero"] = str(cajero_id)
 
     col_f, _ = st.columns([2, 2])
     with col_f:
@@ -521,8 +529,12 @@ def modulo_pagos(agencia_data):
     cajero_id = cajero_info.get("id")
     es_supervisor = (rol_usuario == 'supervisor')
 
-    if "fecha_pago_filtro" not in st.session_state:
-        st.session_state["fecha_pago_filtro"] = datetime.now().date()
+    ult_fecha = obtener_ultimo_dia_cerrado(ag_nombre, cajero_id=cajero_id if not es_supervisor else None)
+    fecha_defecto = ult_fecha if ult_fecha else datetime.now().date()
+
+    if "fecha_pago_filtro" not in st.session_state or st.session_state.get("last_pago_cajero") != str(cajero_id):
+        st.session_state["fecha_pago_filtro"] = fecha_defecto
+        st.session_state["last_pago_cajero"] = str(cajero_id)
 
     col_f, _ = st.columns([2, 2])
     with col_f:
@@ -1397,8 +1409,12 @@ def modulo_premios_tickets(agencia_data):
     u_id_dueno = agencia_data['user_id']
     ag_nombre = agencia_data['nombre_agencia']
 
-    if "fecha_ticket_filtro" not in st.session_state:
-        st.session_state["fecha_ticket_filtro"] = datetime.now().date()
+    ult_fecha = obtener_ultimo_dia_cerrado(ag_nombre, cajero_id=u_id_real if not es_supervisor else None)
+    fecha_defecto = ult_fecha if ult_fecha else datetime.now().date()
+
+    if "fecha_ticket_filtro" not in st.session_state or st.session_state.get("last_ticket_cajero") != str(u_id_real):
+        st.session_state["fecha_ticket_filtro"] = fecha_defecto
+        st.session_state["last_ticket_cajero"] = str(u_id_real)
 
     col_f, _ = st.columns([2, 2])
     with col_f:
@@ -1641,20 +1657,23 @@ def modulo_reporte_diario(agencia_data):
     render_encabezado_principal("📆 Reporte Detallado por Día")
     render_subtitulo_terminal(agencia_data['nombre_agencia'])
     u_id = agencia_data['user_id']
+    cajero_info = st.session_state.get("cajero_actual", {})
+    rol_actual = cajero_info.get("rol", "cajero")
+    cajero_id = cajero_info.get("id")
+    es_supervisor = (rol_actual == "supervisor")
 
-    if "fecha_reporte_dia" not in st.session_state:
-        st.session_state["fecha_reporte_dia"] = datetime.now().date()
+    ult_fecha = obtener_ultimo_dia_cerrado(agencia_data['nombre_agencia'], cajero_id=cajero_id if not es_supervisor else None)
+    fecha_defecto = ult_fecha if ult_fecha else datetime.now().date()
+
+    if "fecha_reporte_dia" not in st.session_state or st.session_state.get("last_reporte_cajero") != str(cajero_id):
+        st.session_state["fecha_reporte_dia"] = fecha_defecto
+        st.session_state["last_reporte_cajero"] = str(cajero_id)
 
     fecha_sel = st.date_input(
         "📅 Seleccione el día:",
         value=st.session_state["fecha_reporte_dia"],
         key="fecha_reporte_dia_input"
     )
-
-    cajero_info = st.session_state.get("cajero_actual", {})
-    rol_actual = cajero_info.get("rol", "cajero")
-    cajero_id = cajero_info.get("id")
-    es_supervisor = (rol_actual == "supervisor")
 
     try:
         df_v = pd.DataFrame(supabase.table("cda_reportes_diarios")

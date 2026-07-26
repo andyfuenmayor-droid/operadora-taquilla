@@ -13,6 +13,29 @@ elif any(word in user_agent for word in ["iphone", "android", "blackberry", "ope
 else:
     st.session_state["dispositivo"] = "Escritorio"
 
+def obtener_nombre_banco(alias, c_asoc=""):
+    alias_upper = str(alias).upper().strip()
+    c_asoc_upper = str(c_asoc).upper().strip() if c_asoc else ""
+    
+    # 1. Si la cuenta asociada tiene formato BANCO | TITULAR, extraemos la primera parte
+    if c_asoc_upper and "|" in c_asoc_upper and "SIN CUENTA" not in c_asoc_upper:
+        return c_asoc.split("|")[0].strip().upper()
+        
+    # 2. Si no, buscamos un banco común en el alias o cuenta asociada
+    bancos_comunes = ["BANCOLOMBIA", "BANESCO", "BANCAMIGA", "CITI BANK", "MERCANTIL", "PROVINCIAL", "VENEZUELA", "BOD", "BNC", "ZELLE", "BINANCE", "PAYPAL"]
+    for b in bancos_comunes:
+        if b in alias_upper:
+            return b
+        if b in c_asoc_upper:
+            return b
+            
+    # 3. Limpieza de palabras clave comunes
+    cleaned = alias_upper
+    for word in ["POS", "BIOPAGO", "DISPOSITIVO", "GLO", "PUNTO DE VENTA", "PUNTO"]:
+        cleaned = cleaned.replace(word, "")
+    cleaned = cleaned.strip()
+    return cleaned if cleaned else alias
+
 st.set_page_config(
     page_title="Taquilla POS",
     page_icon="assets/pos_icon.png",
@@ -684,14 +707,22 @@ def modulo_gestion_bancaria(agencia_data):
     if not df_dispositivos.empty:
         if "alias_nombre" not in df_dispositivos.columns:
             df_dispositivos["alias_nombre"] = df_dispositivos.get("nombre_dispositivo", df_dispositivos.get("nombre_pos", df_dispositivos.get("titular", "POS TAQUILLA")))
+        if "cuenta_asociada" not in df_dispositivos.columns:
+            df_dispositivos["cuenta_asociada"] = df_dispositivos.get("cuenta_banco", df_dispositivos.get("cuenta_resumen", df_dispositivos.get("documento_titular", "SIN CUENTA")))
+        
+        # Clean alias_nombre to keep only the bank name
+        def clean_alias_to_bank(row):
+            alias = str(row.get("alias_nombre", "")).strip()
+            c_asoc = str(row.get("cuenta_asociada", "")).strip()
+            return obtener_nombre_banco(alias, c_asoc)
+        df_dispositivos["alias_nombre"] = df_dispositivos.apply(clean_alias_to_bank, axis=1)
+
         if "tipo_dispositivo" not in df_dispositivos.columns:
             df_dispositivos["tipo_dispositivo"] = df_dispositivos.get("banco", "PUNTO DE VENTA (POS)")
         if "tipo_dispositivo" in df_dispositivos.columns:
             df_dispositivos["tipo_dispositivo"] = df_dispositivos["tipo_dispositivo"].astype(str).str.replace("DISPOSITIVO: ", "", regex=False)
         if "serial_tid" not in df_dispositivos.columns:
             df_dispositivos["serial_tid"] = df_dispositivos.get("serial_pos", df_dispositivos.get("numero_cuenta", "S/N"))
-        if "cuenta_asociada" not in df_dispositivos.columns:
-            df_dispositivos["cuenta_asociada"] = df_dispositivos.get("cuenta_banco", df_dispositivos.get("cuenta_resumen", df_dispositivos.get("documento_titular", "SIN CUENTA")))
         if "agencia_asignada" not in df_dispositivos.columns:
             df_dispositivos["agencia_asignada"] = df_dispositivos.get("agencia", ag_nombre)
         if "moneda" not in df_dispositivos.columns:
@@ -827,12 +858,13 @@ def modulo_gestion_bancaria(agencia_data):
                 c_asoc = str(r_disp.get("cuenta_asociada", "")).strip()
                 mon_item = str(r_disp.get("moneda", "USD")).strip().upper() or "USD"
 
-                lbl = f"{alias} ({tipo})"
-                if s_tid and s_tid != "S/N" and s_tid != "N/A":
-                    lbl += f" | TID: {s_tid}"
-                if c_asoc and c_asoc != "SIN CUENTA":
-                    lbl += f" - [{c_asoc}]"
-                lbl += f" ({mon_item})"
+                # Keep only the bank name as the selectbox label
+                base_lbl = alias
+                lbl = base_lbl
+                counter = 1
+                while lbl in mapa_destinos:
+                    lbl = f"{base_lbl} #{counter}"
+                    counter += 1
 
                 tipo_u = tipo.upper()
                 met_impl = "BioPago" if "BIOPAGO" in tipo_u else "Punto de Venta"
@@ -910,7 +942,7 @@ def modulo_gestion_bancaria(agencia_data):
 
             col_v1, col_v2 = st.columns([2, 4])
             monto_pago = col_v1.number_input("Monto Recibido*", min_value=0.0, format="%.2f")
-            concepto = col_v2.selectbox("Concepto de Operación*", ["Compra de Tickets", "Apuesta", "Recarga / Abono", "Remanente Saldo por Cobrar", "Otro"])
+            concepto = col_v2.selectbox("Concepto de Operación*", ["Compra de Tickets", "Recibos"])
 
             if st.form_submit_button("💾 REGISTRAR PAGO BANCARIO", use_container_width=True):
                 if monto_pago <= 0:

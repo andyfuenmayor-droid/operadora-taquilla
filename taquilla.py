@@ -1278,13 +1278,35 @@ def modulo_cierre_diario(agencia_data):
         st.session_state["fecha_cierre"] = fecha_defecto
         st.session_state["last_cierre_cajero"] = str(cajero_id)
 
-    fecha_sel = st.date_input(
-        "📅 Seleccione el día a cerrar:",
-        value=st.session_state["fecha_cierre"],
-        key="fecha_cierre_input"
-    )
+    col_f1, col_f2 = st.columns([2, 2])
+    with col_f1:
+        fecha_sel = st.date_input(
+            "📅 Seleccione el día a cerrar:",
+            value=st.session_state["fecha_cierre"],
+            key="fecha_cierre_input"
+        )
 
-    cerrado = dia_esta_cerrado(nom, fecha_sel, cajero_id=cajero_id if not es_supervisor else None)
+    cajeros_list = []
+    map_cajeros = {}
+    cajero_filtro_target = None
+
+    if es_supervisor:
+        try:
+            res_u = supabase.table("taquilla_usuarios").select("id, usuario, nombre_cajero, rol").execute()
+            cajeros_list = [u for u in (res_u.data or []) if u.get("rol") == "cajero"]
+            map_cajeros = {str(c["id"]): c.get("nombre_cajero") or c.get("usuario") for c in cajeros_list}
+        except Exception:
+            cajeros_list = []
+
+        with col_f2:
+            opts_sup = ["👥 TODOS LOS CAJEROS"] + [f"👤 {map_cajeros[str(c['id'])]}" for c in cajeros_list]
+            sel_sup_label = st.selectbox("👤 Filtrar por Cajero:", opts_sup, key="cierre_sel_cajero_sup")
+            if sel_sup_label != "👥 TODOS LOS CAJEROS":
+                cname = sel_sup_label.replace("👤 ", "")
+                cajero_filtro_target = next((str(c["id"]) for c in cajeros_list if (c.get("nombre_cajero") or c.get("usuario")) == cname), None)
+
+    c_target_id = cajero_filtro_target if es_supervisor else cajero_id
+    cerrado = dia_esta_cerrado(nom, fecha_sel, cajero_id=c_target_id)
 
     # Cargar datos del día
     try:
@@ -1298,17 +1320,17 @@ def modulo_cierre_diario(agencia_data):
         if not df_g.empty: df_g.columns = [c.lower() for c in df_g.columns]
         if not df_pg.empty: df_pg.columns = [c.lower() for c in df_pg.columns]
 
-        if not es_supervisor and cajero_id:
+        if c_target_id:
             if not df_v.empty and "cajero_id" in df_v.columns:
-                df_v = df_v[df_v["cajero_id"].astype(str) == str(cajero_id)]
+                df_v = df_v[df_v["cajero_id"].astype(str) == str(c_target_id)]
             if not df_g.empty:
                 col_g = "cajero_id" if "cajero_id" in df_g.columns else ("user_id" if "user_id" in df_g.columns else None)
                 if col_g and col_g in df_g.columns:
-                    df_g = df_g[df_g[col_g].astype(str) == str(cajero_id)]
+                    df_g = df_g[df_g[col_g].astype(str) == str(c_target_id)]
             if not df_pg.empty:
                 col_p = "cajero_id" if "cajero_id" in df_pg.columns else ("user_id" if "user_id" in df_pg.columns else None)
                 if col_p and col_p in df_pg.columns:
-                    df_pg = df_pg[df_pg[col_p].astype(str) == str(cajero_id)]
+                    df_pg = df_pg[df_pg[col_p].astype(str) == str(c_target_id)]
     except Exception as e:
         st.error(f"Error: {e}"); return
 
@@ -1320,22 +1342,26 @@ def modulo_cierre_diario(agencia_data):
     t_saldo_dia = t_venta - t_comis - t_premios - t_gastos - t_pagos
 
     # Calcular Saldo Anterior y Saldo Final
-    saldo_ant = obtener_saldo_anterior(nom, fecha_sel, cajero_id=cajero_id if not es_supervisor else None)
+    saldo_ant = obtener_saldo_anterior(nom, fecha_sel, cajero_id=c_target_id)
     t_saldo_final = saldo_ant + t_saldo_dia
 
     if cerrado:
         try:
             q_hoy = supabase.table("saldo_taquilla").select("saldo_restante").eq("nombre_agency", nom).eq("fecha", str(fecha_sel))
-            if not es_supervisor and cajero_id:
-                q_hoy = q_hoy.eq("cajero_id", cajero_id)
+            if c_target_id:
+                q_hoy = q_hoy.eq("cajero_id", str(c_target_id))
             res_hoy = q_hoy.execute()
             if res_hoy.data:
                 t_saldo_final = float(res_hoy.data[0]["saldo_restante"])
         except Exception:
             pass
 
-    render_titulo_seccion(f"📊 Resumen del {fecha_sel}")
-    
+    titulo_resumen = f"📊 Resumen del {fecha_sel}"
+    if es_supervisor and c_target_id:
+        c_name_title = map_cajeros.get(str(c_target_id), f"ID {c_target_id}")
+        titulo_resumen += f" - Cajero: {c_name_title}"
+
+    render_titulo_seccion(titulo_resumen)
     render_tarjetas_metricas(t_venta, t_comis, t_premios, t_gastos, t_pagos, t_saldo_dia)
 
     st.markdown(
@@ -1355,11 +1381,12 @@ def modulo_cierre_diario(agencia_data):
         render_titulo_seccion("📋 Detalle por Sistema y Cajero")
         with st.expander("📋 Ver Detalle por Sistema y Cajero", expanded=True):
             try:
-                res_u = supabase.table("taquilla_usuarios").select("id, usuario, nombre_cajero").execute()
-                u_map = {str(u["id"]): u.get("nombre_cajero") or u.get("usuario") for u in (res_u.data or [])}
+                if not map_cajeros:
+                    res_u = supabase.table("taquilla_usuarios").select("id, usuario, nombre_cajero").execute()
+                    map_cajeros = {str(u["id"]): u.get("nombre_cajero") or u.get("usuario") for u in (res_u.data or [])}
                 df_v_display = df_v.copy()
                 if "cajero_id" in df_v_display.columns:
-                    df_v_display["cajero"] = df_v_display["cajero_id"].astype(str).map(lambda x: u_map.get(x, f"ID {x}" if x != "None" and x != "nan" else "General"))
+                    df_v_display["cajero"] = df_v_display["cajero_id"].astype(str).map(lambda x: map_cajeros.get(x, f"ID {x}" if x != "None" and x != "nan" else "General"))
                     group_cols = ["sistema", "cajero"]
                 else:
                     group_cols = ["sistema"]
@@ -1373,32 +1400,64 @@ def modulo_cierre_diario(agencia_data):
 
     st.divider()
 
-    if cerrado:
-        st.success(f"✅ El día {fecha_sel} está **CERRADO**.")
-        if es_supervisor:
-            if st.button("🔓 Reabrir Día (solo supervisor)", type="secondary", use_container_width=True):
-                if reabrir_dia(nom, fecha_sel, cajero_id=cajero_id if not es_supervisor else None):
-                    st.success("✅ Día reabierto exitosamente por el supervisor."); time.sleep(1); st.rerun()
+    if es_supervisor:
+        render_titulo_seccion("⚙️ Gestión de Cierre por Cajero (Supervisor)")
+        if cajeros_list:
+            cols_c = st.columns(len(cajeros_list)) if len(cajeros_list) <= 4 else st.columns(3)
+            for idx_c, c_usr in enumerate(cajeros_list):
+                c_id_item = str(c_usr["id"])
+                c_name_item = c_usr.get("nombre_cajero") or c_usr.get("usuario")
+                c_closed_item = dia_esta_cerrado(nom, fecha_sel, cajero_id=c_id_item)
+                col_target = cols_c[idx_c % len(cols_c)]
+                with col_target.container(border=True):
+                    st.markdown(f"**👤 {c_name_item}**")
+                    if c_closed_item:
+                        st.markdown("<span style='color: #34d399; font-size: 0.85rem;'>✅ CERRADO</span>", unsafe_allow_html=True)
+                        if st.button(f"🔓 Reabrir Día", key=f"btn_reabrir_{c_id_item}", use_container_width=True):
+                            if reabrir_dia(nom, fecha_sel, cajero_id=c_id_item):
+                                st.success(f"✅ Día reabierto para {c_name_item}.")
+                                time.sleep(1); st.rerun()
+                    else:
+                        st.markdown("<span style='color: #fb7185; font-size: 0.85rem;'>🟢 ABIERTO</span>", unsafe_allow_html=True)
+                        if st.button(f"🔒 Cerrar Día", key=f"btn_cerrar_{c_id_item}", use_container_width=True):
+                            if cerrar_dia(nom, fecha_sel, cajero_id=c_id_item):
+                                try:
+                                    t_v_c = float(df_v[df_v["cajero_id"].astype(str) == c_id_item]["monto_venta"].sum()) if not df_v.empty and "cajero_id" in df_v.columns else 0
+                                    t_c_c = float(df_v[df_v["cajero_id"].astype(str) == c_id_item]["comision"].sum()) if not df_v.empty and "cajero_id" in df_v.columns else 0
+                                    t_p_c = float(df_v[df_v["cajero_id"].astype(str) == c_id_item]["monto_premios"].sum()) if not df_v.empty and "cajero_id" in df_v.columns else 0
+                                    t_g_c = float(df_g[df_g["cajero_id"].astype(str) == c_id_item]["monto"].sum()) if not df_g.empty and "cajero_id" in df_g.columns else 0
+                                    t_pg_c = float(df_pg[df_pg["cajero_id"].astype(str) == c_id_item]["monto"].sum()) if not df_pg.empty and "cajero_id" in df_pg.columns else 0
+                                    s_ant_c = obtener_saldo_anterior(nom, fecha_sel, cajero_id=c_id_item)
+                                    s_final_c = s_ant_c + (t_v_c - t_c_c - t_p_c - t_g_c - t_pg_c)
+                                    supabase.table("saldo_taquilla").upsert({
+                                        "nombre_agency": nom, "fecha": str(fecha_sel),
+                                        "saldo_restante": s_final_c, "cajero_id": c_id_item
+                                    }).execute()
+                                except Exception:
+                                    pass
+                                st.success(f"✅ Día cerrado para {c_name_item}.")
+                                time.sleep(1); st.rerun()
     else:
-        if df_v.empty and df_g.empty and df_pg.empty:
-            st.info("ℹ️ No hay datos registrados para este día. Carga al menos una venta antes de cerrar.")
+        if cerrado:
+            st.success(f"✅ Tu jornada del día {fecha_sel} está **CERRADA**.")
+            st.info("ℹ️ Si requieres realizar modificaciones, solicita a tu supervisor que reabra tu jornada.")
         else:
-            if st.button("🔒 Cerrar Día", type="primary", use_container_width=True):
-                c_id_close = cajero_id if not es_supervisor else None
-                if cerrar_dia(nom, fecha_sel, c_id_close):
-                    try:
-                        saldo_payload = {
-                            "nombre_agency": nom,
-                            "fecha": str(fecha_sel),
-                            "saldo_restante": t_saldo_final,
-                        }
-                        if cajero_id:
-                            saldo_payload["cajero_id"] = cajero_id
-                        supabase.table("saldo_taquilla").upsert(saldo_payload).execute()
-                        st.success("✅ Día cerrado y saldo guardado exitosamente.")
-                    except Exception as e:
-                        st.error(f"Error al guardar el saldo restante: {e}")
-                    time.sleep(1); st.rerun()
+            if df_v.empty and df_g.empty and df_pg.empty:
+                st.info("ℹ️ No hay datos registrados para este día. Carga al menos una venta antes de cerrar.")
+            else:
+                if st.button("🔒 Cerrar Mi Día", type="primary", use_container_width=True):
+                    if cerrar_dia(nom, fecha_sel, cajero_id):
+                        try:
+                            supabase.table("saldo_taquilla").upsert({
+                                "nombre_agency": nom,
+                                "fecha": str(fecha_sel),
+                                "saldo_restante": t_saldo_final,
+                                "cajero_id": cajero_id
+                            }).execute()
+                            st.success("✅ Tu jornada fue cerrada y tu saldo guardado exitosamente.")
+                        except Exception as e:
+                            st.error(f"Error al guardar el saldo restante: {e}")
+                        time.sleep(1); st.rerun()
 
 
 def modulo_premios_tickets(agencia_data):

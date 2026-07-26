@@ -423,15 +423,9 @@ def modulo_registro_taquilla(agencia_data):
                         "user_id": agencia_data['user_id'],
                         "cajero_id": cajero_id
                     }
-                    if existe_en_db:
-                        q_update = supabase.table("cda_reportes_diarios")\
-                            .update(data)\
-                            .eq("nombre_agency", agencia_data['nombre_agencia'])\
-                            .eq("fecha", fecha_carga_iso)\
-                            .eq("sistema", sist)
-                        if not es_supervisor and cajero_id:
-                            q_update = q_update.eq("cajero_id", cajero_id)
-                        q_update.execute()
+                    if existe_en_db and not match.empty and "id" in match.iloc[0]:
+                        row_id = match.iloc[0]["id"]
+                        supabase.table("cda_reportes_diarios").update(data).eq("id", row_id).execute()
                         st.success(f"✅ {sist} guardado!")
                     else:
                         data["nombre_agency"] = agencia_data['nombre_agencia']
@@ -1119,12 +1113,15 @@ def modulo_reporte_rango(agencia_data):
         if not es_supervisor and cajero_id:
             if not df_v.empty and "cajero_id" in df_v.columns:
                 df_v = df_v[df_v["cajero_id"].astype(str) == str(cajero_id)]
-            if not df_g.empty and "cajero_id" in df_g.columns:
-                df_g = df_g[df_g["cajero_id"].astype(str) == str(cajero_id)]
-            if not df_p.empty and "cajero_id" in df_p.columns:
-                df_p = df_p[df_p["cajero_id"].astype(str) == str(cajero_id)]
-            if not df_t.empty and "cajero_id" in df_t.columns:
-                df_t = df_t[df_t["cajero_id"].astype(str) == str(cajero_id)]
+            if not df_t.empty:
+                col_t = "cajero_id" if "cajero_id" in df_t.columns else ("user_id" if "user_id" in df_t.columns else None)
+                if col_t and col_t in df_t.columns: df_t = df_t[df_t[col_t].astype(str) == str(cajero_id)]
+            if not df_g.empty:
+                col_g = "cajero_id" if "cajero_id" in df_g.columns else ("user_id" if "user_id" in df_g.columns else None)
+                if col_g and col_g in df_g.columns: df_g = df_g[df_g[col_g].astype(str) == str(cajero_id)]
+            if not df_p.empty:
+                col_p = "cajero_id" if "cajero_id" in df_p.columns else ("user_id" if "user_id" in df_p.columns else None)
+                if col_p and col_p in df_p.columns: df_p = df_p[df_p[col_p].astype(str) == str(cajero_id)]
     except Exception as e:
         st.error(f"Error: {e}"); return
 

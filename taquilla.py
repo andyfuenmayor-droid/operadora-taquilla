@@ -3,7 +3,11 @@ import pandas as pd
 import time
 import urllib.parse
 from utils import supabase
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+def obtener_hora_local():
+    """Retorna la fecha y hora actual ajustada a la zona horaria local (UTC-4)."""
+    return datetime.now(timezone(timedelta(hours=-4)))
 
 user_agent = st.context.headers.get("User-Agent", "").lower()
 if "ipad" in user_agent or ("android" in user_agent and "mobile" not in user_agent):
@@ -1206,7 +1210,7 @@ def modulo_reporte_rango(agencia_data):
         lines.append(f"  SALDO ANTERIOR:  ${saldo_ant:>10,.2f}")
         lines.append(f"  SALDO FINAL:     ${t_saldo_final:>10,.2f}")
         lines.append("=" * 36)
-        lines.append("  Generado: " + datetime.now().strftime("%Y-%m-%d %H:%M"))
+        lines.append("  Generado: " + obtener_hora_local().strftime("%Y-%m-%d %H:%M"))
         lines.append("=" * 36)
         return "\n".join(lines)
 
@@ -1730,7 +1734,7 @@ def modulo_reporte_diario(agencia_data):
             lines.append(f"  TOTAL PAGOS:     ${t_pagos:>10,.2f}")
             lines.append(line)
 
-        lines.append("  Generado: " + datetime.now().strftime("%Y-%m-%d %H:%M"))
+        lines.append("  Generado: " + obtener_hora_local().strftime("%Y-%m-%d %H:%M"))
         lines.append(line)
         return "\n".join(lines)
 

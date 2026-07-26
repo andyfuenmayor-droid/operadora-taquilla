@@ -1284,10 +1284,14 @@ def modulo_cierre_diario(agencia_data):
         if not es_supervisor and cajero_id:
             if not df_v.empty and "cajero_id" in df_v.columns:
                 df_v = df_v[df_v["cajero_id"].astype(str) == str(cajero_id)]
-            if not df_g.empty and "cajero_id" in df_g.columns:
-                df_g = df_g[df_g["cajero_id"].astype(str) == str(cajero_id)]
-            if not df_pg.empty and "cajero_id" in df_pg.columns:
-                df_pg = df_pg[df_pg["cajero_id"].astype(str) == str(cajero_id)]
+            if not df_g.empty:
+                col_g = "cajero_id" if "cajero_id" in df_g.columns else ("user_id" if "user_id" in df_g.columns else None)
+                if col_g and col_g in df_g.columns:
+                    df_g = df_g[df_g[col_g].astype(str) == str(cajero_id)]
+            if not df_pg.empty:
+                col_p = "cajero_id" if "cajero_id" in df_pg.columns else ("user_id" if "user_id" in df_pg.columns else None)
+                if col_p and col_p in df_pg.columns:
+                    df_pg = df_pg[df_pg[col_p].astype(str) == str(cajero_id)]
     except Exception as e:
         st.error(f"Error: {e}"); return
 

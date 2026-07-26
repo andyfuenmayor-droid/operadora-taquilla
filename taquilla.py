@@ -1993,7 +1993,7 @@ else:
             border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
         }
 
-        /* 🟢 Compact Sidebar Navigation Styling (Zero Background, Zero Scrolling) 🟢 */
+        /* 🟢 Compact Sidebar Navigation Styling (Zero Background, Zero Borders, Ultra Legible) 🟢 */
         [data-testid="stSidebar"] [data-testid="stSidebarUserContent"] {
             padding-top: 0.75rem !important;
         }
@@ -2007,7 +2007,11 @@ else:
             margin-bottom: 2px !important;
         }
 
-        [data-testid="stSidebar"] [data-testid="stButton"] button {
+        /* 🟢 1. ELIMINAR BORDES Y ROJOS/MORADOS EN TODOS LOS BOTONES DEL MENU 🟢 */
+        [data-testid="stSidebar"] [data-testid="stButton"],
+        [data-testid="stSidebar"] [data-testid="stButton"] > button,
+        [data-testid="stSidebar"] [data-testid="stButton"] button,
+        [data-testid="stSidebar"] [data-testid="stElementContainer"] button {
             justify-content: flex-start !important;
             text-align: left !important;
             font-size: 0.88rem !important;
@@ -2022,33 +2026,64 @@ else:
             background: transparent !important;
             background-color: transparent !important;
             border: none !important;
+            border-color: transparent !important;
             outline: none !important;
             box-shadow: none !important;
             color: #ffffff !important;
             width: 100% !important;
         }
 
-        /* Active Item: Solid Green Button */
+        /* 🟢 2. TEXTO ULTRA-LEGIBLE Y RESALTADO PARA EL BOTON ACTIVO (VERDE SOLIDO) 🟢 */
         [data-testid="stSidebar"] [data-testid="stButton"] button[kind="primary"],
         [data-testid="stSidebar"] [data-testid="stButton"] button[data-testid="baseButton-primary"] {
             background-color: #00c853 !important;
             background: #00c853 !important;
             color: #ffffff !important;
-            font-weight: 700 !important;
+            font-weight: 800 !important;
             border: none !important;
+            border-color: transparent !important;
             border-radius: 6px !important;
-            box-shadow: 0 2px 8px rgba(0, 200, 83, 0.3) !important;
+            box-shadow: 0 4px 14px rgba(0, 200, 83, 0.4) !important;
+        }
+        /* Forzar texto blanco nítido y resaltado dentro del botón activo */
+        [data-testid="stSidebar"] [data-testid="stButton"] button[kind="primary"] *,
+        [data-testid="stSidebar"] [data-testid="stButton"] button[data-testid="baseButton-primary"] * {
+            color: #ffffff !important;
+            font-weight: 800 !important;
+            font-size: 0.95rem !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5) !important;
         }
 
-        /* Inactive Item Hover */
+        /* 🟢 3. BOTONES INACTIVOS: TOTALMENTE TRANSPARENTES SIN BORDES 🟢 */
+        [data-testid="stSidebar"] [data-testid="stButton"] button[kind="secondary"],
+        [data-testid="stSidebar"] [data-testid="stButton"] button[data-testid="baseButton-secondary"] {
+            background-color: transparent !important;
+            background: transparent !important;
+            color: #e2e8f0 !important;
+            border: none !important;
+            border-color: transparent !important;
+            box-shadow: none !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stButton"] button[kind="secondary"] *,
+        [data-testid="stSidebar"] [data-testid="stButton"] button[data-testid="baseButton-secondary"] * {
+            color: #e2e8f0 !important;
+            font-weight: 600 !important;
+        }
+
+        /* Hover para inactivos */
         [data-testid="stSidebar"] [data-testid="stButton"] button[kind="secondary"]:hover,
         [data-testid="stSidebar"] [data-testid="stButton"] button[data-testid="baseButton-secondary"]:hover {
             background-color: rgba(255, 255, 255, 0.08) !important;
             background: rgba(255, 255, 255, 0.08) !important;
             color: #ffffff !important;
+            border: none !important;
+            border-color: transparent !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stButton"] button[kind="secondary"]:hover * {
+            color: #ffffff !important;
         }
 
-        /* Logout Button Specific Outlined Card Style */
+        /* 🚪 BOTON CERRAR SESION: TARJETA DELINEADA LIMPIA 🚪 */
         [data-testid="stSidebar"] button[key="btn_logout_sidebar"],
         [data-testid="stSidebar"] button[key="btn_logout_sidebar"]:hover {
             border: 1px solid rgba(255, 255, 255, 0.15) !important;

@@ -234,47 +234,54 @@ def _check_cerrado_col():
             )
     return st.session_state["check_ok"]
 
-def dia_esta_cerrado(agencia_nombre, fecha):
-    """Retorna True si el día ya fue cerrado para esta agencia."""
+def dia_esta_cerrado(agencia_nombre, fecha, cajero_id=None):
+    """Retorna True si el día ya fue cerrado para esta agencia (y cajero opcional)."""
     try:
-        res = supabase.table("cda_reportes_diarios")\
+        q = supabase.table("cda_reportes_diarios")\
             .select("cerrado")\
             .eq("nombre_agency", agencia_nombre)\
             .eq("fecha", str(fecha))\
-            .eq("cerrado", True)\
-            .limit(1)\
-            .execute()
+            .eq("cerrado", True)
+        if cajero_id:
+            q = q.eq("cajero_id", str(cajero_id))
+        res = q.limit(1).execute()
         return len(res.data or []) > 0
     except Exception:
         return False
 
-def cerrar_dia(agencia_nombre, fecha, cajero_id):
-    """Marca todas las filas del día como cerrado=True."""
+def cerrar_dia(agencia_nombre, fecha, cajero_id=None):
+    """Marca las filas del día como cerrado=True."""
     try:
-        supabase.table("cda_reportes_diarios")\
+        q = supabase.table("cda_reportes_diarios")\
             .update({"cerrado": True})\
             .eq("nombre_agency", agencia_nombre)\
-            .eq("fecha", str(fecha))\
-            .execute()
+            .eq("fecha", str(fecha))
+        if cajero_id:
+            q = q.eq("cajero_id", str(cajero_id))
+        q.execute()
         return True
     except Exception as e:
         st.error(f"Error al cerrar el día: {e}")
         return False
 
-def reabrir_dia(agencia_nombre, fecha):
-    """Marca todas las filas del día como cerrado=False (supervisor)."""
+def reabrir_dia(agencia_nombre, fecha, cajero_id=None):
+    """Marca las filas del día como cerrado=False (supervisor)."""
     try:
-        supabase.table("cda_reportes_diarios")\
+        q = supabase.table("cda_reportes_diarios")\
             .update({"cerrado": False})\
             .eq("nombre_agency", agencia_nombre)\
-            .eq("fecha", str(fecha))\
-            .execute()
+            .eq("fecha", str(fecha))
+        if cajero_id:
+            q = q.eq("cajero_id", str(cajero_id))
+        q.execute()
         try:
-            supabase.table("saldo_taquilla")\
+            q_s = supabase.table("saldo_taquilla")\
                 .delete()\
                 .eq("nombre_agency", agencia_nombre)\
-                .eq("fecha", str(fecha))\
-                .execute()
+                .eq("fecha", str(fecha))
+            if cajero_id:
+                q_s = q_s.eq("cajero_id", str(cajero_id))
+            q_s.execute()
         except Exception:
             pass
         return True
@@ -363,12 +370,12 @@ def modulo_registro_taquilla(agencia_data):
         )
     fecha_carga_iso = str(fecha_seleccionada)
 
-    cerrado = dia_esta_cerrado(agencia_data['nombre_agencia'], fecha_carga_iso)
+    cerrado = dia_esta_cerrado(agencia_data['nombre_agencia'], fecha_carga_iso, cajero_id=cajero_id if not es_supervisor else None)
     if cerrado:
         if es_supervisor:
             st.warning(f"🔒 El día {fecha_carga_iso} está **cerrado**. Solo un supervisor puede reabrirlo.")
         else:
-            st.error(f"🔒 El día {fecha_carga_iso} ya fue cerrado. Contacta al supervisor para modificarlo.")
+            st.error(f"🔒 Tu jornada del día {fecha_carga_iso} ya fue cerrada. Contacta al supervisor para modificarla.")
             return
 
     try:
@@ -441,6 +448,10 @@ def modulo_gastos(agencia_data):
     render_encabezado_principal("💸 Gestión de Gastos")
     u_id = agencia_data['user_id']
     ag_nombre = agencia_data['nombre_agencia']
+    cajero_info = st.session_state.get("cajero_actual", {})
+    rol_usuario = cajero_info.get("rol", "cajero")
+    cajero_id = cajero_info.get("id")
+    es_supervisor = (rol_usuario == 'supervisor')
 
     if "fecha_gasto_filtro" not in st.session_state:
         st.session_state["fecha_gasto_filtro"] = datetime.now().date()
@@ -453,15 +464,19 @@ def modulo_gastos(agencia_data):
             key="fecha_gasto_filtro_input"
         )
 
-    cerrado = dia_esta_cerrado(ag_nombre, fecha_filtro)
+    cerrado = dia_esta_cerrado(ag_nombre, fecha_filtro, cajero_id=cajero_id if not es_supervisor else None)
     if cerrado:
-        st.info(f"🔒 El día {fecha_filtro} está cerrado. No se pueden registrar nuevos gastos.")
+        st.info(f"🔒 El día {fecha_filtro} está cerrado para tu usuario. No se pueden registrar nuevos gastos.")
 
     try:
-        res_g = supabase.table("cda_gastos_diarios").select("*").eq("user_id", u_id).eq("fecha", str(fecha_filtro)).execute()
+        res_g = supabase.table("cda_gastos_diarios").select("*").eq("fecha", str(fecha_filtro)).execute()
         df_g = pd.DataFrame(res_g.data or [])
         if not df_g.empty:
             df_g.columns = [c.lower() for c in df_g.columns]
+            if not es_supervisor and cajero_id:
+                col_g = "cajero_id" if "cajero_id" in df_g.columns else ("user_id" if "user_id" in df_g.columns else None)
+                if col_g and col_g in df_g.columns:
+                    df_g = df_g[df_g[col_g].astype(str) == str(cajero_id)]
     except Exception:
         df_g = pd.DataFrame()
 
@@ -490,7 +505,7 @@ def modulo_gastos(agencia_data):
                         "concepto": concepto_g.upper().strip(),
                         "monto": round(float(monto_g), 2),
                         "moneda": moneda_g, "user_id": u_id,
-                        "cajero_id": st.session_state.get("cajero_actual", {}).get("id")
+                        "cajero_id": cajero_id
                     }).execute()
                     st.success("✅ Gasto guardado exitosamente!"); time.sleep(1); st.rerun()
 
@@ -499,6 +514,10 @@ def modulo_pagos(agencia_data):
     render_encabezado_principal("💰 Recepción de Pagos")
     u_id = agencia_data['user_id']
     ag_nombre = agencia_data['nombre_agencia']
+    cajero_info = st.session_state.get("cajero_actual", {})
+    rol_usuario = cajero_info.get("rol", "cajero")
+    cajero_id = cajero_info.get("id")
+    es_supervisor = (rol_usuario == 'supervisor')
 
     if "fecha_pago_filtro" not in st.session_state:
         st.session_state["fecha_pago_filtro"] = datetime.now().date()
@@ -511,15 +530,19 @@ def modulo_pagos(agencia_data):
             key="fecha_pago_filtro_input"
         )
 
-    cerrado = dia_esta_cerrado(ag_nombre, fecha_filtro)
+    cerrado = dia_esta_cerrado(ag_nombre, fecha_filtro, cajero_id=cajero_id if not es_supervisor else None)
     if cerrado:
-        st.info(f"🔒 El día {fecha_filtro} está cerrado. No se pueden registrar nuevos pagos.")
+        st.info(f"🔒 El día {fecha_filtro} está cerrado para tu usuario. No se pueden registrar nuevos pagos.")
 
     try:
-        res_p = supabase.table("cda_pagos_diarios").select("*").eq("user_id", u_id).eq("fecha", str(fecha_filtro)).execute()
+        res_p = supabase.table("cda_pagos_diarios").select("*").eq("fecha", str(fecha_filtro)).execute()
         df_p = pd.DataFrame(res_p.data or [])
         if not df_p.empty:
             df_p.columns = [c.lower() for c in df_p.columns]
+            if not es_supervisor and cajero_id:
+                col_p = "cajero_id" if "cajero_id" in df_p.columns else ("user_id" if "user_id" in df_p.columns else None)
+                if col_p and col_p in df_p.columns:
+                    df_p = df_p[df_p[col_p].astype(str) == str(cajero_id)]
     except Exception:
         df_p = pd.DataFrame()
 
@@ -547,7 +570,7 @@ def modulo_pagos(agencia_data):
                         "fecha": str(fecha_pg), "agencia": ag_nombre,
                         "tipo_pago": tipo_pg, "monto": round(float(monto_pg), 2),
                         "moneda": moneda_pg, "user_id": u_id,
-                        "cajero_id": st.session_state.get("cajero_actual", {}).get("id")
+                        "cajero_id": cajero_id
                     }).execute()
                     st.success("✅ Pago guardado exitosamente!"); time.sleep(1); st.rerun()
 
@@ -966,6 +989,7 @@ def modulo_gestion_bancaria(agencia_data):
                 st.error("Debe proporcionar un número de referencia o comprobante.")
             else:
                 try:
+                    cajero_id_b = st.session_state.get("cajero_actual", {}).get("id")
                     # 1. Guardar en tabla cda_pagos_bancarios
                     data_bancaria = {
                         "fecha": str(fecha_pago),
@@ -978,6 +1002,7 @@ def modulo_gestion_bancaria(agencia_data):
                         "datos_pagador": datos_cliente.strip().upper() if datos_cliente else "N/A",
                         "pos_o_cuenta": pos_o_cuenta,
                         "user_id": u_id,
+                        "cajero_id": cajero_id_b,
                         "created_at": datetime.now().isoformat()
                     }
                     supabase.table("cda_pagos_bancarios").insert(data_bancaria).execute()
@@ -989,7 +1014,8 @@ def modulo_gestion_bancaria(agencia_data):
                         "tipo_pago": f"{metodo_pago} (Ref: {referencia.strip().upper()})",
                         "monto": round(float(monto_pago), 2),
                         "moneda": moneda_pago,
-                        "user_id": u_id
+                        "user_id": u_id,
+                        "cajero_id": cajero_id_b
                     }).execute()
 
                     st.success(f"✅ Pago por {metodo_pago} (Ref: {referencia}) registrado exitosamente!")
@@ -1005,14 +1031,20 @@ def modulo_gestion_bancaria(agencia_data):
         c_f1, _ = st.columns([2, 2])
         fecha_hist = c_f1.date_input("📅 Filtrar por Fecha:", value=datetime.now().date(), key="fecha_hist_bancaria")
 
+        cajero_info_b = st.session_state.get("cajero_actual", {})
+        rol_usuario_b = cajero_info_b.get("rol", "cajero")
+        cajero_id_b = cajero_info_b.get("id")
+        es_supervisor_b = (rol_usuario_b == 'supervisor')
+
         try:
-            res_pb = supabase.table("cda_pagos_bancarios").select("*").eq("agencia", ag_nombre).eq("fecha", str(fecha_hist)).execute()
+            res_pb = supabase.table("cda_pagos_bancarios").select("*").eq("fecha", str(fecha_hist)).execute()
             df_pb = pd.DataFrame(res_pb.data or [])
-            if df_pb.empty:
-                res_pb_u = supabase.table("cda_pagos_bancarios").select("*").eq("user_id", u_id).eq("fecha", str(fecha_hist)).execute()
-                df_pb = pd.DataFrame(res_pb_u.data or [])
             if not df_pb.empty:
                 df_pb.columns = [c.lower() for c in df_pb.columns]
+                if not es_supervisor_b and cajero_id_b:
+                    col_pb = "cajero_id" if "cajero_id" in df_pb.columns else ("user_id" if "user_id" in df_pb.columns else None)
+                    if col_pb and col_pb in df_pb.columns:
+                        df_pb = df_pb[df_pb[col_pb].astype(str) == str(cajero_id_b)]
         except Exception:
             df_pb = pd.DataFrame()
 
@@ -1226,13 +1258,10 @@ def modulo_cierre_diario(agencia_data):
     if "fecha_cierre" not in st.session_state:
         st.session_state["fecha_cierre"] = datetime.now().date()
 
-    fecha_sel = st.date_input(
-        "📅 Seleccione el día a cerrar:",
-        value=st.session_state["fecha_cierre"],
-        key="fecha_cierre_input"
-    )
+    cajero_info = st.session_state.get("cajero_actual", {})
+    cajero_id = cajero_info.get("id")
 
-    cerrado = dia_esta_cerrado(nom, fecha_sel)
+    cerrado = dia_esta_cerrado(nom, fecha_sel, cajero_id=cajero_id if not es_supervisor else None)
 
     # Cargar datos del día
     try:
@@ -1245,9 +1274,6 @@ def modulo_cierre_diario(agencia_data):
         if not df_v.empty: df_v.columns = [c.lower() for c in df_v.columns]
         if not df_g.empty: df_g.columns = [c.lower() for c in df_g.columns]
         if not df_pg.empty: df_pg.columns = [c.lower() for c in df_pg.columns]
-
-        cajero_info = st.session_state.get("cajero_actual", {})
-        cajero_id = cajero_info.get("id")
 
         if not es_supervisor and cajero_id:
             if not df_v.empty and "cajero_id" in df_v.columns:
@@ -1324,24 +1350,24 @@ def modulo_cierre_diario(agencia_data):
         st.success(f"✅ El día {fecha_sel} está **CERRADO**.")
         if es_supervisor:
             if st.button("🔓 Reabrir Día (solo supervisor)", type="secondary", use_container_width=True):
-                if reabrir_dia(nom, fecha_sel):
-                    st.success("✅ Día reabierto."); time.sleep(1); st.rerun()
+                if reabrir_dia(nom, fecha_sel, cajero_id=cajero_id if not es_supervisor else None):
+                    st.success("✅ Día reabierto exitosamente por el supervisor."); time.sleep(1); st.rerun()
     else:
         if df_v.empty and df_g.empty and df_pg.empty:
             st.info("ℹ️ No hay datos registrados para este día. Carga al menos una venta antes de cerrar.")
-        elif not es_supervisor:
-            st.info("ℹ️ Solo un supervisor puede cerrar el día. Solicita al supervisor que realice el cierre.")
         else:
             if st.button("🔒 Cerrar Día", type="primary", use_container_width=True):
-                cajero_id = st.session_state.get("cajero_actual", {}).get("id")
-                if cerrar_dia(nom, fecha_sel, cajero_id):
+                c_id_close = cajero_id if not es_supervisor else None
+                if cerrar_dia(nom, fecha_sel, c_id_close):
                     try:
-                        supabase.table("saldo_taquilla").upsert({
+                        saldo_payload = {
                             "nombre_agency": nom,
                             "fecha": str(fecha_sel),
                             "saldo_restante": t_saldo_final,
-                            "cajero_id": cajero_id
-                        }).execute()
+                        }
+                        if cajero_id:
+                            saldo_payload["cajero_id"] = cajero_id
+                        supabase.table("saldo_taquilla").upsert(saldo_payload).execute()
                         st.success("✅ Día cerrado y saldo guardado exitosamente.")
                     except Exception as e:
                         st.error(f"Error al guardar el saldo restante: {e}")
@@ -1368,12 +1394,13 @@ def modulo_premios_tickets(agencia_data):
         )
 
     try:
-        res = supabase.table("cda_premios_tickets")\
+        query_t = supabase.table("cda_premios_tickets")\
             .select("*")\
             .eq("agencia", ag_nombre)\
-            .eq("fecha", str(fecha_filtro))\
-            .order("fecha", desc=False)\
-            .execute()
+            .eq("fecha", str(fecha_filtro))
+        if not es_supervisor:
+            query_t = query_t.eq("user_id", u_id_real)
+        res = query_t.order("fecha", desc=False).execute()
         df_t = pd.DataFrame(res.data or [])
         if not df_t.empty:
             df_t.columns = [c.lower() for c in df_t.columns]
@@ -1381,24 +1408,31 @@ def modulo_premios_tickets(agencia_data):
         st.error(f"Error al cargar tickets: {e}")
         df_t = pd.DataFrame()
 
-    if st.checkbox("🔍 Ver TODOS los tickets (incluso de otro cajero)", value=False):
-        try:
-            res_all = supabase.table("cda_premios_tickets")\
-                .select("*")\
-                .eq("fecha", str(fecha_filtro))\
-                .execute()
-            df_all = pd.DataFrame(res_all.data or [])
-            if not df_all.empty:
-                df_all.columns = [c.lower() for c in df_all.columns]
-                st.dataframe(df_all, use_container_width=True, hide_index=True)
-            else:
-                st.info("ℹ️ No hay tickets para este día.")
-        except Exception as e:
-            st.error(f"Error: {e}")
+    if not df_t.empty:
+        render_titulo_seccion("📋 Tickets Registrados")
+        st.dataframe(df_t, use_container_width=True, hide_index=True)
+    else:
+        st.info("ℹ️ No hay tickets registrados por tu usuario para este día.")
 
-    cerrado = dia_esta_cerrado(ag_nombre, fecha_filtro)
+    if es_supervisor:
+        if st.checkbox("🔍 Ver TODOS los tickets (incluso de otro cajero)", value=False):
+            try:
+                res_all = supabase.table("cda_premios_tickets")\
+                    .select("*")\
+                    .eq("fecha", str(fecha_filtro))\
+                    .execute()
+                df_all = pd.DataFrame(res_all.data or [])
+                if not df_all.empty:
+                    df_all.columns = [c.lower() for c in df_all.columns]
+                    st.dataframe(df_all, use_container_width=True, hide_index=True)
+                else:
+                    st.info("ℹ️ No hay tickets para este día.")
+            except Exception as e:
+                st.error(f"Error: {e}")
+
+    cerrado = dia_esta_cerrado(ag_nombre, fecha_filtro, cajero_id=u_id_real if not es_supervisor else None)
     if cerrado and not es_supervisor:
-        st.warning(f"🔒 El día {fecha_filtro} está cerrado. No se pueden registrar nuevos tickets.")
+        st.warning(f"🔒 Tu jornada del día {fecha_filtro} está cerrada. No se pueden registrar nuevos tickets.")
     elif cerrado and es_supervisor:
         st.info(f"🔒 El día {fecha_filtro} está cerrado. Solo un supervisor puede registrar tickets.")
 
@@ -1446,7 +1480,7 @@ def modulo_premios_tickets(agencia_data):
                                 }).execute()
                                 # actualizar cda_reportes_diarios
                                 d_res = supabase.table("cda_reportes_diarios").select("*")\
-                                    .eq("nombre_agency", ag_nombre).eq("fecha", str(fecha_p)).eq("sistema", sistema_p).execute()
+                                    .eq("nombre_agency", ag_nombre).eq("fecha", str(fecha_p)).eq("sistema", sistema_p).eq("cajero_id", u_id_real).execute()
                                 if d_res.data:
                                     d_row = d_res.data[0]
                                     nuevo_mp = float(d_row.get("monto_premios", 0)) + monto_red
@@ -1500,7 +1534,7 @@ def modulo_premios_tickets(agencia_data):
                             # actualizar cda_reportes_diarios con el total
                             try:
                                 d_res = supabase.table("cda_reportes_diarios").select("*")\
-                                    .eq("nombre_agency", ag_nombre).eq("fecha", str(fecha_p)).eq("sistema", sistema_p).execute()
+                                    .eq("nombre_agency", ag_nombre).eq("fecha", str(fecha_p)).eq("sistema", sistema_p).eq("cajero_id", u_id_real).execute()
                                 monto_total_red = round(float(monto_total), 2)
                                 if d_res.data:
                                     d_row = d_res.data[0]
@@ -1544,7 +1578,7 @@ def modulo_premios_tickets(agencia_data):
                             if res_ins.data:
                                 try:
                                     d_res = supabase.table("cda_reportes_diarios").select("*")\
-                                        .eq("nombre_agency", ag_nombre).eq("fecha", str(fecha_p)).eq("sistema", sistema_p).execute()
+                                        .eq("nombre_agency", ag_nombre).eq("fecha", str(fecha_p)).eq("sistema", sistema_p).eq("cajero_id", u_id_real).execute()
                                     monto_redondeado = round(float(monto_p), 2)
                                     if d_res.data:
                                         d_row = d_res.data[0]

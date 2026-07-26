@@ -1993,31 +1993,42 @@ else:
             border-right: 1px solid rgba(255, 255, 255, 0.06) !important;
         }
 
-        /* Sidebar Navigation Menu Pill Styling */
+        /* 💎 Glassmorphism Premium Navigation Menu Styling 💎 */
         [data-testid="stSidebar"] [data-testid="stRadio"] > div {
-            gap: 6px !important;
+            gap: 8px !important;
         }
         [data-testid="stSidebar"] [data-testid="stRadio"] label {
-            background-color: rgba(255, 255, 255, 0.03) !important;
-            border: 1px solid rgba(255, 255, 255, 0.06) !important;
-            border-radius: 10px !important;
-            padding: 8px 12px !important;
+            background: rgba(13, 27, 34, 0.45) !important;
+            backdrop-filter: blur(10px) !important;
+            -webkit-backdrop-filter: blur(10px) !important;
+            border: 1px solid rgba(255, 255, 255, 0.07) !important;
+            border-left: 3px solid transparent !important;
+            border-radius: 12px !important;
+            padding: 10px 14px !important;
             cursor: pointer !important;
-            transition: all 0.2s ease !important;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
             width: 100% !important;
             font-size: 0.9rem !important;
             font-weight: 500 !important;
+            color: #cbd5e1 !important;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2) !important;
         }
         [data-testid="stSidebar"] [data-testid="stRadio"] label:hover {
-            background-color: rgba(0, 200, 83, 0.1) !important;
+            background: rgba(255, 255, 255, 0.08) !important;
             border-color: rgba(0, 200, 83, 0.3) !important;
+            border-left-color: rgba(0, 200, 83, 0.6) !important;
+            transform: translateX(4px) !important;
+            color: #ffffff !important;
         }
         [data-testid="stSidebar"] [data-testid="stRadio"] label[data-checked="true"],
         [data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) {
-            background: linear-gradient(135deg, rgba(0, 200, 83, 0.25), rgba(0, 200, 83, 0.1)) !important;
-            border: 1px solid #00c853 !important;
+            background: linear-gradient(135deg, rgba(0, 200, 83, 0.18), rgba(0, 200, 83, 0.05)) !important;
+            border: 1px solid rgba(0, 200, 83, 0.5) !important;
+            border-left: 4px solid #00c853 !important;
             color: #ffffff !important;
             font-weight: 600 !important;
+            box-shadow: 0 4px 14px rgba(0, 200, 83, 0.15), inset 0 0 10px rgba(0, 200, 83, 0.05) !important;
+            transform: translateX(4px) !important;
         }
 
         [data-testid="stBlockContainer"],

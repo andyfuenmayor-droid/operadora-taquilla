@@ -1301,21 +1301,22 @@ def modulo_cierre_diario(agencia_data):
     if not df_v.empty:
         render_titulo_seccion("📋 Detalle por Sistema y Cajero")
         with st.expander("📋 Ver Detalle por Sistema y Cajero", expanded=True):
-            cols = ["sistema", "monto_venta", "comision", "monto_premios"]
-            cols = [c for c in cols if c in df_v.columns]
             try:
                 res_u = supabase.table("taquilla_usuarios").select("id, usuario, nombre_cajero").execute()
                 u_map = {str(u["id"]): u.get("nombre_cajero") or u.get("usuario") for u in (res_u.data or [])}
-                if "cajero_id" in df_v.columns:
-                    df_v_display = df_v.copy()
+                df_v_display = df_v.copy()
+                if "cajero_id" in df_v_display.columns:
                     df_v_display["cajero"] = df_v_display["cajero_id"].astype(str).map(lambda x: u_map.get(x, f"ID {x}" if x != "None" and x != "nan" else "General"))
-                    cols_display = ["sistema", "cajero", "monto_venta", "comision", "monto_premios"]
-                    cols_display = [c for c in cols_display if c in df_v_display.columns]
-                    st.dataframe(df_v_display[cols_display], use_container_width=True, hide_index=True)
+                    group_cols = ["sistema", "cajero"]
                 else:
-                    st.dataframe(df_v[cols], use_container_width=True, hide_index=True)
+                    group_cols = ["sistema"]
+                num_cols = [c for c in ["monto_venta", "comision", "monto_premios"] if c in df_v_display.columns]
+                df_v_summary = df_v_display.groupby(group_cols, as_index=False)[num_cols].sum()
+                st.dataframe(df_v_summary, use_container_width=True, hide_index=True)
             except Exception:
-                st.dataframe(df_v[cols], use_container_width=True, hide_index=True)
+                num_cols = [c for c in ["monto_venta", "comision", "monto_premios"] if c in df_v.columns]
+                df_v_summary = df_v.groupby("sistema", as_index=False)[num_cols].sum()
+                st.dataframe(df_v_summary, use_container_width=True, hide_index=True)
 
     st.divider()
 
@@ -1623,12 +1624,15 @@ def modulo_reporte_diario(agencia_data):
         if not es_supervisor and cajero_id:
             if not df_v.empty and "cajero_id" in df_v.columns:
                 df_v = df_v[df_v["cajero_id"].astype(str) == str(cajero_id)]
-            if not df_g.empty and "cajero_id" in df_g.columns:
-                df_g = df_g[df_g["cajero_id"].astype(str) == str(cajero_id)]
-            if not df_p.empty and "cajero_id" in df_p.columns:
-                df_p = df_p[df_p["cajero_id"].astype(str) == str(cajero_id)]
-            if not df_t.empty and "cajero_id" in df_t.columns:
-                df_t = df_t[df_t["cajero_id"].astype(str) == str(cajero_id)]
+            if not df_t.empty:
+                col_t = "cajero_id" if "cajero_id" in df_t.columns else ("user_id" if "user_id" in df_t.columns else None)
+                if col_t and col_t in df_t.columns: df_t = df_t[df_t[col_t].astype(str) == str(cajero_id)]
+            if not df_g.empty:
+                col_g = "cajero_id" if "cajero_id" in df_g.columns else ("user_id" if "user_id" in df_g.columns else None)
+                if col_g and col_g in df_g.columns: df_g = df_g[df_g[col_g].astype(str) == str(cajero_id)]
+            if not df_p.empty:
+                col_p = "cajero_id" if "cajero_id" in df_p.columns else ("user_id" if "user_id" in df_p.columns else None)
+                if col_p and col_p in df_p.columns: df_p = df_p[df_p[col_p].astype(str) == str(cajero_id)]
     except Exception as e:
         st.error(f"Error: {e}"); return
 
@@ -1662,9 +1666,9 @@ def modulo_reporte_diario(agencia_data):
     render_titulo_seccion("📋 Detalle por Sistema")
     with st.expander("📋 Ver Detalle por Sistema", expanded=True):
         if not df_v.empty:
-            cols = ["sistema", "monto_venta", "comision", "monto_premios"]
-            cols = [c for c in cols if c in df_v.columns]
-            st.dataframe(df_v[cols], use_container_width=True, hide_index=True)
+            num_cols = [c for c in ["monto_venta", "comision", "monto_premios"] if c in df_v.columns]
+            df_v_grouped = df_v.groupby("sistema", as_index=False)[num_cols].sum()
+            st.dataframe(df_v_grouped, use_container_width=True, hide_index=True)
         else:
             st.info("Sin ventas este dia.")
 
@@ -1678,7 +1682,9 @@ def modulo_reporte_diario(agencia_data):
         lines.append(f"  {nom}")
         lines.append(line)
         if not df_v.empty:
-            for _, r in df_v.iterrows():
+            num_cols = [c for c in ["monto_venta", "comision", "monto_premios"] if c in df_v.columns]
+            df_v_print = df_v.groupby("sistema", as_index=False)[num_cols].sum()
+            for _, r in df_v_print.iterrows():
                 lines.append(f"  {r['sistema']}")
                 lines.append(f"    Venta:     {float(r['monto_venta']):>12,.2f}")
                 lines.append(f"    Comision:  {float(r['comision']):>12,.2f}")

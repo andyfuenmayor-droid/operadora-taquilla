@@ -364,15 +364,24 @@ def obtener_saldo_anterior(agencia_nombre, fecha_sel, cajero_id=None):
             return 0.0
 
     try:
-        res_g = supabase.table("saldo_taquilla")\
-            .select("saldo_restante")\
+        # 1. Identificar la última fecha cerrada de la agencia
+        res_date = supabase.table("saldo_taquilla")\
+            .select("fecha")\
             .eq("nombre_agency", agencia_nombre)\
             .lt("fecha", str(fecha_sel))\
             .order("fecha", desc=True)\
             .limit(1)\
             .execute()
-        if res_g.data:
-            return float(res_g.data[0]["saldo_restante"])
+        if res_date.data:
+            latest_date = res_date.data[0]["fecha"]
+            # 2. Consultar y sumar los saldos de todos los cajeros en esa fecha
+            res_all = supabase.table("saldo_taquilla")\
+                .select("saldo_restante")\
+                .eq("nombre_agency", agencia_nombre)\
+                .eq("fecha", latest_date)\
+                .execute()
+            if res_all.data:
+                return sum(float(r["saldo_restante"]) for r in res_all.data)
     except Exception:
         pass
     return 0.0
@@ -1573,7 +1582,7 @@ def modulo_cierre_diario(agencia_data):
                 q_hoy = q_hoy.eq("cajero_id", str(c_target_id))
             res_hoy = q_hoy.execute()
             if res_hoy.data:
-                t_saldo_final = float(res_hoy.data[0]["saldo_restante"])
+                t_saldo_final = sum(float(r["saldo_restante"]) for r in res_hoy.data)
         except Exception:
             pass
 
@@ -1646,8 +1655,13 @@ def modulo_cierre_diario(agencia_data):
                                     t_v_c = float(df_v[df_v["cajero_id"].astype(str) == c_id_item]["monto_venta"].sum()) if not df_v.empty and "cajero_id" in df_v.columns else 0
                                     t_c_c = float(df_v[df_v["cajero_id"].astype(str) == c_id_item]["comision"].sum()) if not df_v.empty and "cajero_id" in df_v.columns else 0
                                     t_p_c = float(df_v[df_v["cajero_id"].astype(str) == c_id_item]["monto_premios"].sum()) if not df_v.empty and "cajero_id" in df_v.columns else 0
-                                    t_g_c = float(df_g[df_g["cajero_id"].astype(str) == c_id_item]["monto"].sum()) if not df_g.empty and "cajero_id" in df_g.columns else 0
-                                    t_pg_c = float(df_pg[df_pg["cajero_id"].astype(str) == c_id_item]["monto"].sum()) if not df_pg.empty and "cajero_id" in df_pg.columns else 0
+                                    
+                                    col_g = "cajero_id" if not df_g.empty and "cajero_id" in df_g.columns else ("user_id" if not df_g.empty and "user_id" in df_g.columns else None)
+                                    t_g_c = float(df_g[df_g[col_g].astype(str) == c_id_item]["monto"].sum()) if col_g else 0
+                                    
+                                    col_pg = "cajero_id" if not df_pg.empty and "cajero_id" in df_pg.columns else ("user_id" if not df_pg.empty and "user_id" in df_pg.columns else None)
+                                    t_pg_c = float(df_pg[df_pg[col_pg].astype(str) == c_id_item]["monto"].sum()) if col_pg else 0
+                                    
                                     s_ant_c = obtener_saldo_anterior(nom, fecha_sel, cajero_id=c_id_item)
                                     s_final_c = s_ant_c + (t_v_c - t_c_c - t_p_c - t_g_c - t_pg_c)
                                     p_saldo = {"nombre_agency": nom, "fecha": str(fecha_sel), "saldo_restante": s_final_c}

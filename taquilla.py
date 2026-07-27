@@ -1727,7 +1727,7 @@ def modulo_cierre_diario(agencia_data):
                                     p_saldo = {"nombre_agency": nom, "fecha": str(fecha_sel), "saldo_restante": s_final_c}
                                     if c_id_item:
                                         p_saldo["cajero_id"] = str(c_id_item)
-                                    supabase.table("saldo_taquilla").upsert(p_saldo).execute()
+                                    supabase.table("saldo_taquilla").upsert(p_saldo, on_conflict="nombre_agency,fecha,cajero_id").execute()
                                 except Exception:
                                     pass
                                 st.success(f"✅ Día cerrado para {c_name_item}.")
@@ -1746,7 +1746,7 @@ def modulo_cierre_diario(agencia_data):
                             p_saldo = {"nombre_agency": nom, "fecha": str(fecha_sel), "saldo_restante": t_saldo_final}
                             if cajero_id:
                                 p_saldo["cajero_id"] = str(cajero_id)
-                            supabase.table("saldo_taquilla").upsert(p_saldo).execute()
+                            supabase.table("saldo_taquilla").upsert(p_saldo, on_conflict="nombre_agency,fecha,cajero_id").execute()
                             st.success("✅ Tu jornada fue cerrada y tu saldo guardado exitosamente.")
                         except Exception as e:
                             st.error(f"Error al guardar el saldo restante: {e}")

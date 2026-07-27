@@ -344,19 +344,24 @@ def _check_saldo_taquilla_table():
 
 def obtener_saldo_anterior(agencia_nombre, fecha_sel, cajero_id=None):
     """Retorna el saldo restante del último día cerrado anterior a fecha_sel."""
-    try:
-        if cajero_id is not None:
-            res_c = supabase.table("saldo_taquilla")\
-                .select("saldo_restante")\
-                .eq("nombre_agency", agencia_nombre)\
-                .eq("cajero_id", cajero_id)\
-                .lt("fecha", str(fecha_sel))\
-                .order("fecha", desc=True)\
-                .limit(1)\
-                .execute()
-            if res_c.data:
-                return float(res_c.data[0]["saldo_restante"])
+    if cajero_id is not None:
+        try:
+            c_int = int(cajero_id) if str(cajero_id).isdigit() else None
+            if c_int is not None:
+                res_c = supabase.table("saldo_taquilla")\
+                    .select("saldo_restante")\
+                    .eq("nombre_agency", agencia_nombre)\
+                    .eq("cajero_id", c_int)\
+                    .lt("fecha", str(fecha_sel))\
+                    .order("fecha", desc=True)\
+                    .limit(1)\
+                    .execute()
+                if res_c.data:
+                    return float(res_c.data[0]["saldo_restante"])
+        except Exception:
+            pass
 
+    try:
         res_g = supabase.table("saldo_taquilla")\
             .select("saldo_restante")\
             .eq("nombre_agency", agencia_nombre)\

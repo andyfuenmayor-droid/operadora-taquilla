@@ -376,7 +376,179 @@ def obtener_saldo_anterior(agencia_nombre, fecha_sel, cajero_id=None):
     return 0.0
 
 
-# �?� módulos de la taquilla �?�
+def modulo_home(agencia_data):
+    ag_nombre = agencia_data['nombre_agencia']
+    u_id = agencia_data['user_id']
+    cajero_info = st.session_state.get("cajero_actual", {})
+    nombre_user = (cajero_info.get("nombre") or cajero_info.get("usuario") or "USUARIO").upper()
+    rol_user = (cajero_info.get("rol") or "cajero").upper()
+    cajero_id = cajero_info.get("id")
+    es_supervisor = (cajero_info.get("rol") == 'supervisor')
+
+    fecha_hoy = datetime.now().date()
+    str_hoy = str(fecha_hoy)
+
+    ult_cierre = obtener_ultimo_dia_cerrado(ag_nombre, cajero_id=cajero_id if not es_supervisor else None)
+    saldo_anterior = obtener_saldo_anterior(ag_nombre, fecha_hoy, cajero_id=cajero_id if not es_supervisor else None)
+    dia_cerrado_hoy = dia_esta_cerrado(ag_nombre, fecha_hoy, cajero_id=cajero_id if not es_supervisor else None)
+
+    # Cargar métricas del día actual
+    t_ventas, t_comis, t_premios, t_gastos, t_pagos = 0.0, 0.0, 0.0, 0.0, 0.0
+    df_v_hoy, df_g_hoy, df_p_hoy = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+
+    try:
+        res_v = supabase.table("cda_reportes_diarios").select("*").eq("nombre_agency", ag_nombre).eq("fecha", str_hoy).execute()
+        df_v_hoy = pd.DataFrame(res_v.data or [])
+        if not df_v_hoy.empty:
+            df_v_hoy.columns = [c.lower() for c in df_v_hoy.columns]
+            if not es_supervisor and cajero_id and "cajero_id" in df_v_hoy.columns:
+                df_v_hoy = df_v_hoy[df_v_hoy["cajero_id"].astype(str) == str(cajero_id)]
+            t_ventas = float(df_v_hoy["monto_venta"].sum()) if "monto_venta" in df_v_hoy.columns else 0.0
+            t_comis = float(df_v_hoy["comision"].sum()) if "comision" in df_v_hoy.columns else 0.0
+            t_premios = float(df_v_hoy["monto_premios"].sum()) if "monto_premios" in df_v_hoy.columns else 0.0
+    except Exception:
+        pass
+
+    try:
+        res_g = supabase.table("cda_gastos_diarios").select("*").eq("fecha", str_hoy).execute()
+        df_g_hoy = pd.DataFrame(res_g.data or [])
+        if not df_g_hoy.empty:
+            df_g_hoy.columns = [c.lower() for c in df_g_hoy.columns]
+            if "agencia" in df_g_hoy.columns: df_g_hoy = df_g_hoy[df_g_hoy["agencia"].astype(str) == str(ag_nombre)]
+            if not es_supervisor and cajero_id and "cajero_id" in df_g_hoy.columns:
+                df_g_hoy = df_g_hoy[df_g_hoy["cajero_id"].astype(str) == str(cajero_id)]
+            t_gastos = float(df_g_hoy["monto"].sum()) if "monto" in df_g_hoy.columns else 0.0
+    except Exception:
+        pass
+
+    try:
+        res_p = supabase.table("cda_pagos_diarios").select("*").eq("fecha", str_hoy).execute()
+        df_p_hoy = pd.DataFrame(res_p.data or [])
+        if not df_p_hoy.empty:
+            df_p_hoy.columns = [c.lower() for c in df_p_hoy.columns]
+            if "agencia" in df_p_hoy.columns: df_p_hoy = df_p_hoy[df_p_hoy["agencia"].astype(str) == str(ag_nombre)]
+            if not es_supervisor and cajero_id and "cajero_id" in df_p_hoy.columns:
+                df_p_hoy = df_p_hoy[df_p_hoy["cajero_id"].astype(str) == str(cajero_id)]
+            t_pagos = float(df_p_hoy["monto"].sum()) if "monto" in df_p_hoy.columns else 0.0
+    except Exception:
+        pass
+
+    saldo_neto_hoy = t_ventas - t_comis - t_premios - t_gastos - t_pagos
+    saldo_final_estimado = saldo_anterior + saldo_neto_hoy
+
+    # BANNER PRINCIPAL DE BIENVENIDA
+    badge_estado = '<span style="background-color: rgba(0, 200, 83, 0.2); color: #00c853; font-weight: 700; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; border: 1px solid rgba(0, 200, 83, 0.4);">🟢 DÍA OPERATIVO ABIERTO</span>' if not dia_cerrado_hoy else '<span style="background-color: rgba(244, 63, 94, 0.2); color: #f43f5e; font-weight: 700; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; border: 1px solid rgba(244, 63, 94, 0.4);">🔒 DÍA CERRADO</span>'
+
+    st.markdown(
+        f"""
+        <div style="background: linear-gradient(135deg, rgba(11, 19, 37, 0.95) 0%, rgba(13, 27, 42, 0.95) 100%); border: 1px solid rgba(255, 255, 255, 0.08); padding: 1.25rem 1.5rem; border-radius: 16px; margin-bottom: 1.25rem; box-shadow: 0 8px 24px rgba(0,0,0,0.25);">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                    <h2 style="margin: 0; font-size: 1.5rem; font-weight: 800; color: #ffffff; letter-spacing: -0.02em;">
+                        👋 ¡Bienvenido, {nombre_user}!
+                    </h2>
+                    <p style="margin: 0.25rem 0 0 0; font-size: 0.88rem; color: #94a3b8;">
+                        Panel Principal &bull; 🏢 <b style="color: #f8fafc;">{ag_nombre}</b> &bull; 👤 Rol: <b style="color: #69f0ae;">{rol_user}</b>
+                    </p>
+                </div>
+                <div style="text-align: right;">
+                    {badge_estado}
+                    <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.35rem;">
+                        📅 Hoy: <b>{fecha_hoy.strftime('%d/%m/%Y')}</b> | Último Cierre: <b>{ult_cierre if ult_cierre else 'Sin registro'}</b>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # METRICAS PRINCIPALES DE HOY
+    render_titulo_seccion("📊 Resumen Operativo de Hoy")
+    render_tarjetas_metricas(t_ventas, t_comis, t_premios, t_gastos, t_pagos, saldo_neto_hoy)
+
+    # BALANCE DE SALDO ACUMULADO
+    st.markdown(
+        f"""
+        <div style="background-color: rgba(13, 27, 34, 0.5); padding: 0.85rem 1.25rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); margin-top: 0.75rem; margin-bottom: 1.25rem; text-align: center;">
+            <span style="font-size: 0.85rem; color: #94a3b8;">Saldo Anterior Acumulado:</span> <b style="font-size: 1.05rem; color: #ffffff;">${saldo_anterior:,.2f}</b>
+            <span style="margin: 0 1.25rem; color: rgba(255,255,255,0.2);">|</span>
+            <span style="font-size: 0.85rem; color: #94a3b8;">Resultado Hoy:</span> <b style="font-size: 1.05rem; color: {'#34d399' if saldo_neto_hoy >= 0 else '#fb7185'};">${saldo_neto_hoy:,.2f}</b>
+            <span style="margin: 0 1.25rem; color: rgba(255,255,255,0.2);">|</span>
+            <span style="font-size: 0.85rem; color: #94a3b8;">Saldo Final Estimado:</span> <b style="font-size: 1.15rem; color: #00c853;">${saldo_final_estimado:,.2f}</b>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # ACCESOS RAPIDOS A MODULOS
+    render_titulo_seccion("⚡ Accesos Rápidos a Módulos")
+    c_act1, c_act2, c_act3, c_act4 = st.columns(4)
+
+    with c_act1:
+        if st.button("🎰 Cargar Ventas", use_container_width=True, key="home_btn_ventas"):
+            st.session_state["opcion_actual"] = "Carga de Ventas"
+            st.rerun()
+    with c_act2:
+        if st.button("🎟️ Tickets Premiados", use_container_width=True, key="home_btn_premios"):
+            st.session_state["opcion_actual"] = "Tickets Premiados"
+            st.rerun()
+    with c_act3:
+        if st.button("💸 Registrar Gasto", use_container_width=True, key="home_btn_gastos"):
+            st.session_state["opcion_actual"] = "Gestión de Gastos"
+            st.rerun()
+    with c_act4:
+        if st.button("💰 Recepción Pagos", use_container_width=True, key="home_btn_pagos"):
+            st.session_state["opcion_actual"] = "Gestión de Pagos"
+            st.rerun()
+
+    c_act5, c_act6, c_act7, c_act8 = st.columns(4)
+    with c_act5:
+        if st.button("🏦 Gestión Bancaria", use_container_width=True, key="home_btn_bancaria"):
+            st.session_state["opcion_actual"] = "Gestión Bancaria"
+            st.rerun()
+    with c_act6:
+        if st.button("📆 Reporte Diario", use_container_width=True, key="home_btn_rep_diario"):
+            st.session_state["opcion_actual"] = "Reporte Diario"
+            st.rerun()
+    with c_act7:
+        if st.button("📊 Reporte Rango", use_container_width=True, key="home_btn_rep_rango"):
+            st.session_state["opcion_actual"] = "Reporte por Rango"
+            st.rerun()
+    with c_act8:
+        if st.button("🔒 Cierre Diario", use_container_width=True, key="home_btn_cierre"):
+            st.session_state["opcion_actual"] = "Cierre Diario"
+            st.rerun()
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # DETALLE DE ACTIVIDAD DE HOY
+    col_t1, col_t2 = st.columns([1, 1])
+
+    with col_t1:
+        render_titulo_seccion("📋 Resumen de Ventas de Hoy")
+        if not df_v_hoy.empty:
+            cols_v_show = [c for c in ["sistema", "monto_venta", "comision", "monto_premios", "neto"] if c in df_v_hoy.columns]
+            st.dataframe(df_v_hoy[cols_v_show], use_container_width=True, hide_index=True)
+        else:
+            st.info("ℹ️ Sin registros de ventas cargados hoy.")
+
+    with col_t2:
+        render_titulo_seccion("💸 Gastos y Pagos de Hoy")
+        if not df_g_hoy.empty or not df_p_hoy.empty:
+            if not df_g_hoy.empty:
+                st.caption("💸 **Gastos Registrados Hoy:**")
+                cols_g_show = [c for c in ["concepto", "monto", "moneda"] if c in df_g_hoy.columns]
+                st.dataframe(df_g_hoy[cols_g_show], use_container_width=True, hide_index=True)
+            if not df_p_hoy.empty:
+                st.caption("💰 **Pagos Registrados Hoy:**")
+                cols_p_show = [c for c in ["tipo_pago", "monto", "moneda"] if c in df_p_hoy.columns]
+                st.dataframe(df_p_hoy[cols_p_show], use_container_width=True, hide_index=True)
+        else:
+            st.info("ℹ️ Sin gastos ni pagos registrados hoy.")
+
+
+# ? módulos de la taquilla ?
 def modulo_registro_taquilla(agencia_data):
     render_encabezado_principal(f"🎰 Carga de Ventas: {agencia_data['nombre_agencia']}")
     cajero_info = st.session_state.get("cajero_actual", {})
@@ -2803,9 +2975,10 @@ else:
         badge_text = "#00c853"
 
     if "opcion_actual" not in st.session_state:
-        st.session_state["opcion_actual"] = "Carga de Ventas"
+        st.session_state["opcion_actual"] = "Inicio"
 
     menu_items = [
+        ("🏠 Inicio", "Inicio"),
         ("🎰 Carga de Ventas", "Carga de Ventas"),
         ("🎟️ Tickets Premiados", "Tickets Premiados"),
         ("💸 Gestión de Gastos", "Gestión de Gastos"),
@@ -2847,9 +3020,8 @@ else:
 
     opcion = st.session_state["opcion_actual"]
 
-
-
-    if opcion == "Carga de Ventas": modulo_registro_taquilla(ag)
+    if opcion == "Inicio": modulo_home(ag)
+    elif opcion == "Carga de Ventas": modulo_registro_taquilla(ag)
     elif opcion == "Gestión de Gastos": modulo_gastos(ag)
     elif opcion == "Gestión de Pagos": modulo_pagos(ag)
     elif opcion == "Gestión Bancaria": modulo_gestion_bancaria(ag)

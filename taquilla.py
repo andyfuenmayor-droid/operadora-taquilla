@@ -280,8 +280,7 @@ def reabrir_dia(agencia_nombre, fecha, cajero_id=None):
                 .eq("nombre_agency", agencia_nombre)\
                 .eq("fecha", str(fecha))
             if cajero_id:
-                if str(cajero_id).isdigit():
-                    q_s = q_s.eq("cajero_id", int(cajero_id))
+                q_s = q_s.eq("cajero_id", str(cajero_id))
             q_s.execute()
         except Exception:
             pass
@@ -335,7 +334,7 @@ def _check_saldo_taquilla_table():
                 "    nombre_agency TEXT NOT NULL,\n"
                 "    fecha DATE NOT NULL,\n"
                 "    saldo_restante NUMERIC(20,2) NOT NULL DEFAULT 0.00,\n"
-                "    cajero_id BIGINT,\n"
+                "    cajero_id TEXT,\n"
                 "    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,\n"
                 "    UNIQUE(nombre_agency, fecha)\n"
                 ");\n"
@@ -364,8 +363,8 @@ def _check_cajero_id_cols():
             "⚠️ Las columnas para separar gastos/pagos por cajero no están creadas en Supabase.\n\n"
             "Ejecuta este SQL en el Editor SQL de Supabase para habilitar el registro por cajero:\n\n"
             "```sql\n"
-            "ALTER TABLE cda_gastos_diarios ADD COLUMN IF NOT EXISTS cajero_id BIGINT;\n"
-            "ALTER TABLE cda_pagos_diarios ADD COLUMN IF NOT EXISTS cajero_id BIGINT;\n"
+            "ALTER TABLE cda_gastos_diarios ADD COLUMN IF NOT EXISTS cajero_id TEXT;\n"
+            "ALTER TABLE cda_pagos_diarios ADD COLUMN IF NOT EXISTS cajero_id TEXT;\n"
             "```"
         )
     return st.session_state["cajero_id_in_gastos"] and st.session_state["cajero_id_in_pagos"]
@@ -374,12 +373,12 @@ def obtener_saldo_anterior(agencia_nombre, fecha_sel, cajero_id=None):
     """Retorna el saldo restante del último día cerrado anterior a fecha_sel."""
     if cajero_id is not None:
         try:
-            c_int = int(cajero_id) if str(cajero_id).isdigit() else None
-            if c_int is not None:
+            c_str = str(cajero_id).strip()
+            if c_str and c_str != "None" and c_str != "nan":
                 res_c = supabase.table("saldo_taquilla")\
                     .select("saldo_restante")\
                     .eq("nombre_agency", agencia_nombre)\
-                    .eq("cajero_id", c_int)\
+                    .eq("cajero_id", c_str)\
                     .lt("fecha", str(fecha_sel))\
                     .order("fecha", desc=True)\
                     .limit(1)\
@@ -1682,8 +1681,8 @@ def modulo_cierre_diario(agencia_data):
                                     s_ant_c = obtener_saldo_anterior(nom, fecha_sel, cajero_id=c_id_item)
                                     s_final_c = s_ant_c + (t_v_c - t_c_c - t_p_c - t_g_c - t_pg_c)
                                     p_saldo = {"nombre_agency": nom, "fecha": str(fecha_sel), "saldo_restante": s_final_c}
-                                    if str(c_id_item).isdigit():
-                                        p_saldo["cajero_id"] = int(c_id_item)
+                                    if c_id_item:
+                                        p_saldo["cajero_id"] = str(c_id_item)
                                     supabase.table("saldo_taquilla").upsert(p_saldo).execute()
                                 except Exception:
                                     pass
@@ -1701,8 +1700,8 @@ def modulo_cierre_diario(agencia_data):
                     if cerrar_dia(nom, fecha_sel, cajero_id):
                         try:
                             p_saldo = {"nombre_agency": nom, "fecha": str(fecha_sel), "saldo_restante": t_saldo_final}
-                            if str(cajero_id).isdigit():
-                                p_saldo["cajero_id"] = int(cajero_id)
+                            if cajero_id:
+                                p_saldo["cajero_id"] = str(cajero_id)
                             supabase.table("saldo_taquilla").upsert(p_saldo).execute()
                             st.success("✅ Tu jornada fue cerrada y tu saldo guardado exitosamente.")
                         except Exception as e:

@@ -359,8 +359,9 @@ def obtener_saldo_anterior(agencia_nombre, fecha_sel, cajero_id=None):
                     .execute()
                 if res_c.data:
                     return float(res_c.data[0]["saldo_restante"])
+                return 0.0
         except Exception:
-            pass
+            return 0.0
 
     try:
         res_g = supabase.table("saldo_taquilla")\

@@ -1580,6 +1580,15 @@ def modulo_cierre_diario(agencia_data):
                 df_g = df_g[df_g["cajero_id"].astype(str) == str(c_target_id)]
             if not df_pg.empty and "cajero_id" in df_pg.columns:
                 df_pg = df_pg[df_pg["cajero_id"].astype(str) == str(c_target_id)]
+        else:
+            # Para TODOS LOS CAJEROS, solo incluir datos de cajeros que tengan la jornada cerrada
+            c_closed_list = [str(c["id"]) for c in cajeros_list if dia_esta_cerrado(nom, fecha_sel, cajero_id=str(c["id"]))]
+            if not df_v.empty and "cajero_id" in df_v.columns:
+                df_v = df_v[df_v["cajero_id"].astype(str).isin(c_closed_list)]
+            if not df_g.empty and "cajero_id" in df_g.columns:
+                df_g = df_g[df_g["cajero_id"].astype(str).isin(c_closed_list)]
+            if not df_pg.empty and "cajero_id" in df_pg.columns:
+                df_pg = df_pg[df_pg["cajero_id"].astype(str).isin(c_closed_list)]
     except Exception as e:
         st.error(f"Error: {e}"); return
 

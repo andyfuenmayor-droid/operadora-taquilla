@@ -280,7 +280,8 @@ def reabrir_dia(agencia_nombre, fecha, cajero_id=None):
                 .eq("nombre_agency", agencia_nombre)\
                 .eq("fecha", str(fecha))
             if cajero_id:
-                q_s = q_s.eq("cajero_id", str(cajero_id))
+                if str(cajero_id).isdigit():
+                    q_s = q_s.eq("cajero_id", int(cajero_id))
             q_s.execute()
         except Exception:
             pass
@@ -1634,10 +1635,10 @@ def modulo_cierre_diario(agencia_data):
                                     t_pg_c = float(df_pg[df_pg["cajero_id"].astype(str) == c_id_item]["monto"].sum()) if not df_pg.empty and "cajero_id" in df_pg.columns else 0
                                     s_ant_c = obtener_saldo_anterior(nom, fecha_sel, cajero_id=c_id_item)
                                     s_final_c = s_ant_c + (t_v_c - t_c_c - t_p_c - t_g_c - t_pg_c)
-                                    supabase.table("saldo_taquilla").upsert({
-                                        "nombre_agency": nom, "fecha": str(fecha_sel),
-                                        "saldo_restante": s_final_c, "cajero_id": c_id_item
-                                    }).execute()
+                                    p_saldo = {"nombre_agency": nom, "fecha": str(fecha_sel), "saldo_restante": s_final_c}
+                                    if str(c_id_item).isdigit():
+                                        p_saldo["cajero_id"] = int(c_id_item)
+                                    supabase.table("saldo_taquilla").upsert(p_saldo).execute()
                                 except Exception:
                                     pass
                                 st.success(f"✅ Día cerrado para {c_name_item}.")
@@ -1653,12 +1654,10 @@ def modulo_cierre_diario(agencia_data):
                 if st.button("🔒 Cerrar Mi Día", type="primary", use_container_width=True):
                     if cerrar_dia(nom, fecha_sel, cajero_id):
                         try:
-                            supabase.table("saldo_taquilla").upsert({
-                                "nombre_agency": nom,
-                                "fecha": str(fecha_sel),
-                                "saldo_restante": t_saldo_final,
-                                "cajero_id": cajero_id
-                            }).execute()
+                            p_saldo = {"nombre_agency": nom, "fecha": str(fecha_sel), "saldo_restante": t_saldo_final}
+                            if str(cajero_id).isdigit():
+                                p_saldo["cajero_id"] = int(cajero_id)
+                            supabase.table("saldo_taquilla").upsert(p_saldo).execute()
                             st.success("✅ Tu jornada fue cerrada y tu saldo guardado exitosamente.")
                         except Exception as e:
                             st.error(f"Error al guardar el saldo restante: {e}")

@@ -2141,6 +2141,7 @@ if not st.session_state.taquilla_autenticada:
                         st.session_state.taquilla_autenticada = True
                         st.session_state.agencia_actual = match.iloc[0].to_dict()
                         st.session_state.cajero_actual = {"id": user_data["id"], "usuario": user_data["usuario"], "rol": user_data["rol"], "nombre": user_data.get("nombre_cajero", user_data["usuario"])}
+                        st.session_state["opcion_actual"] = "Inicio"
                         st.rerun()
                     else:
                         status_placeholder.error("Agencia no encontrada.")
@@ -3018,7 +3019,9 @@ else:
 
         st.divider()
         if st.button("🚪 Cerrar Sesión", use_container_width=True, key="btn_logout_sidebar"):
-            st.session_state.taquilla_autenticada = False; st.rerun()
+            st.session_state.taquilla_autenticada = False
+            st.session_state["opcion_actual"] = "Inicio"
+            st.rerun()
 
     opcion = st.session_state["opcion_actual"]
 

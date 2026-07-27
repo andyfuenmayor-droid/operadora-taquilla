@@ -1670,13 +1670,27 @@ def modulo_cierre_diario(agencia_data):
                 with col_target.container(border=True):
                     st.markdown(f"**👤 {c_name_item}**")
                     if c_closed_item:
-                        st.markdown("<span style='color: #34d399; font-size: 0.85rem;'>✅ CERRADO</span>", unsafe_allow_html=True)
+                        st.markdown(
+                            f"""
+                            <div style="background-color: rgba(52, 211, 153, 0.15); color: #34d399; font-weight: 700; padding: 6px 12px; border-radius: 8px; font-size: 0.85rem; border: 1px solid rgba(52, 211, 153, 0.3); text-align: center; margin-bottom: 0.8rem;">
+                                🔒 CERRADO - {fecha_sel}
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
                         if st.button(f"🔓 Reabrir Día", key=f"btn_reabrir_{c_id_item}", use_container_width=True):
                             if reabrir_dia(nom, fecha_sel, cajero_id=c_id_item):
                                 st.success(f"✅ Día reabierto para {c_name_item}.")
                                 time.sleep(1); st.rerun()
                     else:
-                        st.markdown("<span style='color: #fb7185; font-size: 0.85rem;'>🟢 ABIERTO</span>", unsafe_allow_html=True)
+                        st.markdown(
+                            f"""
+                            <div style="background-color: rgba(239, 68, 68, 0.15); color: #ef4444; font-weight: 700; padding: 6px 12px; border-radius: 8px; font-size: 0.85rem; border: 1px solid rgba(239, 68, 68, 0.3); text-align: center; margin-bottom: 0.8rem;">
+                                ⚠️ ALERTA: ABIERTO - {fecha_sel}
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
                         if st.button(f"🔒 Cerrar Día", key=f"btn_cerrar_{c_id_item}", use_container_width=True):
                             if cerrar_dia(nom, fecha_sel, cajero_id=c_id_item):
                                 try:

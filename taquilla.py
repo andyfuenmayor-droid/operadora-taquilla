@@ -389,15 +389,18 @@ def modulo_home(agencia_data):
     str_hoy = str(fecha_hoy)
 
     ult_cierre = obtener_ultimo_dia_cerrado(ag_nombre, cajero_id=cajero_id if not es_supervisor else None)
-    saldo_anterior = obtener_saldo_anterior(ag_nombre, fecha_hoy, cajero_id=cajero_id if not es_supervisor else None)
-    dia_cerrado_hoy = dia_esta_cerrado(ag_nombre, fecha_hoy, cajero_id=cajero_id if not es_supervisor else None)
+    fecha_operativa = (ult_cierre + timedelta(days=1)) if ult_cierre else datetime.now().date()
+    str_operativa = str(fecha_operativa)
 
-    # Cargar métricas del día actual
+    saldo_anterior = obtener_saldo_anterior(ag_nombre, fecha_operativa, cajero_id=cajero_id if not es_supervisor else None)
+    dia_cerrado_hoy = dia_esta_cerrado(ag_nombre, fecha_operativa, cajero_id=cajero_id if not es_supervisor else None)
+
+    # Cargar métricas del día operativo actual (día siguiente al último cierre)
     t_ventas, t_comis, t_premios, t_gastos, t_pagos = 0.0, 0.0, 0.0, 0.0, 0.0
     df_v_hoy, df_g_hoy, df_p_hoy = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
     try:
-        res_v = supabase.table("cda_reportes_diarios").select("*").eq("nombre_agency", ag_nombre).eq("fecha", str_hoy).execute()
+        res_v = supabase.table("cda_reportes_diarios").select("*").eq("nombre_agency", ag_nombre).eq("fecha", str_operativa).execute()
         df_v_hoy = pd.DataFrame(res_v.data or [])
         if not df_v_hoy.empty:
             df_v_hoy.columns = [c.lower() for c in df_v_hoy.columns]
@@ -410,7 +413,7 @@ def modulo_home(agencia_data):
         pass
 
     try:
-        res_g = supabase.table("cda_gastos_diarios").select("*").eq("fecha", str_hoy).execute()
+        res_g = supabase.table("cda_gastos_diarios").select("*").eq("fecha", str_operativa).execute()
         df_g_hoy = pd.DataFrame(res_g.data or [])
         if not df_g_hoy.empty:
             df_g_hoy.columns = [c.lower() for c in df_g_hoy.columns]
@@ -422,7 +425,7 @@ def modulo_home(agencia_data):
         pass
 
     try:
-        res_p = supabase.table("cda_pagos_diarios").select("*").eq("fecha", str_hoy).execute()
+        res_p = supabase.table("cda_pagos_diarios").select("*").eq("fecha", str_operativa).execute()
         df_p_hoy = pd.DataFrame(res_p.data or [])
         if not df_p_hoy.empty:
             df_p_hoy.columns = [c.lower() for c in df_p_hoy.columns]
@@ -454,7 +457,7 @@ def modulo_home(agencia_data):
                 <div style="text-align: right;">
                     {badge_estado}
                     <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.35rem;">
-                        📅 Hoy: <b>{fecha_hoy.strftime('%d/%m/%Y')}</b> | Último Cierre: <b>{ult_cierre if ult_cierre else 'Sin registro'}</b>
+                        📅 Día Operativo: <b>{fecha_operativa.strftime('%d/%m/%Y')}</b> | Último Cierre: <b>{ult_cierre if ult_cierre else 'Sin registro'}</b>
                     </div>
                 </div>
             </div>
@@ -464,7 +467,7 @@ def modulo_home(agencia_data):
     )
 
     # METRICAS PRINCIPALES DE HOY
-    render_titulo_seccion("📊 Resumen Operativo de Hoy")
+    render_titulo_seccion(f"📊 Resumen Operativo ({fecha_operativa.strftime('%d/%m/%Y')})")
     render_tarjetas_metricas(t_ventas, t_comis, t_premios, t_gastos, t_pagos, saldo_neto_hoy)
 
     # BALANCE DE SALDO ACUMULADO
@@ -526,26 +529,26 @@ def modulo_home(agencia_data):
     col_t1, col_t2 = st.columns([1, 1])
 
     with col_t1:
-        render_titulo_seccion("📋 Resumen de Ventas de Hoy")
+        render_titulo_seccion(f"📋 Ventas ({fecha_operativa.strftime('%d/%m/%Y')})")
         if not df_v_hoy.empty:
             cols_v_show = [c for c in ["sistema", "monto_venta", "comision", "monto_premios", "neto"] if c in df_v_hoy.columns]
             st.dataframe(df_v_hoy[cols_v_show], use_container_width=True, hide_index=True)
         else:
-            st.info("ℹ️ Sin registros de ventas cargados hoy.")
+            st.info("ℹ️ Sin registros de ventas cargados para esta fecha.")
 
     with col_t2:
-        render_titulo_seccion("💸 Gastos y Pagos de Hoy")
+        render_titulo_seccion(f"💸 Gastos y Pagos ({fecha_operativa.strftime('%d/%m/%Y')})")
         if not df_g_hoy.empty or not df_p_hoy.empty:
             if not df_g_hoy.empty:
-                st.caption("💸 **Gastos Registrados Hoy:**")
+                st.caption(f"💸 **Gastos Registrados ({fecha_operativa.strftime('%d/%m/%Y')}):**")
                 cols_g_show = [c for c in ["concepto", "monto", "moneda"] if c in df_g_hoy.columns]
                 st.dataframe(df_g_hoy[cols_g_show], use_container_width=True, hide_index=True)
             if not df_p_hoy.empty:
-                st.caption("💰 **Pagos Registrados Hoy:**")
+                st.caption(f"💰 **Pagos Registrados ({fecha_operativa.strftime('%d/%m/%Y')}):**")
                 cols_p_show = [c for c in ["tipo_pago", "monto", "moneda"] if c in df_p_hoy.columns]
                 st.dataframe(df_p_hoy[cols_p_show], use_container_width=True, hide_index=True)
         else:
-            st.info("ℹ️ Sin gastos ni pagos registrados hoy.")
+            st.info("ℹ️ Sin gastos ni pagos registrados para esta fecha.")
 
 
 # ? módulos de la taquilla ?

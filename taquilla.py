@@ -292,18 +292,27 @@ def reabrir_dia(agencia_nombre, fecha, cajero_id=None):
 def obtener_ultimo_dia_cerrado(agencia_nombre, cajero_id=None):
     """Retorna la última fecha cerrada, o None si no hay ninguna."""
     try:
-        q = supabase.table("cda_reportes_diarios")\
+        if cajero_id:
+            res_c = supabase.table("cda_reportes_diarios")\
+                .select("fecha")\
+                .eq("nombre_agency", agencia_nombre)\
+                .eq("cerrado", True)\
+                .eq("cajero_id", str(cajero_id))\
+                .order("fecha", desc=True)\
+                .limit(1)\
+                .execute()
+            if res_c.data:
+                return pd.to_datetime(res_c.data[0]["fecha"]).date()
+
+        res_g = supabase.table("cda_reportes_diarios")\
             .select("fecha")\
             .eq("nombre_agency", agencia_nombre)\
-            .eq("cerrado", True)
-        if cajero_id:
-            q = q.eq("cajero_id", str(cajero_id))
-        res = q.order("fecha", desc=True)\
+            .eq("cerrado", True)\
+            .order("fecha", desc=True)\
             .limit(1)\
             .execute()
-        if res.data:
-            fecha = res.data[0]["fecha"]
-            return pd.to_datetime(fecha).date()
+        if res_g.data:
+            return pd.to_datetime(res_g.data[0]["fecha"]).date()
     except Exception:
         pass
     return None
@@ -336,15 +345,27 @@ def _check_saldo_taquilla_table():
 def obtener_saldo_anterior(agencia_nombre, fecha_sel, cajero_id=None):
     """Retorna el saldo restante del último día cerrado anterior a fecha_sel."""
     try:
-        q = supabase.table("saldo_taquilla")\
+        if cajero_id is not None:
+            res_c = supabase.table("saldo_taquilla")\
+                .select("saldo_restante")\
+                .eq("nombre_agency", agencia_nombre)\
+                .eq("cajero_id", cajero_id)\
+                .lt("fecha", str(fecha_sel))\
+                .order("fecha", desc=True)\
+                .limit(1)\
+                .execute()
+            if res_c.data:
+                return float(res_c.data[0]["saldo_restante"])
+
+        res_g = supabase.table("saldo_taquilla")\
             .select("saldo_restante")\
             .eq("nombre_agency", agencia_nombre)\
-            .lt("fecha", str(fecha_sel))
-        if cajero_id is not None:
-            q = q.eq("cajero_id", cajero_id)
-        res = q.order("fecha", desc=True).limit(1).execute()
-        if res.data:
-            return float(res.data[0]["saldo_restante"])
+            .lt("fecha", str(fecha_sel))\
+            .order("fecha", desc=True)\
+            .limit(1)\
+            .execute()
+        if res_g.data:
+            return float(res_g.data[0]["saldo_restante"])
     except Exception:
         pass
     return 0.0

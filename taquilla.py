@@ -483,16 +483,19 @@ def modulo_gastos(agencia_data):
         df_g = pd.DataFrame(res_g.data or [])
         if not df_g.empty:
             df_g.columns = [c.lower() for c in df_g.columns]
+            if "agencia" in df_g.columns:
+                df_g = df_g[df_g["agencia"].astype(str) == str(ag_nombre)]
+            elif "nombre_agency" in df_g.columns:
+                df_g = df_g[df_g["nombre_agency"].astype(str) == str(ag_nombre)]
             if not es_supervisor and cajero_id:
-                col_g = "cajero_id" if "cajero_id" in df_g.columns else ("user_id" if "user_id" in df_g.columns else None)
-                if col_g and col_g in df_g.columns:
-                    df_g = df_g[df_g[col_g].astype(str) == str(cajero_id)]
+                if "cajero_id" in df_g.columns:
+                    df_g = df_g[df_g["cajero_id"].astype(str) == str(cajero_id)]
     except Exception:
         df_g = pd.DataFrame()
 
     if not df_g.empty:
         render_titulo_seccion("📋 Gastos del Día")
-        cols_orden = ["id", "agencia", "moneda", "monto", "concepto", "fecha", "created_at", "user_id"]
+        cols_orden = ["id", "agencia", "nombre_agency", "moneda", "monto", "concepto", "fecha", "created_at", "user_id"]
         cols_existentes = [c for c in cols_orden if c in df_g.columns]
         st.dataframe(df_g[cols_existentes], use_container_width=True, hide_index=True)
     else:
@@ -511,11 +514,13 @@ def modulo_gastos(agencia_data):
                     st.error("Complete el concepto y un monto mayor a cero.")
                 else:
                     supabase.table("cda_gastos_diarios").insert({
-                        "fecha": str(fecha_g), "agencia": ag_nombre,
+                        "fecha": str(fecha_g), 
+                        "agencia": ag_nombre,
+                        "nombre_agency": ag_nombre,
                         "concepto": concepto_g.upper().strip(),
                         "monto": round(float(monto_g), 2),
-                        "moneda": moneda_g, "user_id": u_id,
-                        "cajero_id": cajero_id
+                        "moneda": moneda_g, 
+                        "user_id": u_id
                     }).execute()
                     st.success("✅ Gasto guardado exitosamente!"); time.sleep(1); st.rerun()
 
@@ -553,16 +558,19 @@ def modulo_pagos(agencia_data):
         df_p = pd.DataFrame(res_p.data or [])
         if not df_p.empty:
             df_p.columns = [c.lower() for c in df_p.columns]
+            if "agencia" in df_p.columns:
+                df_p = df_p[df_p["agencia"].astype(str) == str(ag_nombre)]
+            elif "nombre_agency" in df_p.columns:
+                df_p = df_p[df_p["nombre_agency"].astype(str) == str(ag_nombre)]
             if not es_supervisor and cajero_id:
-                col_p = "cajero_id" if "cajero_id" in df_p.columns else ("user_id" if "user_id" in df_p.columns else None)
-                if col_p and col_p in df_p.columns:
-                    df_p = df_p[df_p[col_p].astype(str) == str(cajero_id)]
+                if "cajero_id" in df_p.columns:
+                    df_p = df_p[df_p["cajero_id"].astype(str) == str(cajero_id)]
     except Exception:
         df_p = pd.DataFrame()
 
     if not df_p.empty:
         render_titulo_seccion("📋 Pagos del Día")
-        cols_p = ["id", "agencia", "sistema", "moneda", "monto", "estado", "fecha", "created_at", "user_id"]
+        cols_p = ["id", "agencia", "nombre_agency", "tipo_pago", "moneda", "monto", "fecha", "created_at", "user_id"]
         cols_p = [c for c in cols_p if c in df_p.columns]
         st.dataframe(df_p[cols_p], use_container_width=True, hide_index=True)
     else:
@@ -581,10 +589,13 @@ def modulo_pagos(agencia_data):
                     st.error("Ingrese un monto válido mayor a cero.")
                 else:
                     supabase.table("cda_pagos_diarios").insert({
-                        "fecha": str(fecha_pg), "agencia": ag_nombre,
-                        "tipo_pago": tipo_pg, "monto": round(float(monto_pg), 2),
-                        "moneda": moneda_pg, "user_id": u_id,
-                        "cajero_id": cajero_id
+                        "fecha": str(fecha_pg), 
+                        "agencia": ag_nombre,
+                        "nombre_agency": ag_nombre,
+                        "tipo_pago": tipo_pg, 
+                        "monto": round(float(monto_pg), 2),
+                        "moneda": moneda_pg, 
+                        "user_id": u_id
                     }).execute()
                     st.success("✅ Pago guardado exitosamente!"); time.sleep(1); st.rerun()
 
@@ -1025,11 +1036,11 @@ def modulo_gestion_bancaria(agencia_data):
                     supabase.table("cda_pagos_diarios").insert({
                         "fecha": str(fecha_pago),
                         "agencia": ag_nombre,
+                        "nombre_agency": ag_nombre,
                         "tipo_pago": f"{metodo_pago} (Ref: {referencia.strip().upper()})",
                         "monto": round(float(monto_pago), 2),
                         "moneda": moneda_pago,
-                        "user_id": u_id,
-                        "cajero_id": cajero_id_b
+                        "user_id": u_id
                     }).execute()
 
                     st.success(f"✅ Pago por {metodo_pago} (Ref: {referencia}) registrado exitosamente!")
@@ -1159,15 +1170,12 @@ def modulo_reporte_rango(agencia_data):
         if not es_supervisor and cajero_id:
             if not df_v.empty and "cajero_id" in df_v.columns:
                 df_v = df_v[df_v["cajero_id"].astype(str) == str(cajero_id)]
-            if not df_t.empty:
-                col_t = "cajero_id" if "cajero_id" in df_t.columns else ("user_id" if "user_id" in df_t.columns else None)
-                if col_t and col_t in df_t.columns: df_t = df_t[df_t[col_t].astype(str) == str(cajero_id)]
-            if not df_g.empty:
-                col_g = "cajero_id" if "cajero_id" in df_g.columns else ("user_id" if "user_id" in df_g.columns else None)
-                if col_g and col_g in df_g.columns: df_g = df_g[df_g[col_g].astype(str) == str(cajero_id)]
-            if not df_p.empty:
-                col_p = "cajero_id" if "cajero_id" in df_p.columns else ("user_id" if "user_id" in df_p.columns else None)
-                if col_p and col_p in df_p.columns: df_p = df_p[df_p[col_p].astype(str) == str(cajero_id)]
+            if not df_t.empty and "cajero_id" in df_t.columns:
+                df_t = df_t[df_t["cajero_id"].astype(str) == str(cajero_id)]
+            if not df_g.empty and "cajero_id" in df_g.columns:
+                df_g = df_g[df_g["cajero_id"].astype(str) == str(cajero_id)]
+            if not df_p.empty and "cajero_id" in df_p.columns:
+                df_p = df_p[df_p["cajero_id"].astype(str) == str(cajero_id)]
     except Exception as e:
         st.error(f"Error: {e}"); return
 
@@ -1323,14 +1331,10 @@ def modulo_cierre_diario(agencia_data):
         if c_target_id:
             if not df_v.empty and "cajero_id" in df_v.columns:
                 df_v = df_v[df_v["cajero_id"].astype(str) == str(c_target_id)]
-            if not df_g.empty:
-                col_g = "cajero_id" if "cajero_id" in df_g.columns else ("user_id" if "user_id" in df_g.columns else None)
-                if col_g and col_g in df_g.columns:
-                    df_g = df_g[df_g[col_g].astype(str) == str(c_target_id)]
-            if not df_pg.empty:
-                col_p = "cajero_id" if "cajero_id" in df_pg.columns else ("user_id" if "user_id" in df_pg.columns else None)
-                if col_p and col_p in df_pg.columns:
-                    df_pg = df_pg[df_pg[col_p].astype(str) == str(c_target_id)]
+            if not df_g.empty and "cajero_id" in df_g.columns:
+                df_g = df_g[df_g["cajero_id"].astype(str) == str(c_target_id)]
+            if not df_pg.empty and "cajero_id" in df_pg.columns:
+                df_pg = df_pg[df_pg["cajero_id"].astype(str) == str(c_target_id)]
     except Exception as e:
         st.error(f"Error: {e}"); return
 
@@ -1751,15 +1755,12 @@ def modulo_reporte_diario(agencia_data):
         if not es_supervisor and cajero_id:
             if not df_v.empty and "cajero_id" in df_v.columns:
                 df_v = df_v[df_v["cajero_id"].astype(str) == str(cajero_id)]
-            if not df_t.empty:
-                col_t = "cajero_id" if "cajero_id" in df_t.columns else ("user_id" if "user_id" in df_t.columns else None)
-                if col_t and col_t in df_t.columns: df_t = df_t[df_t[col_t].astype(str) == str(cajero_id)]
-            if not df_g.empty:
-                col_g = "cajero_id" if "cajero_id" in df_g.columns else ("user_id" if "user_id" in df_g.columns else None)
-                if col_g and col_g in df_g.columns: df_g = df_g[df_g[col_g].astype(str) == str(cajero_id)]
-            if not df_p.empty:
-                col_p = "cajero_id" if "cajero_id" in df_p.columns else ("user_id" if "user_id" in df_p.columns else None)
-                if col_p and col_p in df_p.columns: df_p = df_p[df_p[col_p].astype(str) == str(cajero_id)]
+            if not df_t.empty and "cajero_id" in df_t.columns:
+                df_t = df_t[df_t["cajero_id"].astype(str) == str(cajero_id)]
+            if not df_g.empty and "cajero_id" in df_g.columns:
+                df_g = df_g[df_g["cajero_id"].astype(str) == str(cajero_id)]
+            if not df_p.empty and "cajero_id" in df_p.columns:
+                df_p = df_p[df_p["cajero_id"].astype(str) == str(cajero_id)]
     except Exception as e:
         st.error(f"Error: {e}"); return
 

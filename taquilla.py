@@ -856,6 +856,9 @@ def modulo_gestion_bancaria(agencia_data):
     u_id = str(agencia_data['user_id']).strip()
     ag_nombre = str(agencia_data['nombre_agencia']).strip()
 
+    if "bancaria_form_version" not in st.session_state:
+        st.session_state["bancaria_form_version"] = 0
+
     tab1, tab2, tab3, tab4 = st.tabs([
         "🏦 Cuentas Bancarias", 
         "📟 Dispositivos de Pago (POS / Biopago)", 
@@ -1244,16 +1247,16 @@ def modulo_gestion_bancaria(agencia_data):
 
         # Campos de Pago (Monto primero, luego Concepto)
         col_v1, col_v2 = st.columns([2, 4])
-        monto_pago = col_v1.number_input("Monto Recibido*", min_value=0.0, format="%.2f", key="reg_monto_pago")
+        monto_pago = col_v1.number_input("Monto Recibido*", min_value=0.0, format="%.2f", key=f"reg_monto_pago_{st.session_state.bancaria_form_version}")
         concepto = col_v2.selectbox("Concepto de Operación*", ["Compra de Tickets", "Recibos Punto Venta", "Pago a Comercializador"], key="reg_concepto_pago")
 
         # Campos dinámicos según el concepto seleccionado
         if concepto in ["Compra de Tickets", "Pago a Comercializador"]:
             col_f1, col_f2 = st.columns([3, 3])
-            referencia = col_f1.text_input("Número de Referencia / Comprobante*", placeholder="Ej: 987654 / Últimos 6 dígitos", key="reg_ref_pago")
-            datos_cliente = col_f2.text_input("Datos del Pagador / Titular", placeholder="Ej: V-14567890 / Pedro Pérez", key="reg_datos_cliente")
+            referencia = col_f1.text_input("Número de Referencia / Comprobante*", placeholder="Ej: 987654 / Últimos 6 dígitos", key=f"reg_ref_pago_{st.session_state.bancaria_form_version}")
+            datos_cliente = col_f2.text_input("Datos del Pagador / Titular", placeholder="Ej: V-14567890 / Pedro Pérez", key=f"reg_datos_cliente_{st.session_state.bancaria_form_version}")
         else:
-            referencia = st.text_input("Número de Referencia / Comprobante*", placeholder="Ej: 987654 / Últimos 6 dígitos", key="reg_ref_pago")
+            referencia = st.text_input("Número de Referencia / Comprobante*", placeholder="Ej: 987654 / Últimos 6 dígitos", key=f"reg_ref_pago_{st.session_state.bancaria_form_version}")
             datos_cliente = ""
 
         # Botón de envío
@@ -1298,11 +1301,8 @@ def modulo_gestion_bancaria(agencia_data):
                     supabase.table("cda_pagos_diarios").insert(pago_diario_data).execute()
 
                     st.success(f"✅ Pago por {metodo_pago} (Ref: {referencia}) registrado exitosamente!")
-                    # Limpiar campos de entrada
-                    st.session_state["reg_monto_pago"] = 0.0
-                    st.session_state["reg_ref_pago"] = ""
-                    if "reg_datos_cliente" in st.session_state:
-                        st.session_state["reg_datos_cliente"] = ""
+                    # Limpiar campos de entrada incrementando la versión del formulario
+                    st.session_state["bancaria_form_version"] += 1
                     time.sleep(1)
                     st.rerun()
                 except Exception as e:
@@ -1775,6 +1775,9 @@ def modulo_premios_tickets(agencia_data):
     u_id_dueno = agencia_data['user_id']
     ag_nombre = agencia_data['nombre_agencia']
 
+    if "premios_form_version" not in st.session_state:
+        st.session_state["premios_form_version"] = 0
+
     ult_fecha = obtener_ultimo_dia_cerrado(ag_nombre, cajero_id=u_id_real if not es_supervisor else None)
     fecha_defecto = ult_fecha if ult_fecha else datetime.now().date()
 
@@ -1852,8 +1855,8 @@ def modulo_premios_tickets(agencia_data):
                     montos_lote = []
                     for i in range(int(cantidad)):
                         cols = st.columns([1, 2, 1, 3])
-                        d = cols[0].text_input(f"#{i+1}", key=f"dig_{i}", max_chars=3, placeholder="000")
-                        m = cols[2].number_input(f"Monto", min_value=0.0, format="%.2f", key=f"mon_lote_{i}")
+                        d = cols[0].text_input(f"#{i+1}", key=f"dig_{i}_{st.session_state.premios_form_version}", max_chars=3, placeholder="000")
+                        m = cols[2].number_input(f"Monto", min_value=0.0, format="%.2f", key=f"mon_lote_{i}_{st.session_state.premios_form_version}")
                         digs.append(d)
                         montos_lote.append(m)
 
@@ -1899,19 +1902,14 @@ def modulo_premios_tickets(agencia_data):
                                 errores.append(f"Ticket #{i+1}: {e}")
                         if ok_count:
                             st.success(f"✅ {ok_count} ticket(s) registrado(s).")
-                            # Limpiar campos de lote
-                            for idx in range(int(cantidad)):
-                                if f"dig_{idx}" in st.session_state:
-                                    st.session_state[f"dig_{idx}"] = ""
-                                if f"mon_lote_{idx}" in st.session_state:
-                                    st.session_state[f"mon_lote_{idx}"] = 0.0
+                            st.session_state["premios_form_version"] += 1
                         for e in errores:
                             st.warning(e)
                         if ok_count:
                             time.sleep(1); st.rerun()
                 else:
                     st.info("📋 Modo *todos* — se registrarán N tickets con identificador TODOS")
-                    monto_total = st.number_input("Monto Total COP", min_value=0.0, format="%.2f", key="monto_total_lote")
+                    monto_total = st.number_input("Monto Total COP", min_value=0.0, format="%.2f", key=f"monto_total_lote_{st.session_state.premios_form_version}")
 
                     if st.button("💾 REGISTRAR LOTE", use_container_width=True, key="btn_lote_todos"):
                         if monto_total <= 0:
@@ -1959,15 +1957,14 @@ def modulo_premios_tickets(agencia_data):
                                 pass
                             if ok_count:
                                 st.success(f"✅ {ok_count} ticket(s) TODOS registrados por ${monto_total:,.2f}.")
-                                if "monto_total_lote" in st.session_state:
-                                    st.session_state["monto_total_lote"] = 0.0
+                                st.session_state["premios_form_version"] += 1
                             for e in errores:
                                 st.warning(e)
                             if ok_count:
                                 time.sleep(1); st.rerun()
             else:
-                ticket = st.text_input("Número de Ticket", key="reg_ticket_num").strip()
-                monto_p = st.number_input("Monto del Premio COP", min_value=0.0, format="%.2f", key="reg_ticket_monto")
+                ticket = st.text_input("Número de Ticket", key=f"reg_ticket_num_{st.session_state.premios_form_version}").strip()
+                monto_p = st.number_input("Monto del Premio COP", min_value=0.0, format="%.2f", key=f"reg_ticket_monto_{st.session_state.premios_form_version}")
                 if st.button("💾 REGISTRAR TICKET PAGADO", use_container_width=True):
                     if not ticket or monto_p <= 0:
                         st.error("El número de ticket y el monto son obligatorios.")
@@ -2004,8 +2001,7 @@ def modulo_premios_tickets(agencia_data):
                                 except Exception:
                                     pass
                                 st.success("✅ Premio registrado.")
-                                st.session_state["reg_ticket_num"] = ""
-                                st.session_state["reg_ticket_monto"] = 0.0
+                                st.session_state["premios_form_version"] += 1
                                 time.sleep(1); st.rerun()
                         except Exception as e:
                             st.error(f"Error al guardar: {e}")

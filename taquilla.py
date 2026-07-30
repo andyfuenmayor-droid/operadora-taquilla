@@ -343,7 +343,7 @@ def _check_saldo_taquilla_table():
     return st.session_state["check_saldo_ok"]
 
 def _check_cajero_id_cols():
-    """Verifica que la columna `cajero_id` exista en cda_gastos_diarios y cda_pagos_diarios."""
+    """Verifica que la columna `cajero_id` exista en cda_gastos_diarios, cda_pagos_diarios y cda_pagos_bancarios."""
     if "cajero_id_in_gastos" not in st.session_state:
         try:
             supabase.table("cda_gastos_diarios").select("cajero_id").limit(1).execute()
@@ -358,16 +358,24 @@ def _check_cajero_id_cols():
         except Exception:
             st.session_state["cajero_id_in_pagos"] = False
 
-    if not st.session_state["cajero_id_in_gastos"] or not st.session_state["cajero_id_in_pagos"]:
+    if "cajero_id_in_bancarios" not in st.session_state:
+        try:
+            supabase.table("cda_pagos_bancarios").select("cajero_id").limit(1).execute()
+            st.session_state["cajero_id_in_bancarios"] = True
+        except Exception:
+            st.session_state["cajero_id_in_bancarios"] = False
+
+    if not st.session_state["cajero_id_in_gastos"] or not st.session_state["cajero_id_in_pagos"] or not st.session_state["cajero_id_in_bancarios"]:
         st.warning(
-            "⚠️ Las columnas para separar gastos/pagos por cajero no están creadas en Supabase.\n\n"
+            "⚠️ Las columnas para separar gastos/pagos por cajero no están totalmente creadas en Supabase.\n\n"
             "Ejecuta este SQL en el Editor SQL de Supabase para habilitar el registro por cajero:\n\n"
             "```sql\n"
             "ALTER TABLE cda_gastos_diarios ADD COLUMN IF NOT EXISTS cajero_id TEXT;\n"
             "ALTER TABLE cda_pagos_diarios ADD COLUMN IF NOT EXISTS cajero_id TEXT;\n"
+            "ALTER TABLE cda_pagos_bancarios ADD COLUMN IF NOT EXISTS cajero_id TEXT;\n"
             "```"
         )
-    return st.session_state["cajero_id_in_gastos"] and st.session_state["cajero_id_in_pagos"]
+    return st.session_state["cajero_id_in_gastos"] and st.session_state["cajero_id_in_pagos"] and st.session_state["cajero_id_in_bancarios"]
 
 def obtener_saldo_anterior(agencia_nombre, fecha_sel, cajero_id=None):
     """Retorna el saldo restante del último día cerrado anterior a fecha_sel."""
@@ -1237,10 +1245,10 @@ def modulo_gestion_bancaria(agencia_data):
         # Campos de Pago (Monto primero, luego Concepto)
         col_v1, col_v2 = st.columns([2, 4])
         monto_pago = col_v1.number_input("Monto Recibido*", min_value=0.0, format="%.2f", key="reg_monto_pago")
-        concepto = col_v2.selectbox("Concepto de Operación*", ["Compra de Tickets", "Recibos Punto Venta"], key="reg_concepto_pago")
+        concepto = col_v2.selectbox("Concepto de Operación*", ["Compra de Tickets", "Recibos Punto Venta", "Pago a Comercializador"], key="reg_concepto_pago")
 
         # Campos dinámicos según el concepto seleccionado
-        if concepto == "Compra de Tickets":
+        if concepto in ["Compra de Tickets", "Pago a Comercializador"]:
             col_f1, col_f2 = st.columns([3, 3])
             referencia = col_f1.text_input("Número de Referencia / Comprobante*", placeholder="Ej: 987654 / Últimos 6 dígitos", key="reg_ref_pago")
             datos_cliente = col_f2.text_input("Datos del Pagador / Titular", placeholder="Ej: V-14567890 / Pedro Pérez", key="reg_datos_cliente")
@@ -1269,9 +1277,10 @@ def modulo_gestion_bancaria(agencia_data):
                         "datos_pagador": datos_cliente.strip().upper() if datos_cliente else "N/A",
                         "pos_o_cuenta": pos_o_cuenta,
                         "user_id": u_id,
-                        "cajero_id": cajero_id_b,
                         "created_at": datetime.now().isoformat()
                     }
+                    if st.session_state.get("cajero_id_in_bancarios", False) and cajero_id_b:
+                        data_bancaria["cajero_id"] = cajero_id_b
                     supabase.table("cda_pagos_bancarios").insert(data_bancaria).execute()
 
                     # 2. Registrar en cda_pagos_diarios para mantener unificados los reportes diarios

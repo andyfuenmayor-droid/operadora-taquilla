@@ -546,7 +546,7 @@ def modulo_home(agencia_data):
             st.session_state["opcion_actual"] = "Gestión de Gastos"
             st.rerun()
     with c_act4:
-        if st.button("💰 Recepción Pagos", use_container_width=True, key="home_btn_pagos"):
+        if st.button("💵 Pago Efectivo", use_container_width=True, key="home_btn_pagos"):
             st.session_state["opcion_actual"] = "Gestión de Pagos"
             st.rerun()
 
@@ -774,7 +774,7 @@ def modulo_gastos(agencia_data):
 
 
 def modulo_pagos(agencia_data):
-    render_encabezado_principal("💰 Recepción de Pagos")
+    render_encabezado_principal("💵 Pago Efectivo")
     u_id = agencia_data['user_id']
     ag_nombre = agencia_data['nombre_agencia']
     cajero_info = st.session_state.get("cajero_actual", {})
@@ -3084,7 +3084,7 @@ else:
         ("🎰 Carga de Ventas", "Carga de Ventas"),
         ("🎟️ Tickets Premiados", "Tickets Premiados"),
         ("💸 Gestión de Gastos", "Gestión de Gastos"),
-        ("💰 Recepción de Pagos", "Gestión de Pagos"),
+        ("💵 Pago Efectivo", "Gestión de Pagos"),
         ("🏦 Gestión Bancaria", "Gestión Bancaria"),
         ("📆 Reporte Diario", "Reporte Diario"),
         ("📊 Reporte por Rango", "Reporte por Rango"),

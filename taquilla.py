@@ -1298,6 +1298,11 @@ def modulo_gestion_bancaria(agencia_data):
                     supabase.table("cda_pagos_diarios").insert(pago_diario_data).execute()
 
                     st.success(f"✅ Pago por {metodo_pago} (Ref: {referencia}) registrado exitosamente!")
+                    # Limpiar campos de entrada
+                    st.session_state["reg_monto_pago"] = 0.0
+                    st.session_state["reg_ref_pago"] = ""
+                    if "reg_datos_cliente" in st.session_state:
+                        st.session_state["reg_datos_cliente"] = ""
                     time.sleep(1)
                     st.rerun()
                 except Exception as e:
@@ -1894,6 +1899,12 @@ def modulo_premios_tickets(agencia_data):
                                 errores.append(f"Ticket #{i+1}: {e}")
                         if ok_count:
                             st.success(f"✅ {ok_count} ticket(s) registrado(s).")
+                            # Limpiar campos de lote
+                            for idx in range(int(cantidad)):
+                                if f"dig_{idx}" in st.session_state:
+                                    st.session_state[f"dig_{idx}"] = ""
+                                if f"mon_lote_{idx}" in st.session_state:
+                                    st.session_state[f"mon_lote_{idx}"] = 0.0
                         for e in errores:
                             st.warning(e)
                         if ok_count:
@@ -1948,13 +1959,15 @@ def modulo_premios_tickets(agencia_data):
                                 pass
                             if ok_count:
                                 st.success(f"✅ {ok_count} ticket(s) TODOS registrados por ${monto_total:,.2f}.")
+                                if "monto_total_lote" in st.session_state:
+                                    st.session_state["monto_total_lote"] = 0.0
                             for e in errores:
                                 st.warning(e)
                             if ok_count:
                                 time.sleep(1); st.rerun()
             else:
-                ticket = st.text_input("Número de Ticket").strip()
-                monto_p = st.number_input("Monto del Premio COP", min_value=0.0, format="%.2f")
+                ticket = st.text_input("Número de Ticket", key="reg_ticket_num").strip()
+                monto_p = st.number_input("Monto del Premio COP", min_value=0.0, format="%.2f", key="reg_ticket_monto")
                 if st.button("💾 REGISTRAR TICKET PAGADO", use_container_width=True):
                     if not ticket or monto_p <= 0:
                         st.error("El número de ticket y el monto son obligatorios.")
@@ -1990,7 +2003,10 @@ def modulo_premios_tickets(agencia_data):
                                         }).execute()
                                 except Exception:
                                     pass
-                                st.success("✅ Premio registrado."); time.sleep(1); st.rerun()
+                                st.success("✅ Premio registrado.")
+                                st.session_state["reg_ticket_num"] = ""
+                                st.session_state["reg_ticket_monto"] = 0.0
+                                time.sleep(1); st.rerun()
                         except Exception as e:
                             st.error(f"Error al guardar: {e}")
 

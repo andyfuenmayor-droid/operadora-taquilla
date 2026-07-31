@@ -531,42 +531,56 @@ def modulo_home(agencia_data):
 
     # ACCESOS RAPIDOS A MODULOS
     render_titulo_seccion("⚡ Accesos Rápidos a Módulos")
-    c_act1, c_act2, c_act3, c_act4 = st.columns(4)
+    if es_supervisor:
+        c_act1, c_act2, c_act3 = st.columns(3)
+        with c_act1:
+            if st.button("📆 Reporte Diario", use_container_width=True, key="home_btn_rep_diario"):
+                st.session_state["opcion_actual"] = "Reporte Diario"
+                st.rerun()
+        with c_act2:
+            if st.button("📊 Reporte Rango", use_container_width=True, key="home_btn_rep_rango"):
+                st.session_state["opcion_actual"] = "Reporte por Rango"
+                st.rerun()
+        with c_act3:
+            if st.button("🔒 Cierre Diario", use_container_width=True, key="home_btn_cierre"):
+                st.session_state["opcion_actual"] = "Cierre Diario"
+                st.rerun()
+    else:
+        c_act1, c_act2, c_act3, c_act4 = st.columns(4)
+        with c_act1:
+            if st.button("🎰 Cargar Ventas", use_container_width=True, key="home_btn_ventas"):
+                st.session_state["opcion_actual"] = "Carga de Ventas"
+                st.rerun()
+        with c_act2:
+            if st.button("🎟️ Tickets Premiados", use_container_width=True, key="home_btn_premios"):
+                st.session_state["opcion_actual"] = "Tickets Premiados"
+                st.rerun()
+        with c_act3:
+            if st.button("💸 Registrar Gasto", use_container_width=True, key="home_btn_gastos"):
+                st.session_state["opcion_actual"] = "Gestión de Gastos"
+                st.rerun()
+        with c_act4:
+            if st.button("💵 Pago Efectivo", use_container_width=True, key="home_btn_pagos"):
+                st.session_state["opcion_actual"] = "Gestión de Pagos"
+                st.rerun()
 
-    with c_act1:
-        if st.button("🎰 Cargar Ventas", use_container_width=True, key="home_btn_ventas"):
-            st.session_state["opcion_actual"] = "Carga de Ventas"
-            st.rerun()
-    with c_act2:
-        if st.button("🎟️ Tickets Premiados", use_container_width=True, key="home_btn_premios"):
-            st.session_state["opcion_actual"] = "Tickets Premiados"
-            st.rerun()
-    with c_act3:
-        if st.button("💸 Registrar Gasto", use_container_width=True, key="home_btn_gastos"):
-            st.session_state["opcion_actual"] = "Gestión de Gastos"
-            st.rerun()
-    with c_act4:
-        if st.button("💵 Pago Efectivo", use_container_width=True, key="home_btn_pagos"):
-            st.session_state["opcion_actual"] = "Gestión de Pagos"
-            st.rerun()
-
-    c_act5, c_act6, c_act7, c_act8 = st.columns(4)
-    with c_act5:
-        if st.button("🏦 Gestión Bancaria", use_container_width=True, key="home_btn_bancaria"):
-            st.session_state["opcion_actual"] = "Gestión Bancaria"
-            st.rerun()
-    with c_act6:
-        if st.button("📆 Reporte Diario", use_container_width=True, key="home_btn_rep_diario"):
-            st.session_state["opcion_actual"] = "Reporte Diario"
-            st.rerun()
-    with c_act7:
-        if st.button("📊 Reporte Rango", use_container_width=True, key="home_btn_rep_rango"):
-            st.session_state["opcion_actual"] = "Reporte por Rango"
-            st.rerun()
-    with c_act8:
-        if st.button("🔒 Cierre Diario", use_container_width=True, key="home_btn_cierre"):
-            st.session_state["opcion_actual"] = "Cierre Diario"
-            st.rerun()
+        c_act5, c_act6, c_act7, c_act8 = st.columns(4)
+        with c_act5:
+            if st.button("🏦 Gestión Bancaria", use_container_width=True, key="home_btn_bancaria"):
+                st.session_state["opcion_actual"] = "Gestión Bancaria"
+                st.rerun()
+        with c_act6:
+            if st.button("📆 Reporte Diario", use_container_width=True, key="home_btn_rep_diario"):
+                st.session_state["opcion_actual"] = "Reporte Diario"
+                st.rerun()
+        with c_act7:
+            if st.button("📊 Reporte Rango", use_container_width=True, key="home_btn_rep_rango"):
+                st.session_state["opcion_actual"] = "Reporte por Rango"
+                st.rerun()
+        with c_act8:
+            if st.button("🔒 Cierre Diario", use_container_width=True, key="home_btn_cierre"):
+                st.session_state["opcion_actual"] = "Cierre Diario"
+                st.rerun()
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -3134,17 +3148,29 @@ else:
     if "opcion_actual" not in st.session_state:
         st.session_state["opcion_actual"] = "Inicio"
 
-    menu_items = [
-        ("🏠 Inicio", "Inicio"),
-        ("🎰 Carga de Ventas", "Carga de Ventas"),
-        ("🎟️ Tickets Premiados", "Tickets Premiados"),
-        ("💸 Gestión de Gastos", "Gestión de Gastos"),
-        ("💵 Pago Efectivo", "Gestión de Pagos"),
-        ("🏦 Gestión Bancaria", "Gestión Bancaria"),
-        ("📆 Reporte Diario", "Reporte Diario"),
-        ("📊 Reporte por Rango", "Reporte por Rango"),
-        ("🔒 Cierre Diario", "Cierre Diario")
-    ]
+    es_sup_role = (cajero.get("rol") == "supervisor")
+
+    if es_sup_role:
+        menu_items = [
+            ("🏠 Inicio", "Inicio"),
+            ("📆 Reporte Diario", "Reporte Diario"),
+            ("📊 Reporte por Rango", "Reporte por Rango"),
+            ("🔒 Cierre Diario", "Cierre Diario")
+        ]
+        if st.session_state["opcion_actual"] not in [m[1] for m in menu_items]:
+            st.session_state["opcion_actual"] = "Inicio"
+    else:
+        menu_items = [
+            ("🏠 Inicio", "Inicio"),
+            ("🎰 Carga de Ventas", "Carga de Ventas"),
+            ("🎟️ Tickets Premiados", "Tickets Premiados"),
+            ("💸 Gestión de Gastos", "Gestión de Gastos"),
+            ("💵 Pago Efectivo", "Gestión de Pagos"),
+            ("🏦 Gestión Bancaria", "Gestión Bancaria"),
+            ("📆 Reporte Diario", "Reporte Diario"),
+            ("📊 Reporte por Rango", "Reporte por Rango"),
+            ("🔒 Cierre Diario", "Cierre Diario")
+        ]
 
     with st.sidebar:
         sidebar_info = f"""<div style="background-color: {card_bg}; border: 1px solid {card_border}; padding: 0.85rem 1rem; border-radius: 12px; margin-bottom: 0.5rem;">

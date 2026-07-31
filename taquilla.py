@@ -415,7 +415,7 @@ def obtener_saldo_anterior(agencia_nombre, fecha_sel, cajero_id=None):
     if cajero_id is not None:
         try:
             c_str = str(cajero_id).strip()
-            if c_str and c_str != "None" and c_str != "nan":
+            if c_str and c_str.lower() not in ["none", "nan", ""]:
                 res_c = supabase.table("saldo_taquilla")\
                     .select("saldo_restante")\
                     .eq("nombre_agency", agencia_nombre)\
@@ -426,6 +426,19 @@ def obtener_saldo_anterior(agencia_nombre, fecha_sel, cajero_id=None):
                     .execute()
                 if res_c.data:
                     return float(res_c.data[0]["saldo_restante"])
+                try:
+                    res_u = supabase.table("saldo_taquilla")\
+                        .select("saldo_restante")\
+                        .eq("nombre_agency", agencia_nombre)\
+                        .eq("user_id", c_str)\
+                        .lt("fecha", str(fecha_sel))\
+                        .order("fecha", desc=True)\
+                        .limit(1)\
+                        .execute()
+                    if res_u.data:
+                        return float(res_u.data[0]["saldo_restante"])
+                except Exception:
+                    pass
                 return 0.0
         except Exception:
             return 0.0
@@ -655,10 +668,13 @@ def modulo_home(agencia_data):
                     pg_banco_item = max(pg_banco_diarios_c, pg_banco_bancarios_c)
 
                     s_dia_item = v_item - c_item - p_item - g_item - pg_efectivo_item - pg_banco_item
+                    s_ant_item = obtener_saldo_anterior(ag_nombre, fecha_operativa, cajero_id=c_id_item)
+                    s_final_item = s_ant_item + s_dia_item
 
                     st.markdown(
                         f"""
                         <div style="background-color: rgba(255, 255, 255, 0.03); padding: 8px 12px; border-radius: 8px; margin-bottom: 0.8rem; border: 1px solid rgba(255, 255, 255, 0.05); font-size: 0.82rem;">
+                            <div style="display: flex; justify-content: space-between;"><span>Saldo Anterior:</span> <b style="color: #94a3b8;">${s_ant_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between;"><span>Ventas:</span> <b>${v_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between;"><span>Comisión:</span> <b>${c_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between;"><span>Premios:</span> <b>${p_item:,.2f}</b></div>
@@ -666,6 +682,7 @@ def modulo_home(agencia_data):
                             <div style="display: flex; justify-content: space-between;"><span>Pago Efectivo:</span> <b>${pg_efectivo_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between;"><span>Pagos Bancos / Puntos:</span> <b>${pg_banco_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 4px; margin-top: 4px;"><span>Resultado Día:</span> <b style="color: {'#34d399' if s_dia_item >= 0 else '#ef4444'};">${s_dia_item:,.2f}</b></div>
+                            <div style="display: flex; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 4px; margin-top: 4px;"><span>Saldo Final:</span> <b style="color: #00c853; font-size: 0.88rem;">${s_final_item:,.2f}</b></div>
                         </div>
                         """,
                         unsafe_allow_html=True
@@ -752,7 +769,19 @@ def modulo_home(agencia_data):
         render_titulo_seccion(f"📋 Ventas ({fecha_operativa.strftime('%d/%m/%Y')} en adelante)")
         if not df_v_hoy.empty:
             cols_v_show = [c for c in ["sistema", "monto_venta", "comision", "monto_premios", "neto"] if c in df_v_hoy.columns]
-            st.dataframe(df_v_hoy[cols_v_show], use_container_width=True, hide_index=True)
+            df_v_disp = df_v_hoy[cols_v_show].copy()
+            df_v_disp = df_v_disp.rename(columns={"monto_venta": "venta", "monto_premios": "premios"})
+            st.dataframe(
+                df_v_disp,
+                column_config={
+                    "venta": st.column_config.NumberColumn("venta", format="$%,.2f"),
+                    "comision": st.column_config.NumberColumn("comision", format="$%,.2f"),
+                    "premios": st.column_config.NumberColumn("premios", format="$%,.2f"),
+                    "neto": st.column_config.NumberColumn("neto", format="$%,.2f"),
+                },
+                use_container_width=True,
+                hide_index=True
+            )
         else:
             st.info("ℹ️ Sin registros de ventas cargados para esta fecha.")
 
@@ -766,7 +795,16 @@ def modulo_home(agencia_data):
             if not df_p_hoy.empty:
                 st.caption("💰 **Pagos Registrados:**")
                 cols_p_show = [c for c in ["tipo_pago", "monto", "moneda"] if c in df_p_hoy.columns]
-                st.dataframe(df_p_hoy[cols_p_show], use_container_width=True, hide_index=True)
+                df_p_disp = df_p_hoy[cols_p_show].copy()
+                df_p_disp = df_p_disp.rename(columns={"tipo_pago": "pagos registrados"})
+                st.dataframe(
+                    df_p_disp,
+                    column_config={
+                        "monto": st.column_config.NumberColumn("monto", format="$%,.2f")
+                    },
+                    use_container_width=True,
+                    hide_index=True
+                )
         else:
             st.info("ℹ️ Sin gastos ni pagos registrados para esta fecha.")
 
@@ -994,7 +1032,16 @@ def modulo_pagos(agencia_data):
         render_titulo_seccion("📋 Pagos del Día")
         cols_p = ["id", "agencia", "nombre_agency", "tipo_pago", "moneda", "monto", "fecha", "created_at", "user_id"]
         cols_p = [c for c in cols_p if c in df_p.columns]
-        st.dataframe(df_p[cols_p], use_container_width=True, hide_index=True)
+        df_p_disp = df_p[cols_p].copy()
+        df_p_disp = df_p_disp.rename(columns={"tipo_pago": "pagos registrados"})
+        st.dataframe(
+            df_p_disp,
+            column_config={
+                "monto": st.column_config.NumberColumn("monto", format="$%,.2f")
+            },
+            use_container_width=True,
+            hide_index=True
+        )
     else:
         st.info("ℹ️ No hay pagos en este día.")
 
@@ -1642,7 +1689,18 @@ def modulo_reporte_rango(agencia_data):
     if not df_v.empty:
         cols = ["fecha", "sistema", "monto_venta", "comision", "monto_premios"]
         cols = [c for c in cols if c in df_v.columns]
-        st.dataframe(df_v[cols].sort_values(["fecha", "sistema"]), use_container_width=True, hide_index=True)
+        df_v_disp = df_v[cols].sort_values(["fecha", "sistema"]).copy()
+        df_v_disp = df_v_disp.rename(columns={"monto_venta": "venta", "monto_premios": "premios"})
+        st.dataframe(
+            df_v_disp,
+            column_config={
+                "venta": st.column_config.NumberColumn("venta", format="$%,.2f"),
+                "comision": st.column_config.NumberColumn("comision", format="$%,.2f"),
+                "premios": st.column_config.NumberColumn("premios", format="$%,.2f"),
+            },
+            use_container_width=True,
+            hide_index=True
+        )
     else:
         st.info("Sin ventas registradas.")
 
@@ -1847,11 +1905,31 @@ def modulo_cierre_diario(agencia_data):
                     group_cols = ["sistema"]
                 num_cols = [c for c in ["monto_venta", "comision", "monto_premios"] if c in df_v_display.columns]
                 df_v_summary = df_v_display.groupby(group_cols, as_index=False)[num_cols].sum()
-                st.dataframe(df_v_summary, use_container_width=True, hide_index=True)
+                df_v_summary = df_v_summary.rename(columns={"monto_venta": "venta", "monto_premios": "premios"})
+                st.dataframe(
+                    df_v_summary,
+                    column_config={
+                        "venta": st.column_config.NumberColumn("venta", format="$%,.2f"),
+                        "comision": st.column_config.NumberColumn("comision", format="$%,.2f"),
+                        "premios": st.column_config.NumberColumn("premios", format="$%,.2f"),
+                    },
+                    use_container_width=True,
+                    hide_index=True
+                )
             except Exception:
                 num_cols = [c for c in ["monto_venta", "comision", "monto_premios"] if c in df_v.columns]
                 df_v_summary = df_v.groupby("sistema", as_index=False)[num_cols].sum()
-                st.dataframe(df_v_summary, use_container_width=True, hide_index=True)
+                df_v_summary = df_v_summary.rename(columns={"monto_venta": "venta", "monto_premios": "premios"})
+                st.dataframe(
+                    df_v_summary,
+                    column_config={
+                        "venta": st.column_config.NumberColumn("venta", format="$%,.2f"),
+                        "comision": st.column_config.NumberColumn("comision", format="$%,.2f"),
+                        "premios": st.column_config.NumberColumn("premios", format="$%,.2f"),
+                    },
+                    use_container_width=True,
+                    hide_index=True
+                )
 
     st.divider()
 
@@ -1894,10 +1972,13 @@ def modulo_cierre_diario(agencia_data):
                     pg_banco_item = max(pg_banco_diarios, pg_banco_bancarios)
 
                     s_dia_item = v_item - c_item - p_item - g_item - pg_efectivo_item - pg_banco_item
+                    s_ant_item = obtener_saldo_anterior(nom, fecha_sel, cajero_id=c_id_item)
+                    s_final_item = s_ant_item + s_dia_item
 
                     st.markdown(
                         f"""
                         <div style="background-color: rgba(255, 255, 255, 0.03); padding: 8px 12px; border-radius: 8px; margin-bottom: 0.8rem; border: 1px solid rgba(255, 255, 255, 0.05); font-size: 0.82rem;">
+                            <div style="display: flex; justify-content: space-between;"><span>Saldo Anterior:</span> <b style="color: #94a3b8;">${s_ant_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between;"><span>Ventas:</span> <b>${v_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between;"><span>Comisión:</span> <b>${c_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between;"><span>Premios:</span> <b>${p_item:,.2f}</b></div>
@@ -1905,6 +1986,7 @@ def modulo_cierre_diario(agencia_data):
                             <div style="display: flex; justify-content: space-between;"><span>Pago Efectivo:</span> <b>${pg_efectivo_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between;"><span>Pagos Bancos / Puntos:</span> <b>${pg_banco_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 4px; margin-top: 4px;"><span>Resultado Día:</span> <b style="color: {'#34d399' if s_dia_item >= 0 else '#ef4444'};">${s_dia_item:,.2f}</b></div>
+                            <div style="display: flex; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 4px; margin-top: 4px;"><span>Saldo Final:</span> <b style="color: #00c853; font-size: 0.88rem;">${s_final_item:,.2f}</b></div>
                         </div>
                         """,
                         unsafe_allow_html=True
@@ -2307,7 +2389,17 @@ def modulo_reporte_diario(agencia_data):
         if not df_v.empty:
             num_cols = [c for c in ["monto_venta", "comision", "monto_premios"] if c in df_v.columns]
             df_v_grouped = df_v.groupby("sistema", as_index=False)[num_cols].sum()
-            st.dataframe(df_v_grouped, use_container_width=True, hide_index=True)
+            df_v_grouped = df_v_grouped.rename(columns={"monto_venta": "venta", "monto_premios": "premios"})
+            st.dataframe(
+                df_v_grouped,
+                column_config={
+                    "venta": st.column_config.NumberColumn("venta", format="$%,.2f"),
+                    "comision": st.column_config.NumberColumn("comision", format="$%,.2f"),
+                    "premios": st.column_config.NumberColumn("premios", format="$%,.2f"),
+                },
+                use_container_width=True,
+                hide_index=True
+            )
         else:
             st.info("Sin ventas este dia.")
 

@@ -180,23 +180,35 @@ def render_subtitulo_terminal(nombre_agencia):
 def render_titulo_seccion(texto):
     st.markdown(f"<div style='font-size: 14px; font-weight: 700; color: #38bdf8; margin: 12px 0 8px 0;'>{texto}</div>", unsafe_allow_html=True)
 
-def render_tarjetas_metricas(t_venta, t_comis, t_premios, t_gastos, t_pagos, t_saldo):
+def render_tarjetas_metricas(t_venta, t_comis, t_premios, t_gastos, t_pagos, t_saldo, t_pago_banco=None):
     is_dark = st.session_state.get("tema_oscuro", True)
     bg_color = "rgba(30, 41, 59, 0.6)" if is_dark else "#f8fafc"
     border_color = "rgba(255, 255, 255, 0.08)" if is_dark else "#e2e8f0"
     title_color = "#94a3b8" if is_dark else "#64748b"
     val_color = "#f8fafc" if is_dark else "#0f172a"
 
-    items = [
-        ("Ventas", f"${t_venta:,.2f}"),
-        ("Comision", f"${t_comis:,.2f}"),
-        ("Premios", f"${t_premios:,.2f}"),
-        ("Gastos", f"${t_gastos:,.2f}"),
-        ("Pagos", f"${t_pagos:,.2f}"),
-        ("Saldo", f"${t_saldo:,.2f}"),
-    ]
+    if t_pago_banco is not None:
+        items = [
+            ("Ventas", f"${t_venta:,.2f}"),
+            ("Comision", f"${t_comis:,.2f}"),
+            ("Premios", f"${t_premios:,.2f}"),
+            ("Gastos", f"${t_gastos:,.2f}"),
+            ("Pago Efectivo", f"${t_pagos:,.2f}"),
+            ("Pagos Bancos", f"${t_pago_banco:,.2f}"),
+            ("Saldo", f"${t_saldo:,.2f}"),
+        ]
+        cols = st.columns(7)
+    else:
+        items = [
+            ("Ventas", f"${t_venta:,.2f}"),
+            ("Comision", f"${t_comis:,.2f}"),
+            ("Premios", f"${t_premios:,.2f}"),
+            ("Gastos", f"${t_gastos:,.2f}"),
+            ("Pagos", f"${t_pagos:,.2f}"),
+            ("Saldo", f"${t_saldo:,.2f}"),
+        ]
+        cols = st.columns(6)
 
-    cols = st.columns(6)
     for idx, (title, val) in enumerate(items):
         if title == "Saldo":
             if t_saldo > 0:
@@ -461,48 +473,96 @@ def modulo_home(agencia_data):
     saldo_anterior = obtener_saldo_anterior(ag_nombre, fecha_operativa, cajero_id=cajero_id if not es_supervisor else None)
     dia_cerrado_hoy = dia_esta_cerrado(ag_nombre, fecha_operativa, cajero_id=cajero_id if not es_supervisor else None)
 
-    # Cargar métricas del día operativo actual (día siguiente al último cierre)
-    t_ventas, t_comis, t_premios, t_gastos, t_pagos = 0.0, 0.0, 0.0, 0.0, 0.0
-    df_v_hoy, df_g_hoy, df_p_hoy = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+    # Cargar métricas del periodo operativo actual desde el último cierre (gte fecha_operativa)
+    df_v_hoy, df_g_hoy, df_p_hoy, df_pb_hoy, df_t_hoy = pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
     try:
-        res_v = supabase.table("cda_reportes_diarios").select("*").eq("nombre_agency", ag_nombre).eq("fecha", str_operativa).execute()
+        res_v = supabase.table("cda_reportes_diarios").select("*").eq("nombre_agency", ag_nombre).gte("fecha", str_operativa).execute()
         df_v_hoy = pd.DataFrame(res_v.data or [])
-        if not df_v_hoy.empty:
-            df_v_hoy.columns = [c.lower() for c in df_v_hoy.columns]
-            if not es_supervisor and cajero_id and "cajero_id" in df_v_hoy.columns:
-                df_v_hoy = df_v_hoy[df_v_hoy["cajero_id"].astype(str) == str(cajero_id)]
-            t_ventas = float(df_v_hoy["monto_venta"].sum()) if "monto_venta" in df_v_hoy.columns else 0.0
-            t_comis = float(df_v_hoy["comision"].sum()) if "comision" in df_v_hoy.columns else 0.0
-            t_premios = float(df_v_hoy["monto_premios"].sum()) if "monto_premios" in df_v_hoy.columns else 0.0
+        if not df_v_hoy.empty: df_v_hoy.columns = [c.lower() for c in df_v_hoy.columns]
     except Exception:
         pass
 
     try:
-        res_g = supabase.table("cda_gastos_diarios").select("*").eq("fecha", str_operativa).execute()
+        res_g = supabase.table("cda_gastos_diarios").select("*").gte("fecha", str_operativa).execute()
         df_g_hoy = pd.DataFrame(res_g.data or [])
         if not df_g_hoy.empty:
             df_g_hoy.columns = [c.lower() for c in df_g_hoy.columns]
-            if "agencia" in df_g_hoy.columns: df_g_hoy = df_g_hoy[df_g_hoy["agencia"].astype(str) == str(ag_nombre)]
-            if not es_supervisor and cajero_id and "cajero_id" in df_g_hoy.columns:
-                df_g_hoy = df_g_hoy[df_g_hoy["cajero_id"].astype(str) == str(cajero_id)]
-            t_gastos = float(df_g_hoy["monto"].sum()) if "monto" in df_g_hoy.columns else 0.0
+            if "agencia" in df_g_hoy.columns:
+                df_g_hoy = df_g_hoy[df_g_hoy["agencia"].astype(str) == str(ag_nombre)]
+            elif "nombre_agency" in df_g_hoy.columns:
+                df_g_hoy = df_g_hoy[df_g_hoy["nombre_agency"].astype(str) == str(ag_nombre)]
     except Exception:
         pass
 
     try:
-        res_p = supabase.table("cda_pagos_diarios").select("*").eq("fecha", str_operativa).execute()
+        res_p = supabase.table("cda_pagos_diarios").select("*").gte("fecha", str_operativa).execute()
         df_p_hoy = pd.DataFrame(res_p.data or [])
         if not df_p_hoy.empty:
             df_p_hoy.columns = [c.lower() for c in df_p_hoy.columns]
-            if "agencia" in df_p_hoy.columns: df_p_hoy = df_p_hoy[df_p_hoy["agencia"].astype(str) == str(ag_nombre)]
-            if not es_supervisor and cajero_id and "cajero_id" in df_p_hoy.columns:
-                df_p_hoy = df_p_hoy[df_p_hoy["cajero_id"].astype(str) == str(cajero_id)]
-            t_pagos = float(df_p_hoy["monto"].sum()) if "monto" in df_p_hoy.columns else 0.0
+            if "agencia" in df_p_hoy.columns:
+                df_p_hoy = df_p_hoy[df_p_hoy["agencia"].astype(str) == str(ag_nombre)]
+            elif "nombre_agency" in df_p_hoy.columns:
+                df_p_hoy = df_p_hoy[df_p_hoy["nombre_agency"].astype(str) == str(ag_nombre)]
     except Exception:
         pass
 
-    saldo_neto_hoy = t_ventas - t_comis - t_premios - t_gastos - t_pagos
+    try:
+        res_pb = supabase.table("cda_pagos_bancarios").select("*").gte("fecha", str_operativa).execute()
+        df_pb_hoy = pd.DataFrame(res_pb.data or [])
+        if not df_pb_hoy.empty:
+            df_pb_hoy.columns = [c.lower() for c in df_pb_hoy.columns]
+            if "agencia" in df_pb_hoy.columns:
+                df_pb_hoy = df_pb_hoy[df_pb_hoy["agencia"].astype(str) == str(ag_nombre)]
+            elif "nombre_agency" in df_pb_hoy.columns:
+                df_pb_hoy = df_pb_hoy[df_pb_hoy["nombre_agency"].astype(str) == str(ag_nombre)]
+    except Exception:
+        pass
+
+    try:
+        res_t = supabase.table("cda_premios_tickets").select("*").gte("fecha", str_operativa).execute()
+        df_t_hoy = pd.DataFrame(res_t.data or [])
+        if not df_t_hoy.empty:
+            df_t_hoy.columns = [c.lower() for c in df_t_hoy.columns]
+            if "agencia" in df_t_hoy.columns:
+                df_t_hoy = df_t_hoy[df_t_hoy["agencia"].astype(str) == str(ag_nombre)]
+    except Exception:
+        pass
+
+    df_v_raw = df_v_hoy.copy()
+    df_g_raw = df_g_hoy.copy()
+    df_p_raw = df_p_hoy.copy()
+    df_pb_raw = df_pb_hoy.copy()
+    df_t_raw = df_t_hoy.copy()
+
+    if not es_supervisor and cajero_id:
+        df_v_hoy = filtrar_df_por_cajero(df_v_hoy, cajero_id)
+        df_g_hoy = filtrar_df_por_cajero(df_g_hoy, cajero_id)
+        df_p_hoy = filtrar_df_por_cajero(df_p_hoy, cajero_id)
+        df_pb_hoy = filtrar_df_por_cajero(df_pb_hoy, cajero_id)
+        df_t_hoy = filtrar_df_por_cajero(df_t_hoy, cajero_id)
+
+    t_ventas = float(df_v_hoy["monto_venta"].sum()) if not df_v_hoy.empty and "monto_venta" in df_v_hoy.columns else 0.0
+    t_comis = float(df_v_hoy["comision"].sum()) if not df_v_hoy.empty and "comision" in df_v_hoy.columns else 0.0
+
+    t_p_rep = float(df_v_hoy["monto_premios"].sum()) if not df_v_hoy.empty and "monto_premios" in df_v_hoy.columns else 0.0
+    t_p_tick = float(df_t_hoy["monto"].sum()) if not df_t_hoy.empty and "monto" in df_t_hoy.columns else 0.0
+    t_premios = max(t_p_rep, t_p_tick)
+
+    t_gastos = float(df_g_hoy["monto"].sum()) if not df_g_hoy.empty and "monto" in df_g_hoy.columns else 0.0
+
+    if not df_p_hoy.empty:
+        is_efectivo = df_p_hoy["tipo_pago"].astype(str).str.lower().str.contains("efectivo") if "tipo_pago" in df_p_hoy.columns else pd.Series([True]*len(df_p_hoy))
+        t_pago_efectivo = float(df_p_hoy[is_efectivo]["monto"].sum()) if not df_p_hoy.empty else 0.0
+        t_pago_banco_diarios = float(df_p_hoy[~is_efectivo]["monto"].sum()) if not df_p_hoy.empty else 0.0
+    else:
+        t_pago_efectivo = 0.0
+        t_pago_banco_diarios = 0.0
+
+    t_pago_banco_bancarios = float(df_pb_hoy["monto"].sum()) if not df_pb_hoy.empty and "monto" in df_pb_hoy.columns else 0.0
+    t_pago_banco = max(t_pago_banco_diarios, t_pago_banco_bancarios)
+
+    saldo_neto_hoy = t_ventas - t_comis - t_premios - t_gastos - t_pago_efectivo - t_pago_banco
     saldo_final_estimado = saldo_anterior + saldo_neto_hoy
 
     # BANNER PRINCIPAL DE BIENVENIDA
@@ -532,9 +592,9 @@ def modulo_home(agencia_data):
         unsafe_allow_html=True
     )
 
-    # METRICAS PRINCIPALES DE HOY
-    render_titulo_seccion(f"📊 Resumen Operativo ({fecha_operativa.strftime('%d/%m/%Y')})")
-    render_tarjetas_metricas(t_ventas, t_comis, t_premios, t_gastos, t_pagos, saldo_neto_hoy)
+    # METRICAS PRINCIPALES ACUMULADAS
+    render_titulo_seccion(f"📊 Resumen Operativo ({fecha_operativa.strftime('%d/%m/%Y')} en adelante)")
+    render_tarjetas_metricas(t_ventas, t_comis, t_premios, t_gastos, t_pago_efectivo, saldo_neto_hoy, t_pago_banco=t_pago_banco)
 
     # BALANCE DE SALDO ACUMULADO
     st.markdown(
@@ -542,13 +602,93 @@ def modulo_home(agencia_data):
         <div style="background-color: rgba(13, 27, 34, 0.5); padding: 0.85rem 1.25rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); margin-top: 0.75rem; margin-bottom: 1.25rem; text-align: center;">
             <span style="font-size: 0.85rem; color: #94a3b8;">Saldo Anterior Acumulado:</span> <b style="font-size: 1.05rem; color: #ffffff;">${saldo_anterior:,.2f}</b>
             <span style="margin: 0 1.25rem; color: rgba(255,255,255,0.2);">|</span>
-            <span style="font-size: 0.85rem; color: #94a3b8;">Resultado Hoy:</span> <b style="font-size: 1.05rem; color: {'#34d399' if saldo_neto_hoy >= 0 else '#fb7185'};">${saldo_neto_hoy:,.2f}</b>
+            <span style="font-size: 0.85rem; color: #94a3b8;">Resultado Hoy / Periodo:</span> <b style="font-size: 1.05rem; color: {'#34d399' if saldo_neto_hoy >= 0 else '#fb7185'};">${saldo_neto_hoy:,.2f}</b>
             <span style="margin: 0 1.25rem; color: rgba(255,255,255,0.2);">|</span>
             <span style="font-size: 0.85rem; color: #94a3b8;">Saldo Final Estimado:</span> <b style="font-size: 1.15rem; color: #00c853;">${saldo_final_estimado:,.2f}</b>
         </div>
         """,
         unsafe_allow_html=True
     )
+
+    if es_supervisor:
+        try:
+            res_u = supabase.table("taquilla_usuarios").select("id, usuario, nombre_cajero, rol").execute()
+            cajeros_list = [u for u in (res_u.data or []) if u.get("rol") == "cajero"]
+        except Exception:
+            cajeros_list = []
+
+        if cajeros_list:
+            render_titulo_seccion("⚙️ Gestión de Cierre por Cajero (Supervisor)")
+            cols_c = st.columns(len(cajeros_list)) if len(cajeros_list) <= 4 else st.columns(3)
+            for idx_c, c_usr in enumerate(cajeros_list):
+                c_id_item = str(c_usr["id"])
+                c_name_item = c_usr.get("nombre_cajero") or c_usr.get("usuario")
+                c_closed_item = dia_esta_cerrado(ag_nombre, fecha_operativa, cajero_id=c_id_item)
+                col_target = cols_c[idx_c % len(cols_c)]
+                with col_target.container(border=True):
+                    st.markdown(f"**👤 {c_name_item}**")
+
+                    df_v_c = filtrar_df_por_cajero(df_v_raw, c_id_item)
+                    df_g_c = filtrar_df_por_cajero(df_g_raw, c_id_item)
+                    df_pg_c = filtrar_df_por_cajero(df_p_raw, c_id_item)
+                    df_pb_c = filtrar_df_por_cajero(df_pb_raw, c_id_item)
+                    df_t_c = filtrar_df_por_cajero(df_t_raw, c_id_item)
+
+                    v_item = float(df_v_c["monto_venta"].sum()) if not df_v_c.empty and "monto_venta" in df_v_c.columns else 0.0
+                    c_item = float(df_v_c["comision"].sum()) if not df_v_c.empty and "comision" in df_v_c.columns else 0.0
+                    
+                    p_rep_c = float(df_v_c["monto_premios"].sum()) if not df_v_c.empty and "monto_premios" in df_v_c.columns else 0.0
+                    p_tick_c = float(df_t_c["monto"].sum()) if not df_t_c.empty and "monto" in df_t_c.columns else 0.0
+                    p_item = max(p_rep_c, p_tick_c)
+
+                    g_item = float(df_g_c["monto"].sum()) if not df_g_c.empty and "monto" in df_g_c.columns else 0.0
+
+                    if not df_pg_c.empty:
+                        is_efectivo_c = df_pg_c["tipo_pago"].astype(str).str.lower().str.contains("efectivo") if "tipo_pago" in df_pg_c.columns else pd.Series([True]*len(df_pg_c))
+                        pg_efectivo_item = float(df_pg_c[is_efectivo_c]["monto"].sum()) if not df_pg_c.empty else 0.0
+                        pg_banco_diarios_c = float(df_pg_c[~is_efectivo_c]["monto"].sum()) if not df_pg_c.empty else 0.0
+                    else:
+                        pg_efectivo_item = 0.0
+                        pg_banco_diarios_c = 0.0
+
+                    pg_banco_bancarios_c = float(df_pb_c["monto"].sum()) if not df_pb_c.empty and "monto" in df_pb_c.columns else 0.0
+                    pg_banco_item = max(pg_banco_diarios_c, pg_banco_bancarios_c)
+
+                    s_dia_item = v_item - c_item - p_item - g_item - pg_efectivo_item - pg_banco_item
+
+                    st.markdown(
+                        f"""
+                        <div style="background-color: rgba(255, 255, 255, 0.03); padding: 8px 12px; border-radius: 8px; margin-bottom: 0.8rem; border: 1px solid rgba(255, 255, 255, 0.05); font-size: 0.82rem;">
+                            <div style="display: flex; justify-content: space-between;"><span>Ventas:</span> <b>${v_item:,.2f}</b></div>
+                            <div style="display: flex; justify-content: space-between;"><span>Comisión:</span> <b>${c_item:,.2f}</b></div>
+                            <div style="display: flex; justify-content: space-between;"><span>Premios:</span> <b>${p_item:,.2f}</b></div>
+                            <div style="display: flex; justify-content: space-between;"><span>Gastos:</span> <b>${g_item:,.2f}</b></div>
+                            <div style="display: flex; justify-content: space-between;"><span>Pago Efectivo:</span> <b>${pg_efectivo_item:,.2f}</b></div>
+                            <div style="display: flex; justify-content: space-between;"><span>Pagos Bancos / Puntos:</span> <b>${pg_banco_item:,.2f}</b></div>
+                            <div style="display: flex; justify-content: space-between; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 4px; margin-top: 4px;"><span>Resultado Día:</span> <b style="color: {'#34d399' if s_dia_item >= 0 else '#ef4444'};">${s_dia_item:,.2f}</b></div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+
+                    if c_closed_item:
+                        st.markdown(
+                            f"""
+                            <div style="background-color: rgba(52, 211, 153, 0.15); color: #34d399; font-weight: 700; padding: 6px 12px; border-radius: 8px; font-size: 0.85rem; border: 1px solid rgba(52, 211, 153, 0.3); text-align: center; margin-bottom: 0.8rem;">
+                                🔒 CERRADO
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
+                    else:
+                        st.markdown(
+                            f"""
+                            <div style="background-color: rgba(239, 68, 68, 0.15); color: #ef4444; font-weight: 700; padding: 6px 12px; border-radius: 8px; font-size: 0.85rem; border: 1px solid rgba(239, 68, 68, 0.3); text-align: center; margin-bottom: 0.8rem;">
+                                ⚠️ ALERTA: ABIERTO - {fecha_operativa.strftime('%Y-%m-%d')}
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
 
     # ACCESOS RAPIDOS A MODULOS
     render_titulo_seccion("⚡ Accesos Rápidos a Módulos")
@@ -605,11 +745,11 @@ def modulo_home(agencia_data):
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # DETALLE DE ACTIVIDAD DE HOY
+    # DETALLE DE ACTIVIDAD
     col_t1, col_t2 = st.columns([1, 1])
 
     with col_t1:
-        render_titulo_seccion(f"📋 Ventas ({fecha_operativa.strftime('%d/%m/%Y')})")
+        render_titulo_seccion(f"📋 Ventas ({fecha_operativa.strftime('%d/%m/%Y')} en adelante)")
         if not df_v_hoy.empty:
             cols_v_show = [c for c in ["sistema", "monto_venta", "comision", "monto_premios", "neto"] if c in df_v_hoy.columns]
             st.dataframe(df_v_hoy[cols_v_show], use_container_width=True, hide_index=True)
@@ -617,14 +757,14 @@ def modulo_home(agencia_data):
             st.info("ℹ️ Sin registros de ventas cargados para esta fecha.")
 
     with col_t2:
-        render_titulo_seccion(f"💸 Gastos y Pagos ({fecha_operativa.strftime('%d/%m/%Y')})")
+        render_titulo_seccion(f"💸 Gastos y Pagos ({fecha_operativa.strftime('%d/%m/%Y')} en adelante)")
         if not df_g_hoy.empty or not df_p_hoy.empty:
             if not df_g_hoy.empty:
-                st.caption(f"💸 **Gastos Registrados ({fecha_operativa.strftime('%d/%m/%Y')}):**")
+                st.caption("💸 **Gastos Registrados:**")
                 cols_g_show = [c for c in ["concepto", "monto", "moneda"] if c in df_g_hoy.columns]
                 st.dataframe(df_g_hoy[cols_g_show], use_container_width=True, hide_index=True)
             if not df_p_hoy.empty:
-                st.caption(f"💰 **Pagos Registrados ({fecha_operativa.strftime('%d/%m/%Y')}):**")
+                st.caption("💰 **Pagos Registrados:**")
                 cols_p_show = [c for c in ["tipo_pago", "monto", "moneda"] if c in df_p_hoy.columns]
                 st.dataframe(df_p_hoy[cols_p_show], use_container_width=True, hide_index=True)
         else:

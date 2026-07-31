@@ -2472,6 +2472,32 @@ def modulo_reporte_diario(agencia_data):
         else:
             st.info("Sin ventas este dia.")
 
+    if not df_g.empty:
+        with st.expander("💸 Ver Detalle de Gastos", expanded=False):
+            df_g_disp = df_g.copy()
+            if "confirmado" in df_g_disp.columns:
+                df_g_disp["Conf."] = df_g_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
+            cols_g_show = [c for c in ["concepto", "monto", "moneda", "Conf.", "fecha"] if c in df_g_disp.columns]
+            st.dataframe(
+                df_g_disp[cols_g_show],
+                column_config={"monto": st.column_config.NumberColumn("monto", format="$%,.2f")},
+                use_container_width=True,
+                hide_index=True
+            )
+
+    if not df_p.empty:
+        with st.expander("💳 Ver Detalle de Pagos", expanded=False):
+            df_p_disp = df_p.copy()
+            if "confirmado" in df_p_disp.columns:
+                df_p_disp["Conf."] = df_p_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
+            cols_p_show = [c for c in ["tipo_pago", "monto", "moneda", "Conf.", "fecha"] if c in df_p_disp.columns]
+            st.dataframe(
+                df_p_disp[cols_p_show],
+                column_config={"monto": st.column_config.NumberColumn("monto", format="$%,.2f")},
+                use_container_width=True,
+                hide_index=True
+            )
+
     # 80mm print
     line = "=" * 36
     def txt_80mm():
@@ -2514,7 +2540,8 @@ def modulo_reporte_diario(agencia_data):
                 t_est = "PAGO" if t_est == "RECLAMADO" else t_est
                 monto_val = float(r.get('monto', 0))
                 total_t_pago += monto_val
-                lines.append(f"  {r.get('numero_ticket','?'):>8s}  {monto_val:>10,.2f}  {t_mon} {t_sis}  {t_est}")
+                conf_str = " ✅ C" if r.get('confirmado', False) else ""
+                lines.append(f"  {r.get('numero_ticket','?'):>8s}  {monto_val:>10,.2f}  {t_mon} {t_sis}  {t_est}{conf_str}")
             lines.append("-" * 36)
             lines.append(f"  TOTAL TICKETS:   ${total_t_pago:>10,.2f}")
             lines.append(line)
@@ -2523,7 +2550,8 @@ def modulo_reporte_diario(agencia_data):
             lines.append("  GASTOS")
             lines.append("-" * 36)
             for _, r in df_g.iterrows():
-                lines.append(f"  {r.get('concepto','?')}  ${float(r['monto']):>10,.2f}")
+                conf_str = " ✅ C" if r.get('confirmado', False) else " ⏳ P"
+                lines.append(f"  {r.get('concepto','?')}  ${float(r['monto']):>10,.2f}{conf_str}")
             lines.append("-" * 36)
             lines.append(f"  TOTAL GASTOS:    ${t_gastos:>10,.2f}")
             lines.append(line)
@@ -2532,7 +2560,8 @@ def modulo_reporte_diario(agencia_data):
             lines.append("  PAGOS")
             lines.append("-" * 36)
             for _, r in df_p.iterrows():
-                lines.append(f"  {r.get('tipo_pago','?')}  ${float(r['monto']):>10,.2f}")
+                conf_str = " ✅ C" if r.get('confirmado', False) else " ⏳ P"
+                lines.append(f"  {r.get('tipo_pago','?')}  ${float(r['monto']):>10,.2f}{conf_str}")
             lines.append("-" * 36)
             lines.append(f"  TOTAL PAGOS:     ${t_pagos:>10,.2f}")
             lines.append(line)

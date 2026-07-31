@@ -1693,7 +1693,7 @@ def modulo_cierre_diario(agencia_data):
                             <div style="display: flex; justify-content: space-between;"><span>Comisión:</span> <b>${c_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between;"><span>Premios:</span> <b>${p_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between;"><span>Gastos:</span> <b>${g_item:,.2f}</b></div>
-                            <div style="display: flex; justify-content: space-between;"><span>Pagos:</span> <b>${pg_item:,.2f}</b></div>
+                            <div style="display: flex; justify-content: space-between;"><span>Pago Efectivo:</span> <b>${pg_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 4px; margin-top: 4px;"><span>Resultado Día:</span> <b style="color: {'#34d399' if s_dia_item >= 0 else '#ef4444'};">${s_dia_item:,.2f}</b></div>
                         </div>
                         """,

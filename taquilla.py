@@ -325,6 +325,87 @@ def filtrar_df_por_cajero(df, target_cajero_id):
         return df[mask]
     return df
 
+def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha_hasta=None, cajero_id=None, es_supervisor=False):
+    """
+    Carga y unifica los pagos de cda_pagos_diarios y cda_pagos_bancarios,
+    aplicando el filtro por cajero y evitando duplicar pagos que estén en ambas tablas.
+    Retorna tuple: (df_p_total, df_pb)
+    """
+    df_p = cargar_datos_agencia_tabla("cda_pagos_diarios", agencia_nombre, fecha=fecha, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta)
+    df_pb = cargar_datos_agencia_tabla("cda_pagos_bancarios", agencia_nombre, fecha=fecha, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta)
+
+    if not es_supervisor and cajero_id:
+        df_p = filtrar_df_por_cajero(df_p, cajero_id)
+        df_pb = filtrar_df_por_cajero(df_pb, cajero_id)
+
+    if df_pb.empty:
+        return df_p, df_pb
+
+    if df_p.empty:
+        filas_banco = []
+        for _, r in df_pb.iterrows():
+            metodo = str(r.get("metodo_pago", "Pago Bancario")).strip()
+            ref = str(r.get("referencia", "")).strip()
+            tipo = f"{metodo} (Ref: {ref})" if ref else metodo
+            filas_banco.append({
+                "fecha": r.get("fecha"),
+                "agencia": r.get("agencia"),
+                "nombre_agency": r.get("nombre_agency"),
+                "tipo_pago": tipo,
+                "monto": float(r.get("monto", 0)),
+                "moneda": r.get("moneda", "COP"),
+                "cajero_id": r.get("cajero_id"),
+                "user_id": r.get("user_id"),
+                "confirmado": r.get("confirmado", False)
+            })
+        return pd.DataFrame(filas_banco), df_pb
+
+    refs_existentes = set()
+    if "tipo_pago" in df_p.columns:
+        for val in df_p["tipo_pago"].dropna().astype(str):
+            if "ref:" in val.lower():
+                partes = val.lower().split("ref:")
+                if len(partes) > 1:
+                    ref_ext = partes[1].replace(")", "").strip()
+                    if ref_ext:
+                        refs_existentes.add(ref_ext.upper())
+
+    nuevas_filas = []
+    for _, r in df_pb.iterrows():
+        ref_b = str(r.get("referencia", "")).strip().upper()
+        if ref_b and ref_b in refs_existentes:
+            continue
+        
+        metodo = str(r.get("metodo_pago", "Pago Bancario")).strip()
+        tipo = f"{metodo} (Ref: {ref_b})" if ref_b else metodo
+        monto_b = float(r.get("monto", 0))
+        
+        if not ref_b and not df_p.empty and "monto" in df_p.columns:
+            coincide = df_p[
+                (df_p["monto"].astype(float) == monto_b) & 
+                (df_p["tipo_pago"].astype(str).str.contains(metodo, case=False, regex=False))
+            ]
+            if not coincide.empty:
+                continue
+
+        nuevas_filas.append({
+            "fecha": r.get("fecha"),
+            "agencia": r.get("agencia"),
+            "nombre_agency": r.get("nombre_agency"),
+            "tipo_pago": tipo,
+            "monto": monto_b,
+            "moneda": r.get("moneda", "COP"),
+            "cajero_id": r.get("cajero_id"),
+            "user_id": r.get("user_id"),
+            "confirmado": r.get("confirmado", False)
+        })
+
+    if nuevas_filas:
+        df_nuevas = pd.DataFrame(nuevas_filas)
+        df_p = pd.concat([df_p, df_nuevas], ignore_index=True)
+
+    return df_p, df_pb
+
 def dia_esta_cerrado(agencia_nombre, fecha, cajero_id=None):
     """Retorna True si el día ya fue cerrado para esta agencia (y cajero opcional)."""
     try:
@@ -1632,25 +1713,31 @@ def modulo_reporte_rango(agencia_data):
         return
 
     try:
-        df_v = cargar_datos_agencia_tabla("cda_reportes_diarios", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
-        df_g = cargar_datos_agencia_tabla("cda_gastos_diarios", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
-        df_p = cargar_datos_agencia_tabla("cda_pagos_diarios", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
-        df_t = cargar_datos_agencia_tabla("cda_premios_tickets", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
-        if not df_v.empty and 'fecha' in df_v.columns: df_v['fecha'] = pd.to_datetime(df_v['fecha']).dt.date
-        if not df_g.empty and 'fecha' in df_g.columns: df_g['fecha'] = pd.to_datetime(df_g['fecha']).dt.date
-        if not df_p.empty and 'fecha' in df_p.columns: df_p['fecha'] = pd.to_datetime(df_p['fecha']).dt.date
-        if not df_t.empty and 'fecha' in df_t.columns: df_t['fecha'] = pd.to_datetime(df_t['fecha']).dt.date
-
         cajero_info = st.session_state.get("cajero_actual", {})
         rol_usuario = cajero_info.get("rol", "cajero")
         cajero_id = cajero_info.get("id")
         es_supervisor = (rol_usuario == 'supervisor')
 
+        df_v = cargar_datos_agencia_tabla("cda_reportes_diarios", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
+        df_g = cargar_datos_agencia_tabla("cda_gastos_diarios", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
+        df_t = cargar_datos_agencia_tabla("cda_premios_tickets", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
+        if not df_v.empty and 'fecha' in df_v.columns: df_v['fecha'] = pd.to_datetime(df_v['fecha']).dt.date
+        if not df_g.empty and 'fecha' in df_g.columns: df_g['fecha'] = pd.to_datetime(df_g['fecha']).dt.date
+        if not df_t.empty and 'fecha' in df_t.columns: df_t['fecha'] = pd.to_datetime(df_t['fecha']).dt.date
+
         if not es_supervisor and cajero_id:
             df_v = filtrar_df_por_cajero(df_v, cajero_id)
             df_t = filtrar_df_por_cajero(df_t, cajero_id)
             df_g = filtrar_df_por_cajero(df_g, cajero_id)
-            df_p = filtrar_df_por_cajero(df_p, cajero_id)
+
+        df_p, df_pb = obtener_pagos_unificados(
+            agencia_data['nombre_agencia'],
+            fecha_desde=d,
+            fecha_hasta=h,
+            cajero_id=cajero_id,
+            es_supervisor=es_supervisor
+        )
+        if not df_p.empty and 'fecha' in df_p.columns: df_p['fecha'] = pd.to_datetime(df_p['fecha']).dt.date
     except Exception as e:
         st.error(f"Error: {e}"); return
 
@@ -1806,22 +1893,25 @@ def modulo_cierre_diario(agencia_data):
     try:
         df_v = cargar_datos_agencia_tabla("cda_reportes_diarios", nom, fecha=fecha_sel)
         df_g = cargar_datos_agencia_tabla("cda_gastos_diarios", nom, fecha=fecha_sel)
-        df_pg = cargar_datos_agencia_tabla("cda_pagos_diarios", nom, fecha=fecha_sel)
-        df_pb = cargar_datos_agencia_tabla("cda_pagos_bancarios", nom, fecha=fecha_sel)
         df_t = cargar_datos_agencia_tabla("cda_premios_tickets", nom, fecha=fecha_sel)
 
         df_v_raw = df_v.copy()
         df_g_raw = df_g.copy()
-        df_pg_raw = df_pg.copy()
-        df_pb_raw = df_pb.copy()
         df_t_raw = df_t.copy()
 
         if c_target_id:
             df_v = filtrar_df_por_cajero(df_v, c_target_id)
             df_g = filtrar_df_por_cajero(df_g, c_target_id)
-            df_pg = filtrar_df_por_cajero(df_pg, c_target_id)
-            df_pb = filtrar_df_por_cajero(df_pb, c_target_id)
             df_t = filtrar_df_por_cajero(df_t, c_target_id)
+
+        df_pg, df_pb = obtener_pagos_unificados(
+            nom,
+            fecha=fecha_sel,
+            cajero_id=c_target_id,
+            es_supervisor=(not bool(c_target_id))
+        )
+        df_pg_raw = df_pg.copy()
+        df_pb_raw = df_pb.copy()
     except Exception as e:
         st.error(f"Error: {e}"); return
 
@@ -2320,14 +2410,19 @@ def modulo_reporte_diario(agencia_data):
     try:
         df_v = cargar_datos_agencia_tabla("cda_reportes_diarios", agencia_data['nombre_agencia'], fecha=fecha_sel)
         df_g = cargar_datos_agencia_tabla("cda_gastos_diarios", agencia_data['nombre_agencia'], fecha=fecha_sel)
-        df_p = cargar_datos_agencia_tabla("cda_pagos_diarios", agencia_data['nombre_agencia'], fecha=fecha_sel)
         df_t = cargar_datos_agencia_tabla("cda_premios_tickets", agencia_data['nombre_agencia'], fecha=fecha_sel)
 
         if not es_supervisor and cajero_id:
             df_v = filtrar_df_por_cajero(df_v, cajero_id)
             df_t = filtrar_df_por_cajero(df_t, cajero_id)
             df_g = filtrar_df_por_cajero(df_g, cajero_id)
-            df_p = filtrar_df_por_cajero(df_p, cajero_id)
+
+        df_p, df_pb = obtener_pagos_unificados(
+            agencia_data['nombre_agencia'],
+            fecha=fecha_sel,
+            cajero_id=cajero_id,
+            es_supervisor=es_supervisor
+        )
     except Exception as e:
         st.error(f"Error: {e}"); return
 

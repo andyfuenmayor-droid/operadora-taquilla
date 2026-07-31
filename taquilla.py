@@ -1583,13 +1583,22 @@ def modulo_cierre_diario(agencia_data):
             .select("*").eq("nombre_agency", nom).eq("fecha", str(fecha_sel)).execute().data or [])
         df_pg = pd.DataFrame(supabase.table("cda_pagos_diarios")
             .select("*").eq("nombre_agency", nom).eq("fecha", str(fecha_sel)).execute().data or [])
+        df_pb = pd.DataFrame(supabase.table("cda_pagos_bancarios")
+            .select("*").eq("fecha", str(fecha_sel)).execute().data or [])
         if not df_v.empty: df_v.columns = [c.lower() for c in df_v.columns]
         if not df_g.empty: df_g.columns = [c.lower() for c in df_g.columns]
         if not df_pg.empty: df_pg.columns = [c.lower() for c in df_pg.columns]
+        if not df_pb.empty:
+            df_pb.columns = [c.lower() for c in df_pb.columns]
+            if "agencia" in df_pb.columns:
+                df_pb = df_pb[df_pb["agencia"].astype(str) == str(nom)]
+            elif "nombre_agency" in df_pb.columns:
+                df_pb = df_pb[df_pb["nombre_agency"].astype(str) == str(nom)]
 
         df_v_raw = df_v.copy()
         df_g_raw = df_g.copy()
         df_pg_raw = df_pg.copy()
+        df_pb_raw = df_pb.copy()
 
         if c_target_id:
             if not df_v.empty and "cajero_id" in df_v.columns:
@@ -1683,8 +1692,24 @@ def modulo_cierre_diario(agencia_data):
                     c_item = float(df_v_raw[df_v_raw["cajero_id"].astype(str) == c_id_item]["comision"].sum()) if not df_v_raw.empty and "cajero_id" in df_v_raw.columns else 0.0
                     p_item = float(df_v_raw[df_v_raw["cajero_id"].astype(str) == c_id_item]["monto_premios"].sum()) if not df_v_raw.empty and "cajero_id" in df_v_raw.columns else 0.0
                     g_item = float(df_g_raw[df_g_raw["cajero_id"].astype(str) == c_id_item]["monto"].sum()) if not df_g_raw.empty and "cajero_id" in df_g_raw.columns else 0.0
-                    pg_item = float(df_pg_raw[df_pg_raw["cajero_id"].astype(str) == c_id_item]["monto"].sum()) if not df_pg_raw.empty and "cajero_id" in df_pg_raw.columns else 0.0
-                    s_dia_item = v_item - c_item - p_item - g_item - pg_item
+
+                    if not df_pg_raw.empty and "cajero_id" in df_pg_raw.columns:
+                        df_pg_c = df_pg_raw[df_pg_raw["cajero_id"].astype(str) == c_id_item]
+                        is_efectivo = df_pg_c["tipo_pago"].astype(str).str.lower().str.contains("efectivo") if "tipo_pago" in df_pg_c.columns else pd.Series([True]*len(df_pg_c))
+                        pg_efectivo_item = float(df_pg_c[is_efectivo]["monto"].sum()) if not df_pg_c.empty else 0.0
+                        pg_banco_diarios = float(df_pg_c[~is_efectivo]["monto"].sum()) if not df_pg_c.empty else 0.0
+                    else:
+                        pg_efectivo_item = 0.0
+                        pg_banco_diarios = 0.0
+
+                    col_pb = "cajero_id" if (not df_pb_raw.empty and "cajero_id" in df_pb_raw.columns) else ("user_id" if (not df_pb_raw.empty and "user_id" in df_pb_raw.columns) else None)
+                    if col_pb and not df_pb_raw.empty:
+                        pg_banco_bancarios = float(df_pb_raw[df_pb_raw[col_pb].astype(str) == c_id_item]["monto"].sum())
+                    else:
+                        pg_banco_bancarios = 0.0
+
+                    pg_banco_item = max(pg_banco_diarios, pg_banco_bancarios)
+                    s_dia_item = v_item - c_item - p_item - g_item - pg_efectivo_item - pg_banco_item
 
                     st.markdown(
                         f"""
@@ -1693,7 +1718,8 @@ def modulo_cierre_diario(agencia_data):
                             <div style="display: flex; justify-content: space-between;"><span>Comisión:</span> <b>${c_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between;"><span>Premios:</span> <b>${p_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between;"><span>Gastos:</span> <b>${g_item:,.2f}</b></div>
-                            <div style="display: flex; justify-content: space-between;"><span>Pago Efectivo:</span> <b>${pg_item:,.2f}</b></div>
+                            <div style="display: flex; justify-content: space-between;"><span>Pago Efectivo:</span> <b>${pg_efectivo_item:,.2f}</b></div>
+                            <div style="display: flex; justify-content: space-between;"><span>Pagos Bancos / Puntos:</span> <b>${pg_banco_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 4px; margin-top: 4px;"><span>Resultado Día:</span> <b style="color: {'#34d399' if s_dia_item >= 0 else '#ef4444'};">${s_dia_item:,.2f}</b></div>
                         </div>
                         """,

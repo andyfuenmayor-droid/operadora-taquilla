@@ -287,7 +287,7 @@ def filtrar_df_por_cajero(df, target_cajero_id):
     """
     Filtra un DataFrame para incluir los registros del cajero indicado,
     coincidiendo por cajero_id, user_id, usuario o nombre, o incluyendo registros
-    general de agencia sin cajero específico asignado (cajero_id nulo/vacío).
+    general de agencia sin cajero específico asignado (cajero_id y user_id vacíos).
     """
     if df.empty or target_cajero_id is None:
         return df
@@ -295,7 +295,7 @@ def filtrar_df_por_cajero(df, target_cajero_id):
     if not c_str or c_str.lower() in ["none", "nan"]:
         return df
 
-    # Recopilar identificadores del cajero actual (ID, usuario, nombre)
+    # Recopilar identificadores del cajero objetivo (ID, usuario, nombre)
     targets = {c_str, c_str.lower()}
     cajero_actual = st.session_state.get("cajero_actual", {})
     if str(cajero_actual.get("id")).strip() == c_str:
@@ -305,25 +305,35 @@ def filtrar_df_por_cajero(df, target_cajero_id):
                 targets.add(val)
                 targets.add(val.lower())
 
-    mask = pd.Series(False, index=df.index)
-    found_col = False
+    try:
+        res_u = supabase.table("taquilla_usuarios").select("id, usuario, nombre_cajero").eq("id", c_str).execute()
+        if res_u.data:
+            u_info = res_u.data[0]
+            for k in ["id", "usuario", "nombre_cajero"]:
+                val = str(u_info.get(k, "")).strip()
+                if val and val.lower() not in ["none", "nan", ""]:
+                    targets.add(val)
+                    targets.add(val.lower())
+    except Exception:
+        pass
 
-    if "cajero_id" in df.columns:
-        found_col = True
-        c_col = df["cajero_id"].fillna("").astype(str).str.strip()
-        is_unassigned = c_col.str.lower().isin(["", "none", "nan", "null", "<na>"])
-        is_target_cajero = c_col.isin(targets) | c_col.str.lower().isin(targets)
-        mask = mask | is_target_cajero | is_unassigned
+    has_cajero = "cajero_id" in df.columns
+    has_user = "user_id" in df.columns
 
-    if "user_id" in df.columns:
-        found_col = True
-        u_col = df["user_id"].fillna("").astype(str).str.strip()
-        is_user_matched = u_col.isin(targets) | u_col.str.lower().isin(targets)
-        mask = mask | is_user_matched
+    if not has_cajero and not has_user:
+        return df
 
-    if found_col:
-        return df[mask]
-    return df
+    c_col = df["cajero_id"].fillna("").astype(str).str.strip() if has_cajero else pd.Series("", index=df.index)
+    u_col = df["user_id"].fillna("").astype(str).str.strip() if has_user else pd.Series("", index=df.index)
+
+    c_unassigned = c_col.str.lower().isin(["", "none", "nan", "null", "<na>"])
+    u_unassigned = u_col.str.lower().isin(["", "none", "nan", "null", "<na>"])
+
+    is_matched = (c_col.isin(targets) | c_col.str.lower().isin(targets)) | (u_col.isin(targets) | u_col.str.lower().isin(targets))
+    is_general = c_unassigned & u_unassigned
+
+    mask = is_matched | is_general
+    return df[mask]
 
 def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha_hasta=None, cajero_id=None, es_supervisor=False):
     """
@@ -334,7 +344,7 @@ def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha
     df_p = cargar_datos_agencia_tabla("cda_pagos_diarios", agencia_nombre, fecha=fecha, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta)
     df_pb = cargar_datos_agencia_tabla("cda_pagos_bancarios", agencia_nombre, fecha=fecha, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta)
 
-    if not es_supervisor and cajero_id:
+    if cajero_id:
         df_p = filtrar_df_por_cajero(df_p, cajero_id)
         df_pb = filtrar_df_por_cajero(df_pb, cajero_id)
 
@@ -1013,29 +1023,62 @@ def modulo_gastos(agencia_data):
     cajero_id = cajero_info.get("id")
     es_supervisor = (rol_usuario == 'supervisor')
 
-    ult_fecha = obtener_ultimo_dia_cerrado(ag_nombre, cajero_id=cajero_id if not es_supervisor else None)
-    fecha_defecto = ult_fecha if ult_fecha else datetime.now().date()
+    cajeros_list = []
+    map_cajeros = {}
+    cajero_filtro_target = None
 
-    if "fecha_gasto_filtro" not in st.session_state or st.session_state.get("last_gasto_cajero") != str(cajero_id):
-        st.session_state["fecha_gasto_filtro"] = fecha_defecto
-        st.session_state["last_gasto_cajero"] = str(cajero_id)
+    if es_supervisor:
+        try:
+            res_u = supabase.table("taquilla_usuarios").select("id, usuario, nombre_cajero, rol").execute()
+            cajeros_list = [u for u in (res_u.data or []) if u.get("rol") == "cajero"]
+            map_cajeros = {str(c["id"]): c.get("nombre_cajero") or c.get("usuario") for c in cajeros_list}
+        except Exception:
+            cajeros_list = []
 
-    col_f, _ = st.columns([2, 2])
-    with col_f:
-        fecha_filtro = st.date_input(
-            "📅 Ver gastos del día:",
-            value=st.session_state["fecha_gasto_filtro"],
-            key="fecha_gasto_filtro_input"
-        )
+        col_f1, col_f2 = st.columns([2, 2])
+        with col_f1:
+            ult_fecha = obtener_ultimo_dia_cerrado(ag_nombre, cajero_id=None)
+            fecha_defecto = ult_fecha if ult_fecha else datetime.now().date()
+            if "fecha_gasto_filtro" not in st.session_state or st.session_state.get("last_gasto_cajero") != str(cajero_id):
+                st.session_state["fecha_gasto_filtro"] = fecha_defecto
+                st.session_state["last_gasto_cajero"] = str(cajero_id)
 
-    cerrado = dia_esta_cerrado(ag_nombre, fecha_filtro, cajero_id=cajero_id if not es_supervisor else None)
+            fecha_filtro = st.date_input(
+                "📅 Ver gastos del día:",
+                value=st.session_state["fecha_gasto_filtro"],
+                key="fecha_gasto_filtro_input"
+            )
+        with col_f2:
+            opts_sup = ["👥 TODOS LOS CAJEROS"] + [f"👤 {map_cajeros[str(c['id'])]}" for c in cajeros_list]
+            sel_sup_label = st.selectbox("👤 Filtrar por Cajero:", opts_sup, key="gastos_sel_cajero_sup")
+            if sel_sup_label != "👥 TODOS LOS CAJEROS":
+                cname = sel_sup_label.replace("👤 ", "")
+                cajero_filtro_target = next((str(c["id"]) for c in cajeros_list if (c.get("nombre_cajero") or c.get("usuario")) == cname), None)
+    else:
+        ult_fecha = obtener_ultimo_dia_cerrado(ag_nombre, cajero_id=cajero_id)
+        fecha_defecto = ult_fecha if ult_fecha else datetime.now().date()
+        if "fecha_gasto_filtro" not in st.session_state or st.session_state.get("last_gasto_cajero") != str(cajero_id):
+            st.session_state["fecha_gasto_filtro"] = fecha_defecto
+            st.session_state["last_gasto_cajero"] = str(cajero_id)
+
+        col_f, _ = st.columns([2, 2])
+        with col_f:
+            fecha_filtro = st.date_input(
+                "📅 Ver gastos del día:",
+                value=st.session_state["fecha_gasto_filtro"],
+                key="fecha_gasto_filtro_input"
+            )
+
+    c_target_id = cajero_filtro_target if es_supervisor else cajero_id
+
+    cerrado = dia_esta_cerrado(ag_nombre, fecha_filtro, cajero_id=c_target_id)
     if cerrado:
-        st.info(f"🔒 El día {fecha_filtro} está cerrado para tu usuario. No se pueden registrar nuevos gastos.")
+        st.info(f"🔒 El día {fecha_filtro} está cerrado para este usuario. No se pueden registrar nuevos gastos.")
 
     try:
         df_g = cargar_datos_agencia_tabla("cda_gastos_diarios", ag_nombre, fecha=fecha_filtro)
-        if not es_supervisor and cajero_id:
-            df_g = filtrar_df_por_cajero(df_g, cajero_id)
+        if c_target_id:
+            df_g = filtrar_df_por_cajero(df_g, c_target_id)
     except Exception:
         df_g = pd.DataFrame()
 
@@ -1086,29 +1129,62 @@ def modulo_pagos(agencia_data):
     cajero_id = cajero_info.get("id")
     es_supervisor = (rol_usuario == 'supervisor')
 
-    ult_fecha = obtener_ultimo_dia_cerrado(ag_nombre, cajero_id=cajero_id if not es_supervisor else None)
-    fecha_defecto = ult_fecha if ult_fecha else datetime.now().date()
+    cajeros_list = []
+    map_cajeros = {}
+    cajero_filtro_target = None
 
-    if "fecha_pago_filtro" not in st.session_state or st.session_state.get("last_pago_cajero") != str(cajero_id):
-        st.session_state["fecha_pago_filtro"] = fecha_defecto
-        st.session_state["last_pago_cajero"] = str(cajero_id)
+    if es_supervisor:
+        try:
+            res_u = supabase.table("taquilla_usuarios").select("id, usuario, nombre_cajero, rol").execute()
+            cajeros_list = [u for u in (res_u.data or []) if u.get("rol") == "cajero"]
+            map_cajeros = {str(c["id"]): c.get("nombre_cajero") or c.get("usuario") for c in cajeros_list}
+        except Exception:
+            cajeros_list = []
 
-    col_f, _ = st.columns([2, 2])
-    with col_f:
-        fecha_filtro = st.date_input(
-            "📅 Ver pagos del día:",
-            value=st.session_state["fecha_pago_filtro"],
-            key="fecha_pago_filtro_input"
-        )
+        col_f1, col_f2 = st.columns([2, 2])
+        with col_f1:
+            ult_fecha = obtener_ultimo_dia_cerrado(ag_nombre, cajero_id=None)
+            fecha_defecto = ult_fecha if ult_fecha else datetime.now().date()
+            if "fecha_pago_filtro" not in st.session_state or st.session_state.get("last_pago_cajero") != str(cajero_id):
+                st.session_state["fecha_pago_filtro"] = fecha_defecto
+                st.session_state["last_pago_cajero"] = str(cajero_id)
 
-    cerrado = dia_esta_cerrado(ag_nombre, fecha_filtro, cajero_id=cajero_id if not es_supervisor else None)
+            fecha_filtro = st.date_input(
+                "📅 Ver pagos del día:",
+                value=st.session_state["fecha_pago_filtro"],
+                key="fecha_pago_filtro_input"
+            )
+        with col_f2:
+            opts_sup = ["👥 TODOS LOS CAJEROS"] + [f"👤 {map_cajeros[str(c['id'])]}" for c in cajeros_list]
+            sel_sup_label = st.selectbox("👤 Filtrar por Cajero:", opts_sup, key="pagos_sel_cajero_sup")
+            if sel_sup_label != "👥 TODOS LOS CAJEROS":
+                cname = sel_sup_label.replace("👤 ", "")
+                cajero_filtro_target = next((str(c["id"]) for c in cajeros_list if (c.get("nombre_cajero") or c.get("usuario")) == cname), None)
+    else:
+        ult_fecha = obtener_ultimo_dia_cerrado(ag_nombre, cajero_id=cajero_id)
+        fecha_defecto = ult_fecha if ult_fecha else datetime.now().date()
+        if "fecha_pago_filtro" not in st.session_state or st.session_state.get("last_pago_cajero") != str(cajero_id):
+            st.session_state["fecha_pago_filtro"] = fecha_defecto
+            st.session_state["last_pago_cajero"] = str(cajero_id)
+
+        col_f, _ = st.columns([2, 2])
+        with col_f:
+            fecha_filtro = st.date_input(
+                "📅 Ver pagos del día:",
+                value=st.session_state["fecha_pago_filtro"],
+                key="fecha_pago_filtro_input"
+            )
+
+    c_target_id = cajero_filtro_target if es_supervisor else cajero_id
+
+    cerrado = dia_esta_cerrado(ag_nombre, fecha_filtro, cajero_id=c_target_id)
     if cerrado:
-        st.info(f"🔒 El día {fecha_filtro} está cerrado para tu usuario. No se pueden registrar nuevos pagos.")
+        st.info(f"🔒 El día {fecha_filtro} está cerrado para este usuario. No se pueden registrar nuevos pagos.")
 
     try:
         df_p = cargar_datos_agencia_tabla("cda_pagos_diarios", ag_nombre, fecha=fecha_filtro)
-        if not es_supervisor and cajero_id:
-            df_p = filtrar_df_por_cajero(df_p, cajero_id)
+        if c_target_id:
+            df_p = filtrar_df_por_cajero(df_p, c_target_id)
     except Exception:
         df_p = pd.DataFrame()
 
@@ -1702,22 +1778,46 @@ def modulo_reporte_rango(agencia_data):
     render_encabezado_principal("📊 Reporte por Rango de Fechas")
     render_subtitulo_terminal(agencia_data['nombre_agencia'])
     u_id = agencia_data['user_id']
+    cajero_info = st.session_state.get("cajero_actual", {})
+    rol_usuario = cajero_info.get("rol", "cajero")
+    cajero_id = cajero_info.get("id")
+    es_supervisor = (rol_usuario == 'supervisor')
 
-    hoy = datetime.now().date()
-    c1, c2 = st.columns(2)
-    d = c1.date_input("📅 Desde", value=hoy)
-    h = c2.date_input("📅 Hasta", value=hoy)
+    cajeros_list = []
+    map_cajeros = {}
+    cajero_filtro_target = None
+
+    if es_supervisor:
+        try:
+            res_u = supabase.table("taquilla_usuarios").select("id, usuario, nombre_cajero, rol").execute()
+            cajeros_list = [u for u in (res_u.data or []) if u.get("rol") == "cajero"]
+            map_cajeros = {str(c["id"]): c.get("nombre_cajero") or c.get("usuario") for c in cajeros_list}
+        except Exception:
+            cajeros_list = []
+
+        c1, c2, c3 = st.columns([2, 2, 3])
+        hoy = datetime.now().date()
+        d = c1.date_input("📅 Desde", value=hoy)
+        h = c2.date_input("📅 Hasta", value=hoy)
+
+        opts_sup = ["👥 TODOS LOS CAJEROS"] + [f"👤 {map_cajeros[str(c['id'])]}" for c in cajeros_list]
+        sel_sup_label = c3.selectbox("👤 Filtrar por Cajero:", opts_sup, key="rango_sel_cajero_sup")
+        if sel_sup_label != "👥 TODOS LOS CAJEROS":
+            cname = sel_sup_label.replace("👤 ", "")
+            cajero_filtro_target = next((str(c["id"]) for c in cajeros_list if (c.get("nombre_cajero") or c.get("usuario")) == cname), None)
+    else:
+        hoy = datetime.now().date()
+        c1, c2 = st.columns(2)
+        d = c1.date_input("📅 Desde", value=hoy)
+        h = c2.date_input("📅 Hasta", value=hoy)
 
     if d > h:
         st.error("La fecha 'Desde' no puede ser mayor que 'Hasta'.")
         return
 
-    try:
-        cajero_info = st.session_state.get("cajero_actual", {})
-        rol_usuario = cajero_info.get("rol", "cajero")
-        cajero_id = cajero_info.get("id")
-        es_supervisor = (rol_usuario == 'supervisor')
+    c_target_id = cajero_filtro_target if es_supervisor else cajero_id
 
+    try:
         df_v = cargar_datos_agencia_tabla("cda_reportes_diarios", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
         df_g = cargar_datos_agencia_tabla("cda_gastos_diarios", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
         df_t = cargar_datos_agencia_tabla("cda_premios_tickets", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
@@ -1725,17 +1825,17 @@ def modulo_reporte_rango(agencia_data):
         if not df_g.empty and 'fecha' in df_g.columns: df_g['fecha'] = pd.to_datetime(df_g['fecha']).dt.date
         if not df_t.empty and 'fecha' in df_t.columns: df_t['fecha'] = pd.to_datetime(df_t['fecha']).dt.date
 
-        if not es_supervisor and cajero_id:
-            df_v = filtrar_df_por_cajero(df_v, cajero_id)
-            df_t = filtrar_df_por_cajero(df_t, cajero_id)
-            df_g = filtrar_df_por_cajero(df_g, cajero_id)
+        if c_target_id:
+            df_v = filtrar_df_por_cajero(df_v, c_target_id)
+            df_t = filtrar_df_por_cajero(df_t, c_target_id)
+            df_g = filtrar_df_por_cajero(df_g, c_target_id)
 
         df_p, df_pb = obtener_pagos_unificados(
             agencia_data['nombre_agencia'],
             fecha_desde=d,
             fecha_hasta=h,
-            cajero_id=cajero_id,
-            es_supervisor=es_supervisor
+            cajero_id=c_target_id,
+            es_supervisor=(not bool(c_target_id))
         )
         if not df_p.empty and 'fecha' in df_p.columns: df_p['fecha'] = pd.to_datetime(df_p['fecha']).dt.date
     except Exception as e:
@@ -1751,7 +1851,7 @@ def modulo_reporte_rango(agencia_data):
 
     # Calcular Saldo Anterior y Saldo Final
     nom = agencia_data['nombre_agencia']
-    saldo_ant = obtener_saldo_anterior(nom, d, cajero_id=cajero_id if not es_supervisor else None)
+    saldo_ant = obtener_saldo_anterior(nom, d, cajero_id=c_target_id)
     t_saldo_final = saldo_ant + saldo_calculado
 
     render_tarjetas_metricas(tv, tc, tp, tg, tpg, saldo_calculado)
@@ -2394,34 +2494,67 @@ def modulo_reporte_diario(agencia_data):
     cajero_id = cajero_info.get("id")
     es_supervisor = (rol_actual == "supervisor")
 
-    ult_fecha = obtener_ultimo_dia_cerrado(agencia_data['nombre_agencia'], cajero_id=cajero_id if not es_supervisor else None)
-    fecha_defecto = ult_fecha if ult_fecha else datetime.now().date()
+    cajeros_list = []
+    map_cajeros = {}
+    cajero_filtro_target = None
 
-    if "fecha_reporte_dia" not in st.session_state or st.session_state.get("last_reporte_cajero") != str(cajero_id):
-        st.session_state["fecha_reporte_dia"] = fecha_defecto
-        st.session_state["last_reporte_cajero"] = str(cajero_id)
+    if es_supervisor:
+        try:
+            res_u = supabase.table("taquilla_usuarios").select("id, usuario, nombre_cajero, rol").execute()
+            cajeros_list = [u for u in (res_u.data or []) if u.get("rol") == "cajero"]
+            map_cajeros = {str(c["id"]): c.get("nombre_cajero") or c.get("usuario") for c in cajeros_list}
+        except Exception:
+            cajeros_list = []
 
-    fecha_sel = st.date_input(
-        "📅 Seleccione el día:",
-        value=st.session_state["fecha_reporte_dia"],
-        key="fecha_reporte_dia_input"
-    )
+        col_f1, col_f2 = st.columns([2, 2])
+        with col_f1:
+            ult_fecha = obtener_ultimo_dia_cerrado(agencia_data['nombre_agencia'], cajero_id=None)
+            fecha_defecto = ult_fecha if ult_fecha else datetime.now().date()
+            if "fecha_reporte_dia" not in st.session_state or st.session_state.get("last_reporte_cajero") != str(cajero_id):
+                st.session_state["fecha_reporte_dia"] = fecha_defecto
+                st.session_state["last_reporte_cajero"] = str(cajero_id)
+
+            fecha_sel = st.date_input(
+                "📅 Seleccione el día:",
+                value=st.session_state["fecha_reporte_dia"],
+                key="fecha_reporte_dia_input"
+            )
+        with col_f2:
+            opts_sup = ["👥 TODOS LOS CAJEROS"] + [f"👤 {map_cajeros[str(c['id'])]}" for c in cajeros_list]
+            sel_sup_label = st.selectbox("👤 Filtrar por Cajero:", opts_sup, key="reporte_dia_sel_cajero_sup")
+            if sel_sup_label != "👥 TODOS LOS CAJEROS":
+                cname = sel_sup_label.replace("👤 ", "")
+                cajero_filtro_target = next((str(c["id"]) for c in cajeros_list if (c.get("nombre_cajero") or c.get("usuario")) == cname), None)
+    else:
+        ult_fecha = obtener_ultimo_dia_cerrado(agencia_data['nombre_agencia'], cajero_id=cajero_id)
+        fecha_defecto = ult_fecha if ult_fecha else datetime.now().date()
+        if "fecha_reporte_dia" not in st.session_state or st.session_state.get("last_reporte_cajero") != str(cajero_id):
+            st.session_state["fecha_reporte_dia"] = fecha_defecto
+            st.session_state["last_reporte_cajero"] = str(cajero_id)
+
+        fecha_sel = st.date_input(
+            "📅 Seleccione el día:",
+            value=st.session_state["fecha_reporte_dia"],
+            key="fecha_reporte_dia_input"
+        )
+
+    c_target_id = cajero_filtro_target if es_supervisor else cajero_id
 
     try:
         df_v = cargar_datos_agencia_tabla("cda_reportes_diarios", agencia_data['nombre_agencia'], fecha=fecha_sel)
         df_g = cargar_datos_agencia_tabla("cda_gastos_diarios", agencia_data['nombre_agencia'], fecha=fecha_sel)
         df_t = cargar_datos_agencia_tabla("cda_premios_tickets", agencia_data['nombre_agencia'], fecha=fecha_sel)
 
-        if not es_supervisor and cajero_id:
-            df_v = filtrar_df_por_cajero(df_v, cajero_id)
-            df_t = filtrar_df_por_cajero(df_t, cajero_id)
-            df_g = filtrar_df_por_cajero(df_g, cajero_id)
+        if c_target_id:
+            df_v = filtrar_df_por_cajero(df_v, c_target_id)
+            df_t = filtrar_df_por_cajero(df_t, c_target_id)
+            df_g = filtrar_df_por_cajero(df_g, c_target_id)
 
         df_p, df_pb = obtener_pagos_unificados(
             agencia_data['nombre_agencia'],
             fecha=fecha_sel,
-            cajero_id=cajero_id,
-            es_supervisor=es_supervisor
+            cajero_id=c_target_id,
+            es_supervisor=(not bool(c_target_id))
         )
     except Exception as e:
         st.error(f"Error: {e}"); return
@@ -2435,7 +2568,7 @@ def modulo_reporte_diario(agencia_data):
 
     # Calcular Saldo Anterior y Saldo Final
     nom = agencia_data['nombre_agencia']
-    saldo_ant = obtener_saldo_anterior(nom, fecha_sel, cajero_id=cajero_id if not es_supervisor else None)
+    saldo_ant = obtener_saldo_anterior(nom, fecha_sel, cajero_id=c_target_id)
     t_saldo_final = saldo_ant + t_saldo
 
     render_tarjetas_metricas(t_venta, t_comis, t_premios, t_gastos, t_pagos, t_saldo)
@@ -2502,10 +2635,11 @@ def modulo_reporte_diario(agencia_data):
     line = "=" * 36
     def txt_80mm():
         nom = agencia_data['nombre_agencia']
+        c_label = f" ({map_cajeros.get(str(c_target_id), 'Cajero')})" if (es_supervisor and c_target_id) else ""
         lines = []
         lines.append(line)
         lines.append(f"  Reporte Diario: {fecha_sel}")
-        lines.append(f"  {nom}")
+        lines.append(f"  {nom}{c_label}")
         lines.append(line)
         if not df_v.empty:
             num_cols = [c for c in ["monto_venta", "comision", "monto_premios"] if c in df_v.columns]

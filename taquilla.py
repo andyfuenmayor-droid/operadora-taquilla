@@ -1690,7 +1690,10 @@ def modulo_cierre_diario(agencia_data):
                         f"""
                         <div style="background-color: rgba(255, 255, 255, 0.03); padding: 8px 12px; border-radius: 8px; margin-bottom: 0.8rem; border: 1px solid rgba(255, 255, 255, 0.05); font-size: 0.82rem;">
                             <div style="display: flex; justify-content: space-between;"><span>Ventas:</span> <b>${v_item:,.2f}</b></div>
+                            <div style="display: flex; justify-content: space-between;"><span>Comisión:</span> <b>${c_item:,.2f}</b></div>
+                            <div style="display: flex; justify-content: space-between;"><span>Premios:</span> <b>${p_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between;"><span>Gastos:</span> <b>${g_item:,.2f}</b></div>
+                            <div style="display: flex; justify-content: space-between;"><span>Pagos:</span> <b>${pg_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 4px; margin-top: 4px;"><span>Resultado Día:</span> <b style="color: {'#34d399' if s_dia_item >= 0 else '#ef4444'};">${s_dia_item:,.2f}</b></div>
                         </div>
                         """,

@@ -1587,6 +1587,10 @@ def modulo_cierre_diario(agencia_data):
         if not df_g.empty: df_g.columns = [c.lower() for c in df_g.columns]
         if not df_pg.empty: df_pg.columns = [c.lower() for c in df_pg.columns]
 
+        df_v_raw = df_v.copy()
+        df_g_raw = df_g.copy()
+        df_pg_raw = df_pg.copy()
+
         if c_target_id:
             if not df_v.empty and "cajero_id" in df_v.columns:
                 df_v = df_v[df_v["cajero_id"].astype(str) == str(c_target_id)]
@@ -1594,15 +1598,6 @@ def modulo_cierre_diario(agencia_data):
                 df_g = df_g[df_g["cajero_id"].astype(str) == str(c_target_id)]
             if not df_pg.empty and "cajero_id" in df_pg.columns:
                 df_pg = df_pg[df_pg["cajero_id"].astype(str) == str(c_target_id)]
-        else:
-            # Para TODOS LOS CAJEROS, solo incluir datos de cajeros que tengan la jornada cerrada
-            c_closed_list = [str(c["id"]) for c in cajeros_list if dia_esta_cerrado(nom, fecha_sel, cajero_id=str(c["id"]))]
-            if not df_v.empty and "cajero_id" in df_v.columns:
-                df_v = df_v[df_v["cajero_id"].astype(str).isin(c_closed_list)]
-            if not df_g.empty and "cajero_id" in df_g.columns:
-                df_g = df_g[df_g["cajero_id"].astype(str).isin(c_closed_list)]
-            if not df_pg.empty and "cajero_id" in df_pg.columns:
-                df_pg = df_pg[df_pg["cajero_id"].astype(str).isin(c_closed_list)]
     except Exception as e:
         st.error(f"Error: {e}"); return
 
@@ -1683,6 +1678,25 @@ def modulo_cierre_diario(agencia_data):
                 col_target = cols_c[idx_c % len(cols_c)]
                 with col_target.container(border=True):
                     st.markdown(f"**👤 {c_name_item}**")
+
+                    v_item = float(df_v_raw[df_v_raw["cajero_id"].astype(str) == c_id_item]["monto_venta"].sum()) if not df_v_raw.empty and "cajero_id" in df_v_raw.columns else 0.0
+                    c_item = float(df_v_raw[df_v_raw["cajero_id"].astype(str) == c_id_item]["comision"].sum()) if not df_v_raw.empty and "cajero_id" in df_v_raw.columns else 0.0
+                    p_item = float(df_v_raw[df_v_raw["cajero_id"].astype(str) == c_id_item]["monto_premios"].sum()) if not df_v_raw.empty and "cajero_id" in df_v_raw.columns else 0.0
+                    g_item = float(df_g_raw[df_g_raw["cajero_id"].astype(str) == c_id_item]["monto"].sum()) if not df_g_raw.empty and "cajero_id" in df_g_raw.columns else 0.0
+                    pg_item = float(df_pg_raw[df_pg_raw["cajero_id"].astype(str) == c_id_item]["monto"].sum()) if not df_pg_raw.empty and "cajero_id" in df_pg_raw.columns else 0.0
+                    s_dia_item = v_item - c_item - p_item - g_item - pg_item
+
+                    st.markdown(
+                        f"""
+                        <div style="background-color: rgba(255, 255, 255, 0.03); padding: 8px 12px; border-radius: 8px; margin-bottom: 0.8rem; border: 1px solid rgba(255, 255, 255, 0.05); font-size: 0.82rem;">
+                            <div style="display: flex; justify-content: space-between;"><span>Ventas:</span> <b>${v_item:,.2f}</b></div>
+                            <div style="display: flex; justify-content: space-between;"><span>Gastos:</span> <b>${g_item:,.2f}</b></div>
+                            <div style="display: flex; justify-content: space-between; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 4px; margin-top: 4px;"><span>Resultado Día:</span> <b style="color: {'#34d399' if s_dia_item >= 0 else '#ef4444'};">${s_dia_item:,.2f}</b></div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+
                     if c_closed_item:
                         st.markdown(
                             f"""

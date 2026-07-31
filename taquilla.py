@@ -234,6 +234,27 @@ def _check_cerrado_col():
             )
     return st.session_state["check_ok"]
 
+def filtrar_df_por_cajero(df, target_cajero_id):
+    """Filtra un DataFrame para incluir solo los registros pertenecientes al cajero_id o user_id indicado."""
+    if df.empty or target_cajero_id is None:
+        return df
+    c_str = str(target_cajero_id).strip()
+    if not c_str or c_str.lower() in ["none", "nan"]:
+        return df
+
+    mask = pd.Series(False, index=df.index)
+    found_col = False
+    if "cajero_id" in df.columns:
+        mask = mask | (df["cajero_id"].astype(str) == c_str)
+        found_col = True
+    if "user_id" in df.columns:
+        mask = mask | (df["user_id"].astype(str) == c_str)
+        found_col = True
+    
+    if found_col:
+        return df[mask]
+    return df
+
 def dia_esta_cerrado(agencia_nombre, fecha, cajero_id=None):
     """Retorna True si el día ya fue cerrado para esta agencia (y cajero opcional)."""
     try:
@@ -1441,14 +1462,10 @@ def modulo_reporte_rango(agencia_data):
         es_supervisor = (rol_usuario == 'supervisor')
 
         if not es_supervisor and cajero_id:
-            if not df_v.empty and "cajero_id" in df_v.columns:
-                df_v = df_v[df_v["cajero_id"].astype(str) == str(cajero_id)]
-            if not df_t.empty and "cajero_id" in df_t.columns:
-                df_t = df_t[df_t["cajero_id"].astype(str) == str(cajero_id)]
-            if not df_g.empty and "cajero_id" in df_g.columns:
-                df_g = df_g[df_g["cajero_id"].astype(str) == str(cajero_id)]
-            if not df_p.empty and "cajero_id" in df_p.columns:
-                df_p = df_p[df_p["cajero_id"].astype(str) == str(cajero_id)]
+            df_v = filtrar_df_por_cajero(df_v, cajero_id)
+            df_t = filtrar_df_por_cajero(df_t, cajero_id)
+            df_g = filtrar_df_por_cajero(df_g, cajero_id)
+            df_p = filtrar_df_por_cajero(df_p, cajero_id)
     except Exception as e:
         st.error(f"Error: {e}"); return
 
@@ -1599,9 +1616,13 @@ def modulo_cierre_diario(agencia_data):
             .select("*").eq("nombre_agency", nom).eq("fecha", str(fecha_sel)).execute().data or [])
         df_pb = pd.DataFrame(supabase.table("cda_pagos_bancarios")
             .select("*").eq("fecha", str(fecha_sel)).execute().data or [])
+        df_t = pd.DataFrame(supabase.table("cda_premios_tickets")
+            .select("*").eq("agencia", nom).eq("fecha", str(fecha_sel)).execute().data or [])
+
         if not df_v.empty: df_v.columns = [c.lower() for c in df_v.columns]
         if not df_g.empty: df_g.columns = [c.lower() for c in df_g.columns]
         if not df_pg.empty: df_pg.columns = [c.lower() for c in df_pg.columns]
+        if not df_t.empty: df_t.columns = [c.lower() for c in df_t.columns]
         if not df_pb.empty:
             df_pb.columns = [c.lower() for c in df_pb.columns]
             if "agencia" in df_pb.columns:
@@ -1613,22 +1634,26 @@ def modulo_cierre_diario(agencia_data):
         df_g_raw = df_g.copy()
         df_pg_raw = df_pg.copy()
         df_pb_raw = df_pb.copy()
+        df_t_raw = df_t.copy()
 
         if c_target_id:
-            if not df_v.empty and "cajero_id" in df_v.columns:
-                df_v = df_v[df_v["cajero_id"].astype(str) == str(c_target_id)]
-            if not df_g.empty and "cajero_id" in df_g.columns:
-                df_g = df_g[df_g["cajero_id"].astype(str) == str(c_target_id)]
-            if not df_pg.empty and "cajero_id" in df_pg.columns:
-                df_pg = df_pg[df_pg["cajero_id"].astype(str) == str(c_target_id)]
+            df_v = filtrar_df_por_cajero(df_v, c_target_id)
+            df_g = filtrar_df_por_cajero(df_g, c_target_id)
+            df_pg = filtrar_df_por_cajero(df_pg, c_target_id)
+            df_pb = filtrar_df_por_cajero(df_pb, c_target_id)
+            df_t = filtrar_df_por_cajero(df_t, c_target_id)
     except Exception as e:
         st.error(f"Error: {e}"); return
 
-    t_venta = float(df_v['monto_venta'].sum()) if not df_v.empty else 0
-    t_comis = float(df_v['comision'].sum()) if not df_v.empty else 0
-    t_premios = float(df_v['monto_premios'].sum()) if not df_v.empty else 0
-    t_gastos = float(df_g['monto'].sum()) if not df_g.empty else 0
-    t_pagos = float(df_pg['monto'].sum()) if not df_pg.empty else 0
+    t_venta = float(df_v['monto_venta'].sum()) if not df_v.empty and 'monto_venta' in df_v.columns else 0.0
+    t_comis = float(df_v['comision'].sum()) if not df_v.empty and 'comision' in df_v.columns else 0.0
+    
+    t_p_rep = float(df_v['monto_premios'].sum()) if not df_v.empty and 'monto_premios' in df_v.columns else 0.0
+    t_p_tick = float(df_t['monto'].sum()) if not df_t.empty and 'monto' in df_t.columns else 0.0
+    t_premios = max(t_p_rep, t_p_tick)
+
+    t_gastos = float(df_g['monto'].sum()) if not df_g.empty and 'monto' in df_g.columns else 0.0
+    t_pagos = float(df_pg['monto'].sum()) if not df_pg.empty and 'monto' in df_pg.columns else 0.0
     t_saldo_dia = t_venta - t_comis - t_premios - t_gastos - t_pagos
 
     # Calcular Saldo Anterior y Saldo Final
@@ -1702,13 +1727,22 @@ def modulo_cierre_diario(agencia_data):
                 with col_target.container(border=True):
                     st.markdown(f"**👤 {c_name_item}**")
 
-                    v_item = float(df_v_raw[df_v_raw["cajero_id"].astype(str) == c_id_item]["monto_venta"].sum()) if not df_v_raw.empty and "cajero_id" in df_v_raw.columns else 0.0
-                    c_item = float(df_v_raw[df_v_raw["cajero_id"].astype(str) == c_id_item]["comision"].sum()) if not df_v_raw.empty and "cajero_id" in df_v_raw.columns else 0.0
-                    p_item = float(df_v_raw[df_v_raw["cajero_id"].astype(str) == c_id_item]["monto_premios"].sum()) if not df_v_raw.empty and "cajero_id" in df_v_raw.columns else 0.0
-                    g_item = float(df_g_raw[df_g_raw["cajero_id"].astype(str) == c_id_item]["monto"].sum()) if not df_g_raw.empty and "cajero_id" in df_g_raw.columns else 0.0
+                    df_v_c = filtrar_df_por_cajero(df_v_raw, c_id_item)
+                    df_g_c = filtrar_df_por_cajero(df_g_raw, c_id_item)
+                    df_pg_c = filtrar_df_por_cajero(df_pg_raw, c_id_item)
+                    df_pb_c = filtrar_df_por_cajero(df_pb_raw, c_id_item)
+                    df_t_c = filtrar_df_por_cajero(df_t_raw, c_id_item)
 
-                    if not df_pg_raw.empty and "cajero_id" in df_pg_raw.columns:
-                        df_pg_c = df_pg_raw[df_pg_raw["cajero_id"].astype(str) == c_id_item]
+                    v_item = float(df_v_c["monto_venta"].sum()) if not df_v_c.empty and "monto_venta" in df_v_c.columns else 0.0
+                    c_item = float(df_v_c["comision"].sum()) if not df_v_c.empty and "comision" in df_v_c.columns else 0.0
+                    
+                    p_rep_c = float(df_v_c["monto_premios"].sum()) if not df_v_c.empty and "monto_premios" in df_v_c.columns else 0.0
+                    p_tick_c = float(df_t_c["monto"].sum()) if not df_t_c.empty and "monto" in df_t_c.columns else 0.0
+                    p_item = max(p_rep_c, p_tick_c)
+
+                    g_item = float(df_g_c["monto"].sum()) if not df_g_c.empty and "monto" in df_g_c.columns else 0.0
+
+                    if not df_pg_c.empty:
                         is_efectivo = df_pg_c["tipo_pago"].astype(str).str.lower().str.contains("efectivo") if "tipo_pago" in df_pg_c.columns else pd.Series([True]*len(df_pg_c))
                         pg_efectivo_item = float(df_pg_c[is_efectivo]["monto"].sum()) if not df_pg_c.empty else 0.0
                         pg_banco_diarios = float(df_pg_c[~is_efectivo]["monto"].sum()) if not df_pg_c.empty else 0.0
@@ -1716,13 +1750,9 @@ def modulo_cierre_diario(agencia_data):
                         pg_efectivo_item = 0.0
                         pg_banco_diarios = 0.0
 
-                    col_pb = "cajero_id" if (not df_pb_raw.empty and "cajero_id" in df_pb_raw.columns) else ("user_id" if (not df_pb_raw.empty and "user_id" in df_pb_raw.columns) else None)
-                    if col_pb and not df_pb_raw.empty:
-                        pg_banco_bancarios = float(df_pb_raw[df_pb_raw[col_pb].astype(str) == c_id_item]["monto"].sum())
-                    else:
-                        pg_banco_bancarios = 0.0
-
+                    pg_banco_bancarios = float(df_pb_c["monto"].sum()) if not df_pb_c.empty and "monto" in df_pb_c.columns else 0.0
                     pg_banco_item = max(pg_banco_diarios, pg_banco_bancarios)
+
                     s_dia_item = v_item - c_item - p_item - g_item - pg_efectivo_item - pg_banco_item
 
                     st.markdown(
@@ -1765,33 +1795,11 @@ def modulo_cierre_diario(agencia_data):
                         if st.button(f"🔒 Cerrar Día", key=f"btn_cerrar_{c_id_item}", use_container_width=True):
                             if cerrar_dia(nom, fecha_sel, cajero_id=c_id_item):
                                 try:
-                                    # Cargar datos sin filtrar para el cajero específico directamente de Supabase
-                                    df_v_raw = pd.DataFrame(supabase.table("cda_reportes_diarios")\
-                                        .select("monto_venta", "comision", "monto_premios", "cajero_id")\
-                                        .eq("nombre_agency", nom)\
-                                        .eq("fecha", str(fecha_sel))\
-                                        .execute().data or [])
-                                    df_g_raw = pd.DataFrame(supabase.table("cda_gastos_diarios")\
-                                        .select("monto", "cajero_id")\
-                                        .eq("nombre_agency", nom)\
-                                        .eq("fecha", str(fecha_sel))\
-                                        .execute().data or [])
-                                    df_pg_raw = pd.DataFrame(supabase.table("cda_pagos_diarios")\
-                                        .select("monto", "cajero_id")\
-                                        .eq("nombre_agency", nom)\
-                                        .eq("fecha", str(fecha_sel))\
-                                        .execute().data or [])
-
-                                    if not df_v_raw.empty: df_v_raw.columns = [c.lower() for c in df_v_raw.columns]
-                                    if not df_g_raw.empty: df_g_raw.columns = [c.lower() for c in df_g_raw.columns]
-                                    if not df_pg_raw.empty: df_pg_raw.columns = [c.lower() for c in df_pg_raw.columns]
-
-                                    t_v_c = float(df_v_raw[df_v_raw["cajero_id"].astype(str) == c_id_item]["monto_venta"].sum()) if not df_v_raw.empty and "cajero_id" in df_v_raw.columns else 0
-                                    t_c_c = float(df_v_raw[df_v_raw["cajero_id"].astype(str) == c_id_item]["comision"].sum()) if not df_v_raw.empty and "cajero_id" in df_v_raw.columns else 0
-                                    t_p_c = float(df_v_raw[df_v_raw["cajero_id"].astype(str) == c_id_item]["monto_premios"].sum()) if not df_v_raw.empty and "cajero_id" in df_v_raw.columns else 0
-                                    
-                                    t_g_c = float(df_g_raw[df_g_raw["cajero_id"].astype(str) == c_id_item]["monto"].sum()) if not df_g_raw.empty and "cajero_id" in df_g_raw.columns else 0
-                                    t_pg_c = float(df_pg_raw[df_pg_raw["cajero_id"].astype(str) == c_id_item]["monto"].sum()) if not df_pg_raw.empty and "cajero_id" in df_pg_raw.columns else 0
+                                    t_v_c = v_item
+                                    t_c_c = c_item
+                                    t_p_c = p_item
+                                    t_g_c = g_item
+                                    t_pg_c = pg_efectivo_item + pg_banco_item
                                     
                                     s_ant_c = obtener_saldo_anterior(nom, fecha_sel, cajero_id=c_id_item)
                                     s_final_c = s_ant_c + (t_v_c - t_c_c - t_p_c - t_g_c - t_pg_c)
@@ -2120,14 +2128,10 @@ def modulo_reporte_diario(agencia_data):
         if not df_t.empty: df_t.columns = [c.lower() for c in df_t.columns]
 
         if not es_supervisor and cajero_id:
-            if not df_v.empty and "cajero_id" in df_v.columns:
-                df_v = df_v[df_v["cajero_id"].astype(str) == str(cajero_id)]
-            if not df_t.empty and "cajero_id" in df_t.columns:
-                df_t = df_t[df_t["cajero_id"].astype(str) == str(cajero_id)]
-            if not df_g.empty and "cajero_id" in df_g.columns:
-                df_g = df_g[df_g["cajero_id"].astype(str) == str(cajero_id)]
-            if not df_p.empty and "cajero_id" in df_p.columns:
-                df_p = df_p[df_p["cajero_id"].astype(str) == str(cajero_id)]
+            df_v = filtrar_df_por_cajero(df_v, cajero_id)
+            df_t = filtrar_df_por_cajero(df_t, cajero_id)
+            df_g = filtrar_df_por_cajero(df_g, cajero_id)
+            df_p = filtrar_df_por_cajero(df_p, cajero_id)
     except Exception as e:
         st.error(f"Error: {e}"); return
 

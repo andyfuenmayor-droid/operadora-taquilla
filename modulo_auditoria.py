@@ -322,16 +322,20 @@ def modulo_auditoria_hibrida():
                 else:
                     st.info("No hay ventas registradas en el periodo.")
             with tab2:
-                cols_g = ["id", "agencia", "concepto", "moneda", "monto", "fecha"]
-                cols_g_existentes = [c for c in cols_g if c in df_g_moneda.columns]
                 if not df_g_moneda.empty:
+                    if "confirmado" in df_g_moneda.columns:
+                        df_g_moneda["Conf."] = df_g_moneda["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
+                    cols_g = ["id", "agencia", "concepto", "moneda", "monto", "Conf.", "fecha"]
+                    cols_g_existentes = [c for c in cols_g if c in df_g_moneda.columns]
                     st.dataframe(df_g_moneda[cols_g_existentes], use_container_width=True, hide_index=True)
                 else:
                     st.info("No hay gastos registrados en el periodo.")
             with tab3:
-                cols_p = ["id", "agencia", "tipo_pago", "moneda", "monto", "fecha"]
-                cols_p_existentes = [c for c in cols_p if c in df_p_moneda.columns]
                 if not df_p_moneda.empty:
+                    if "confirmado" in df_p_moneda.columns:
+                        df_p_moneda["Conf."] = df_p_moneda["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
+                    cols_p = ["id", "agencia", "tipo_pago", "moneda", "monto", "Conf.", "fecha"]
+                    cols_p_existentes = [c for c in cols_p if c in df_p_moneda.columns]
                     st.dataframe(df_p_moneda[cols_p_existentes], use_container_width=True, hide_index=True)
                 else:
                     st.info("No hay pagos registrados en el periodo.")

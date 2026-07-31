@@ -953,7 +953,9 @@ def modulo_gastos(agencia_data):
 
     if not df_g.empty:
         render_titulo_seccion("📋 Gastos del Día")
-        cols_orden = ["id", "agencia", "nombre_agency", "moneda", "monto", "concepto", "fecha", "created_at", "user_id"]
+        if "confirmado" in df_g.columns:
+            df_g["Conf."] = df_g["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
+        cols_orden = ["id", "agencia", "nombre_agency", "moneda", "monto", "concepto", "Conf.", "fecha", "created_at", "user_id"]
         cols_existentes = [c for c in cols_orden if c in df_g.columns]
         st.dataframe(df_g[cols_existentes], use_container_width=True, hide_index=True)
     else:
@@ -978,7 +980,8 @@ def modulo_gastos(agencia_data):
                         "concepto": concepto_g.upper().strip(),
                         "monto": round(float(monto_g), 2),
                         "moneda": moneda_g, 
-                        "user_id": u_id
+                        "user_id": u_id,
+                        "confirmado": False
                     }
                     if st.session_state.get("cajero_id_in_gastos", False):
                         gasto_data["cajero_id"] = cajero_id
@@ -1030,7 +1033,9 @@ def modulo_pagos(agencia_data):
 
     if not df_p.empty:
         render_titulo_seccion("📋 Pagos del Día")
-        cols_p = ["id", "agencia", "nombre_agency", "tipo_pago", "moneda", "monto", "fecha", "created_at", "user_id"]
+        if "confirmado" in df_p.columns:
+            df_p["Conf."] = df_p["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
+        cols_p = ["id", "agencia", "nombre_agency", "tipo_pago", "moneda", "monto", "Conf.", "fecha", "created_at", "user_id"]
         cols_p = [c for c in cols_p if c in df_p.columns]
         df_p_disp = df_p[cols_p].copy()
         df_p_disp = df_p_disp.rename(columns={"tipo_pago": "pagos registrados"})
@@ -1064,7 +1069,8 @@ def modulo_pagos(agencia_data):
                         "tipo_pago": tipo_pg, 
                         "monto": round(float(monto_pg), 2),
                         "moneda": moneda_pg, 
-                        "user_id": u_id
+                        "user_id": u_id,
+                        "confirmado": False
                     }
                     if st.session_state.get("cajero_id_in_pagos", False):
                         pago_data["cajero_id"] = cajero_id
@@ -1502,6 +1508,7 @@ def modulo_gestion_bancaria(agencia_data):
                         "datos_pagador": datos_cliente.strip().upper() if datos_cliente else "N/A",
                         "pos_o_cuenta": pos_o_cuenta,
                         "user_id": u_id,
+                        "confirmado": False,
                         "created_at": datetime.now().isoformat()
                     }
                     if st.session_state.get("cajero_id_in_bancarios", False) and cajero_id_b:
@@ -1516,7 +1523,8 @@ def modulo_gestion_bancaria(agencia_data):
                         "tipo_pago": f"{metodo_pago} (Ref: {referencia.strip().upper()})",
                         "monto": round(float(monto_pago), 2),
                         "moneda": moneda_pago,
-                        "user_id": u_id
+                        "user_id": u_id,
+                        "confirmado": False
                     }
                     if st.session_state.get("cajero_id_in_pagos", False):
                         pago_diario_data["cajero_id"] = cajero_id_b
@@ -1601,7 +1609,9 @@ def modulo_gestion_bancaria(agencia_data):
                 cols_m[i].markdown(card_h, unsafe_allow_html=True)
 
             st.markdown("<br>", unsafe_allow_html=True)
-            cols_show_pb = [c for c in ["fecha", "metodo_pago", "monto", "moneda", "referencia", "pos_o_cuenta", "concepto", "datos_pagador", "created_at"] if c in df_pb.columns]
+            if "confirmado" in df_pb.columns:
+                df_pb["Conf."] = df_pb["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
+            cols_show_pb = [c for c in ["fecha", "metodo_pago", "monto", "moneda", "referencia", "pos_o_cuenta", "concepto", "datos_pagador", "Conf.", "created_at"] if c in df_pb.columns]
             st.dataframe(df_pb[cols_show_pb], use_container_width=True, hide_index=True)
         else:
             st.info(f"ℹ️ No hay transacciones bancarias registradas el día {fecha_hist}.")

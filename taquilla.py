@@ -246,23 +246,81 @@ def _check_cerrado_col():
             )
     return st.session_state["check_ok"]
 
+def cargar_datos_agencia_tabla(tabla, agencia_nombre, fecha=None, fecha_desde=None, fecha_hasta=None):
+    """
+    Carga registros de Supabase comprobando tanto 'agencia' como 'nombre_agency'
+    y filtrando por fecha o rango de fechas.
+    """
+    try:
+        q = supabase.table(tabla).select("*")
+        if fecha:
+            q = q.eq("fecha", str(fecha))
+        if fecha_desde:
+            q = q.gte("fecha", str(fecha_desde))
+        if fecha_hasta:
+            q = q.lte("fecha", str(fecha_hasta))
+            
+        res = q.execute()
+        df = pd.DataFrame(res.data or [])
+        if df.empty:
+            return df
+            
+        df.columns = [c.lower() for c in df.columns]
+        ag_str = str(agencia_nombre).strip()
+        
+        mask = pd.Series(False, index=df.index)
+        found_col = False
+        if "agencia" in df.columns:
+            mask = mask | (df["agencia"].astype(str).str.strip() == ag_str)
+            found_col = True
+        if "nombre_agency" in df.columns:
+            mask = mask | (df["nombre_agency"].astype(str).str.strip() == ag_str)
+            found_col = True
+            
+        if found_col:
+            return df[mask]
+        return df
+    except Exception as e:
+        return pd.DataFrame()
+
 def filtrar_df_por_cajero(df, target_cajero_id):
-    """Filtra un DataFrame para incluir solo los registros pertenecientes al cajero_id o user_id indicado."""
+    """
+    Filtra un DataFrame para incluir los registros del cajero indicado,
+    coincidiendo por cajero_id, user_id, usuario o nombre, o incluyendo registros
+    general de agencia sin cajero específico asignado (cajero_id nulo/vacío).
+    """
     if df.empty or target_cajero_id is None:
         return df
     c_str = str(target_cajero_id).strip()
     if not c_str or c_str.lower() in ["none", "nan"]:
         return df
 
+    # Recopilar identificadores del cajero actual (ID, usuario, nombre)
+    targets = {c_str, c_str.lower()}
+    cajero_actual = st.session_state.get("cajero_actual", {})
+    if str(cajero_actual.get("id")).strip() == c_str:
+        for k in ["id", "usuario", "nombre"]:
+            val = str(cajero_actual.get(k, "")).strip()
+            if val and val.lower() not in ["none", "nan", ""]:
+                targets.add(val)
+                targets.add(val.lower())
+
     mask = pd.Series(False, index=df.index)
     found_col = False
+
     if "cajero_id" in df.columns:
-        mask = mask | (df["cajero_id"].astype(str) == c_str)
         found_col = True
+        c_col = df["cajero_id"].fillna("").astype(str).str.strip()
+        is_unassigned = c_col.str.lower().isin(["", "none", "nan", "null", "<na>"])
+        is_target_cajero = c_col.isin(targets) | c_col.str.lower().isin(targets)
+        mask = mask | is_target_cajero | is_unassigned
+
     if "user_id" in df.columns:
-        mask = mask | (df["user_id"].astype(str) == c_str)
         found_col = True
-    
+        u_col = df["user_id"].fillna("").astype(str).str.strip()
+        is_user_matched = u_col.isin(targets) | u_col.str.lower().isin(targets)
+        mask = mask | is_user_matched
+
     if found_col:
         return df[mask]
     return df
@@ -490,55 +548,11 @@ def modulo_home(agencia_data):
     df_v_hoy, df_g_hoy, df_p_hoy, df_pb_hoy, df_t_hoy = pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
     try:
-        res_v = supabase.table("cda_reportes_diarios").select("*").eq("nombre_agency", ag_nombre).gte("fecha", str_operativa).execute()
-        df_v_hoy = pd.DataFrame(res_v.data or [])
-        if not df_v_hoy.empty: df_v_hoy.columns = [c.lower() for c in df_v_hoy.columns]
-    except Exception:
-        pass
-
-    try:
-        res_g = supabase.table("cda_gastos_diarios").select("*").gte("fecha", str_operativa).execute()
-        df_g_hoy = pd.DataFrame(res_g.data or [])
-        if not df_g_hoy.empty:
-            df_g_hoy.columns = [c.lower() for c in df_g_hoy.columns]
-            if "agencia" in df_g_hoy.columns:
-                df_g_hoy = df_g_hoy[df_g_hoy["agencia"].astype(str) == str(ag_nombre)]
-            elif "nombre_agency" in df_g_hoy.columns:
-                df_g_hoy = df_g_hoy[df_g_hoy["nombre_agency"].astype(str) == str(ag_nombre)]
-    except Exception:
-        pass
-
-    try:
-        res_p = supabase.table("cda_pagos_diarios").select("*").gte("fecha", str_operativa).execute()
-        df_p_hoy = pd.DataFrame(res_p.data or [])
-        if not df_p_hoy.empty:
-            df_p_hoy.columns = [c.lower() for c in df_p_hoy.columns]
-            if "agencia" in df_p_hoy.columns:
-                df_p_hoy = df_p_hoy[df_p_hoy["agencia"].astype(str) == str(ag_nombre)]
-            elif "nombre_agency" in df_p_hoy.columns:
-                df_p_hoy = df_p_hoy[df_p_hoy["nombre_agency"].astype(str) == str(ag_nombre)]
-    except Exception:
-        pass
-
-    try:
-        res_pb = supabase.table("cda_pagos_bancarios").select("*").gte("fecha", str_operativa).execute()
-        df_pb_hoy = pd.DataFrame(res_pb.data or [])
-        if not df_pb_hoy.empty:
-            df_pb_hoy.columns = [c.lower() for c in df_pb_hoy.columns]
-            if "agencia" in df_pb_hoy.columns:
-                df_pb_hoy = df_pb_hoy[df_pb_hoy["agencia"].astype(str) == str(ag_nombre)]
-            elif "nombre_agency" in df_pb_hoy.columns:
-                df_pb_hoy = df_pb_hoy[df_pb_hoy["nombre_agency"].astype(str) == str(ag_nombre)]
-    except Exception:
-        pass
-
-    try:
-        res_t = supabase.table("cda_premios_tickets").select("*").gte("fecha", str_operativa).execute()
-        df_t_hoy = pd.DataFrame(res_t.data or [])
-        if not df_t_hoy.empty:
-            df_t_hoy.columns = [c.lower() for c in df_t_hoy.columns]
-            if "agencia" in df_t_hoy.columns:
-                df_t_hoy = df_t_hoy[df_t_hoy["agencia"].astype(str) == str(ag_nombre)]
+        df_v_hoy = cargar_datos_agencia_tabla("cda_reportes_diarios", ag_nombre, fecha_desde=str_operativa)
+        df_g_hoy = cargar_datos_agencia_tabla("cda_gastos_diarios", ag_nombre, fecha_desde=str_operativa)
+        df_p_hoy = cargar_datos_agencia_tabla("cda_pagos_diarios", ag_nombre, fecha_desde=str_operativa)
+        df_pb_hoy = cargar_datos_agencia_tabla("cda_pagos_bancarios", ag_nombre, fecha_desde=str_operativa)
+        df_t_hoy = cargar_datos_agencia_tabla("cda_premios_tickets", ag_nombre, fecha_desde=str_operativa)
     except Exception:
         pass
 
@@ -938,16 +952,9 @@ def modulo_gastos(agencia_data):
         st.info(f"🔒 El día {fecha_filtro} está cerrado para tu usuario. No se pueden registrar nuevos gastos.")
 
     try:
-        res_g = supabase.table("cda_gastos_diarios").select("*").eq("fecha", str(fecha_filtro)).execute()
-        df_g = pd.DataFrame(res_g.data or [])
-        if not df_g.empty:
-            df_g.columns = [c.lower() for c in df_g.columns]
-            if "agencia" in df_g.columns:
-                df_g = df_g[df_g["agencia"].astype(str) == str(ag_nombre)]
-            elif "nombre_agency" in df_g.columns:
-                df_g = df_g[df_g["nombre_agency"].astype(str) == str(ag_nombre)]
-            if not es_supervisor and cajero_id and "cajero_id" in df_g.columns:
-                df_g = df_g[df_g["cajero_id"].astype(str) == str(cajero_id)]
+        df_g = cargar_datos_agencia_tabla("cda_gastos_diarios", ag_nombre, fecha=fecha_filtro)
+        if not es_supervisor and cajero_id:
+            df_g = filtrar_df_por_cajero(df_g, cajero_id)
     except Exception:
         df_g = pd.DataFrame()
 
@@ -1018,16 +1025,9 @@ def modulo_pagos(agencia_data):
         st.info(f"🔒 El día {fecha_filtro} está cerrado para tu usuario. No se pueden registrar nuevos pagos.")
 
     try:
-        res_p = supabase.table("cda_pagos_diarios").select("*").eq("fecha", str(fecha_filtro)).execute()
-        df_p = pd.DataFrame(res_p.data or [])
-        if not df_p.empty:
-            df_p.columns = [c.lower() for c in df_p.columns]
-            if "agencia" in df_p.columns:
-                df_p = df_p[df_p["agencia"].astype(str) == str(ag_nombre)]
-            elif "nombre_agency" in df_p.columns:
-                df_p = df_p[df_p["nombre_agency"].astype(str) == str(ag_nombre)]
-            if not es_supervisor and cajero_id and "cajero_id" in df_p.columns:
-                df_p = df_p[df_p["cajero_id"].astype(str) == str(cajero_id)]
+        df_p = cargar_datos_agencia_tabla("cda_pagos_diarios", ag_nombre, fecha=fecha_filtro)
+        if not es_supervisor and cajero_id:
+            df_p = filtrar_df_por_cajero(df_p, cajero_id)
     except Exception:
         df_p = pd.DataFrame()
 
@@ -1632,22 +1632,10 @@ def modulo_reporte_rango(agencia_data):
         return
 
     try:
-        df_v = pd.DataFrame(supabase.table("cda_reportes_diarios")
-            .select("*").eq("nombre_agency", agencia_data['nombre_agencia'])
-            .gte("fecha", str(d)).lte("fecha", str(h)).execute().data or [])
-        df_g = pd.DataFrame(supabase.table("cda_gastos_diarios")
-            .select("*").eq("nombre_agency", agencia_data['nombre_agencia'])
-            .gte("fecha", str(d)).lte("fecha", str(h)).execute().data or [])
-        df_p = pd.DataFrame(supabase.table("cda_pagos_diarios")
-            .select("*").eq("nombre_agency", agencia_data['nombre_agencia'])
-            .gte("fecha", str(d)).lte("fecha", str(h)).execute().data or [])
-        df_t = pd.DataFrame(supabase.table("cda_premios_tickets")
-            .select("*").eq("agencia", agencia_data['nombre_agencia'])
-            .gte("fecha", str(d)).lte("fecha", str(h)).execute().data or [])
-        if not df_v.empty: df_v.columns = [c.lower() for c in df_v.columns]
-        if not df_g.empty: df_g.columns = [c.lower() for c in df_g.columns]
-        if not df_p.empty: df_p.columns = [c.lower() for c in df_p.columns]
-        if not df_t.empty: df_t.columns = [c.lower() for c in df_t.columns]
+        df_v = cargar_datos_agencia_tabla("cda_reportes_diarios", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
+        df_g = cargar_datos_agencia_tabla("cda_gastos_diarios", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
+        df_p = cargar_datos_agencia_tabla("cda_pagos_diarios", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
+        df_t = cargar_datos_agencia_tabla("cda_premios_tickets", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
         if not df_v.empty and 'fecha' in df_v.columns: df_v['fecha'] = pd.to_datetime(df_v['fecha']).dt.date
         if not df_g.empty and 'fecha' in df_g.columns: df_g['fecha'] = pd.to_datetime(df_g['fecha']).dt.date
         if not df_p.empty and 'fecha' in df_p.columns: df_p['fecha'] = pd.to_datetime(df_p['fecha']).dt.date
@@ -1816,27 +1804,11 @@ def modulo_cierre_diario(agencia_data):
 
     # Cargar datos del día
     try:
-        df_v = pd.DataFrame(supabase.table("cda_reportes_diarios")
-            .select("*").eq("nombre_agency", nom).eq("fecha", str(fecha_sel)).execute().data or [])
-        df_g = pd.DataFrame(supabase.table("cda_gastos_diarios")
-            .select("*").eq("nombre_agency", nom).eq("fecha", str(fecha_sel)).execute().data or [])
-        df_pg = pd.DataFrame(supabase.table("cda_pagos_diarios")
-            .select("*").eq("nombre_agency", nom).eq("fecha", str(fecha_sel)).execute().data or [])
-        df_pb = pd.DataFrame(supabase.table("cda_pagos_bancarios")
-            .select("*").eq("fecha", str(fecha_sel)).execute().data or [])
-        df_t = pd.DataFrame(supabase.table("cda_premios_tickets")
-            .select("*").eq("agencia", nom).eq("fecha", str(fecha_sel)).execute().data or [])
-
-        if not df_v.empty: df_v.columns = [c.lower() for c in df_v.columns]
-        if not df_g.empty: df_g.columns = [c.lower() for c in df_g.columns]
-        if not df_pg.empty: df_pg.columns = [c.lower() for c in df_pg.columns]
-        if not df_t.empty: df_t.columns = [c.lower() for c in df_t.columns]
-        if not df_pb.empty:
-            df_pb.columns = [c.lower() for c in df_pb.columns]
-            if "agencia" in df_pb.columns:
-                df_pb = df_pb[df_pb["agencia"].astype(str) == str(nom)]
-            elif "nombre_agency" in df_pb.columns:
-                df_pb = df_pb[df_pb["nombre_agency"].astype(str) == str(nom)]
+        df_v = cargar_datos_agencia_tabla("cda_reportes_diarios", nom, fecha=fecha_sel)
+        df_g = cargar_datos_agencia_tabla("cda_gastos_diarios", nom, fecha=fecha_sel)
+        df_pg = cargar_datos_agencia_tabla("cda_pagos_diarios", nom, fecha=fecha_sel)
+        df_pb = cargar_datos_agencia_tabla("cda_pagos_bancarios", nom, fecha=fecha_sel)
+        df_t = cargar_datos_agencia_tabla("cda_premios_tickets", nom, fecha=fecha_sel)
 
         df_v_raw = df_v.copy()
         df_g_raw = df_g.copy()
@@ -2346,18 +2318,10 @@ def modulo_reporte_diario(agencia_data):
     )
 
     try:
-        df_v = pd.DataFrame(supabase.table("cda_reportes_diarios")
-            .select("*").eq("nombre_agency", agencia_data['nombre_agencia']).eq("fecha", str(fecha_sel)).execute().data or [])
-        df_g = pd.DataFrame(supabase.table("cda_gastos_diarios")
-            .select("*").eq("nombre_agency", agencia_data['nombre_agencia']).eq("fecha", str(fecha_sel)).execute().data or [])
-        df_p = pd.DataFrame(supabase.table("cda_pagos_diarios")
-            .select("*").eq("nombre_agency", agencia_data['nombre_agencia']).eq("fecha", str(fecha_sel)).execute().data or [])
-        df_t = pd.DataFrame(supabase.table("cda_premios_tickets")
-            .select("*").eq("agencia", agencia_data['nombre_agencia']).eq("fecha", str(fecha_sel)).execute().data or [])
-        if not df_v.empty: df_v.columns = [c.lower() for c in df_v.columns]
-        if not df_g.empty: df_g.columns = [c.lower() for c in df_g.columns]
-        if not df_p.empty: df_p.columns = [c.lower() for c in df_p.columns]
-        if not df_t.empty: df_t.columns = [c.lower() for c in df_t.columns]
+        df_v = cargar_datos_agencia_tabla("cda_reportes_diarios", agencia_data['nombre_agencia'], fecha=fecha_sel)
+        df_g = cargar_datos_agencia_tabla("cda_gastos_diarios", agencia_data['nombre_agencia'], fecha=fecha_sel)
+        df_p = cargar_datos_agencia_tabla("cda_pagos_diarios", agencia_data['nombre_agencia'], fecha=fecha_sel)
+        df_t = cargar_datos_agencia_tabla("cda_premios_tickets", agencia_data['nombre_agencia'], fecha=fecha_sel)
 
         if not es_supervisor and cajero_id:
             df_v = filtrar_df_por_cajero(df_v, cajero_id)

@@ -728,8 +728,7 @@ def modulo_home(agencia_data):
     try:
         df_v_hoy = cargar_datos_agencia_tabla("cda_reportes_diarios", ag_nombre, fecha_desde=str_operativa)
         df_g_hoy = cargar_datos_agencia_tabla("cda_gastos_diarios", ag_nombre, fecha_desde=str_operativa)
-        df_p_hoy = cargar_datos_agencia_tabla("cda_pagos_diarios", ag_nombre, fecha_desde=str_operativa)
-        df_pb_hoy = cargar_datos_agencia_tabla("cda_pagos_bancarios", ag_nombre, fecha_desde=str_operativa)
+        df_p_hoy, df_pb_hoy = obtener_pagos_unificados(ag_nombre, fecha_desde=str_operativa, cajero_id=cajero_id if not es_supervisor else None, es_supervisor=es_supervisor)
         df_t_hoy = cargar_datos_agencia_tabla("cda_premios_tickets", ag_nombre, fecha_desde=str_operativa)
     except Exception:
         pass

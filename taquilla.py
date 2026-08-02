@@ -895,12 +895,24 @@ def modulo_home(agencia_data):
         if not df_g_hoy.empty or not df_p_hoy.empty:
             if not df_g_hoy.empty:
                 st.caption("💸 **Gastos Registrados:**")
-                cols_g_show = [c for c in ["concepto", "monto", "moneda"] if c in df_g_hoy.columns]
-                st.dataframe(df_g_hoy[cols_g_show], use_container_width=True, hide_index=True)
+                df_g_disp = df_g_hoy.copy()
+                if "confirmado" in df_g_disp.columns:
+                    df_g_disp["Conf."] = df_g_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
+                cols_g_show = [c for c in ["concepto", "monto", "moneda", "Conf."] if c in df_g_disp.columns]
+                st.dataframe(
+                    df_g_disp[cols_g_show],
+                    column_config={
+                        "monto": st.column_config.NumberColumn("monto", format="$%,.2f")
+                    },
+                    use_container_width=True,
+                    hide_index=True
+                )
             if not df_p_hoy.empty:
                 st.caption("💰 **Pagos Registrados:**")
-                cols_p_show = [c for c in ["tipo_pago", "monto", "moneda"] if c in df_p_hoy.columns]
-                df_p_disp = df_p_hoy[cols_p_show].copy()
+                df_p_disp = df_p_hoy.copy()
+                if "confirmado" in df_p_disp.columns:
+                    df_p_disp["Conf."] = df_p_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
+                cols_p_show = [c for c in ["tipo_pago", "monto", "moneda", "Conf."] if c in df_p_disp.columns]
                 df_p_disp = df_p_disp.rename(columns={"tipo_pago": "pagos registrados"})
                 st.dataframe(
                     df_p_disp,

@@ -180,14 +180,23 @@ def render_subtitulo_terminal(nombre_agencia):
 def render_titulo_seccion(texto):
     st.markdown(f"<div style='font-size: 14px; font-weight: 700; color: #38bdf8; margin: 12px 0 8px 0;'>{texto}</div>", unsafe_allow_html=True)
 
-def render_tarjetas_metricas(t_venta, t_comis, t_premios, t_gastos, t_pagos, t_saldo, t_pago_banco=None):
+def render_tarjetas_metricas(t_venta, t_comis, t_premios, t_gastos, t_pagos, t_saldo, t_pago_banco=None, solo_operativo=False):
     is_dark = st.session_state.get("tema_oscuro", True)
     bg_color = "rgba(30, 41, 59, 0.6)" if is_dark else "#f8fafc"
     border_color = "rgba(255, 255, 255, 0.08)" if is_dark else "#e2e8f0"
     title_color = "#94a3b8" if is_dark else "#64748b"
     val_color = "#f8fafc" if is_dark else "#0f172a"
 
-    if t_pago_banco is not None:
+    if solo_operativo:
+        saldo_op = t_venta - t_comis - t_premios
+        items = [
+            ("Ventas", f"${t_venta:,.2f}"),
+            ("Comision", f"${t_comis:,.2f}"),
+            ("Premios", f"${t_premios:,.2f}"),
+            ("Saldo", f"${saldo_op:,.2f}"),
+        ]
+        cols = st.columns(4)
+    elif t_pago_banco is not None:
         items = [
             ("Ventas", f"${t_venta:,.2f}"),
             ("Comision", f"${t_comis:,.2f}"),
@@ -211,9 +220,10 @@ def render_tarjetas_metricas(t_venta, t_comis, t_premios, t_gastos, t_pagos, t_s
 
     for idx, (title, val) in enumerate(items):
         if title == "Saldo":
-            if t_saldo > 0:
+            val_num = (t_venta - t_comis - t_premios) if solo_operativo else t_saldo
+            if val_num > 0:
                 cur_val_color = "#34d399" if is_dark else "#16a34a"
-            elif t_saldo < 0:
+            elif val_num < 0:
                 cur_val_color = "#f87171" if is_dark else "#dc2626"
             else:
                 cur_val_color = val_color
@@ -797,18 +807,25 @@ def modulo_home(agencia_data):
     )
 
     # METRICAS PRINCIPALES ACUMULADAS
+    saldo_operativo = t_ventas - t_comis - t_premios
     render_titulo_seccion(f"📊 Resumen Operativo ({fecha_operativa.strftime('%d/%m/%Y')} en adelante)")
-    render_tarjetas_metricas(t_ventas, t_comis, t_premios, t_gastos, t_pago_efectivo, saldo_neto_hoy, t_pago_banco=t_pago_banco)
+    render_tarjetas_metricas(t_ventas, t_comis, t_premios, t_gastos, t_pago_efectivo, saldo_neto_hoy, t_pago_banco=t_pago_banco, solo_operativo=True)
 
     # BALANCE DE SALDO ACUMULADO
     st.markdown(
         f"""
-        <div style="background-color: rgba(13, 27, 34, 0.5); padding: 0.85rem 1.25rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); margin-top: 0.75rem; margin-bottom: 1.25rem; text-align: center;">
-            <span style="font-size: 0.85rem; color: #94a3b8;">Saldo Anterior Acumulado:</span> <b style="font-size: 1.05rem; color: #ffffff;">${saldo_anterior:,.2f}</b>
-            <span style="margin: 0 1.25rem; color: rgba(255,255,255,0.2);">|</span>
-            <span style="font-size: 0.85rem; color: #94a3b8;">Resultado Hoy / Periodo:</span> <b style="font-size: 1.05rem; color: {'#34d399' if saldo_neto_hoy >= 0 else '#fb7185'};">${saldo_neto_hoy:,.2f}</b>
-            <span style="margin: 0 1.25rem; color: rgba(255,255,255,0.2);">|</span>
-            <span style="font-size: 0.85rem; color: #94a3b8;">Saldo Final Estimado:</span> <b style="font-size: 1.15rem; color: #00c853;">${saldo_final_estimado:,.2f}</b>
+        <div style="background-color: rgba(13, 27, 34, 0.5); padding: 0.85rem 1.25rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); margin-top: 0.75rem; margin-bottom: 1.25rem; text-align: center; font-size: 0.85rem;">
+            <span style="color: #94a3b8;">Saldo Anterior Acumulado:</span> <b style="color: #ffffff;">${saldo_anterior:,.2f}</b>
+            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">+</span>
+            <span style="color: #94a3b8;">Resultado Hoy / Periodo:</span> <b style="color: {'#34d399' if saldo_operativo >= 0 else '#fb7185'};">${saldo_operativo:,.2f}</b>
+            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
+            <span style="color: #94a3b8;">Gastos:</span> <b style="color: #ffffff;">${t_gastos:,.2f}</b>
+            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
+            <span style="color: #94a3b8;">Pagos Bancos:</span> <b style="color: #ffffff;">${t_pago_banco:,.2f}</b>
+            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
+            <span style="color: #94a3b8;">Pago Efectivo:</span> <b style="color: #ffffff;">${t_pago_efectivo:,.2f}</b>
+            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">=</span>
+            <span style="color: #94a3b8;">Saldo Final Estimado:</span> <b style="font-size: 1.1rem; color: #00c853;">${saldo_final_estimado:,.2f}</b>
         </div>
         """,
         unsafe_allow_html=True
@@ -1978,16 +1995,21 @@ def modulo_reporte_rango(agencia_data):
     saldo_ant = obtener_saldo_anterior(nom, d, cajero_id=c_target_id)
     t_saldo_final = saldo_ant + saldo_calculado
 
-    render_tarjetas_metricas(tv, tc, tp, tg, tpg, saldo_calculado)
+    saldo_operativo = tv - tc - tp
+    render_tarjetas_metricas(tv, tc, tp, tg, tpg, saldo_calculado, solo_operativo=True)
 
     st.markdown(
         f"""
-        <div style="background-color: rgba(13, 27, 34, 0.4); padding: 1rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); margin-top: 1rem; text-align: center;">
-            <span style="font-size: 0.85rem; color: #94a3b8;">Saldo Anterior al {d}:</span> <b style="font-size: 1rem; color: #ffffff;">${saldo_ant:,.2f}</b>
-            <span style="margin: 0 1rem; color: rgba(255,255,255,0.2);">|</span>
-            <span style="font-size: 0.85rem; color: #94a3b8;">Resultado del Período:</span> <b style="font-size: 1rem; color: #ffffff;">${saldo_calculado:,.2f}</b>
-            <span style="margin: 0 1rem; color: rgba(255,255,255,0.2);">|</span>
-            <span style="font-size: 0.85rem; color: #94a3b8;">Saldo Final:</span> <b style="font-size: 1.1rem; color: #00c853;">${t_saldo_final:,.2f}</b>
+        <div style="background-color: rgba(13, 27, 34, 0.4); padding: 0.85rem 1rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); margin-top: 1rem; text-align: center; font-size: 0.85rem;">
+            <span style="color: #94a3b8;">Saldo Anterior al {d}:</span> <b style="color: #ffffff;">${saldo_ant:,.2f}</b>
+            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">+</span>
+            <span style="color: #94a3b8;">Resultado del Período:</span> <b style="color: {'#34d399' if saldo_operativo >= 0 else '#fb7185'};">${saldo_operativo:,.2f}</b>
+            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
+            <span style="color: #94a3b8;">Gastos:</span> <b style="color: #ffffff;">${tg:,.2f}</b>
+            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
+            <span style="color: #94a3b8;">Pagos:</span> <b style="color: #ffffff;">${tpg:,.2f}</b>
+            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">=</span>
+            <span style="color: #94a3b8;">Saldo Final:</span> <b style="font-size: 1.1rem; color: #00c853;">${t_saldo_final:,.2f}</b>
         </div>
         """,
         unsafe_allow_html=True
@@ -2213,17 +2235,22 @@ def modulo_cierre_diario(agencia_data):
         c_name_title = map_cajeros.get(str(c_target_id), f"ID {c_target_id}")
         titulo_resumen += f" - Cajero: {c_name_title}"
 
+    saldo_operativo_dia = t_venta - t_comis - t_premios
     render_titulo_seccion(titulo_resumen)
-    render_tarjetas_metricas(t_venta, t_comis, t_premios, t_gastos, t_pagos, t_saldo_dia)
+    render_tarjetas_metricas(t_venta, t_comis, t_premios, t_gastos, t_pagos, t_saldo_dia, solo_operativo=True)
 
     st.markdown(
         f"""
-        <div style="background-color: rgba(13, 27, 34, 0.4); padding: 1rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); margin-top: 1rem; text-align: center;">
-            <span style="font-size: 0.85rem; color: #94a3b8;">Saldo Anterior:</span> <b style="font-size: 1rem; color: #ffffff;">${saldo_ant:,.2f}</b>
-            <span style="margin: 0 1rem; color: rgba(255,255,255,0.2);">|</span>
-            <span style="font-size: 0.85rem; color: #94a3b8;">Resultado del Día:</span> <b style="font-size: 1rem; color: #ffffff;">${t_saldo_dia:,.2f}</b> <span style="font-size: 0.85rem; color: #94a3b8;">menos pagos +pago de premios =</span>
-            <span style="margin: 0 1rem; color: rgba(255,255,255,0.2);">|</span>
-            <span style="font-size: 0.85rem; color: #94a3b8;">Saldo Final:</span> <b style="font-size: 1.1rem; color: #00c853;">${t_saldo_final:,.2f}</b>
+        <div style="background-color: rgba(13, 27, 34, 0.4); padding: 0.85rem 1rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); margin-top: 1rem; text-align: center; font-size: 0.85rem;">
+            <span style="color: #94a3b8;">Saldo Anterior:</span> <b style="color: #ffffff;">${saldo_ant:,.2f}</b>
+            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">+</span>
+            <span style="color: #94a3b8;">Resultado del Día:</span> <b style="color: {'#34d399' if saldo_operativo_dia >= 0 else '#fb7185'};">${saldo_operativo_dia:,.2f}</b>
+            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
+            <span style="color: #94a3b8;">Gastos:</span> <b style="color: #ffffff;">${t_gastos:,.2f}</b>
+            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
+            <span style="color: #94a3b8;">Pagos:</span> <b style="color: #ffffff;">${t_pagos:,.2f}</b>
+            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">=</span>
+            <span style="color: #94a3b8;">Saldo Final:</span> <b style="font-size: 1.1rem; color: #00c853;">${t_saldo_final:,.2f}</b>
         </div>
         """,
         unsafe_allow_html=True
@@ -2768,16 +2795,21 @@ def modulo_reporte_diario(agencia_data):
     saldo_ant = obtener_saldo_anterior(nom, fecha_sel, cajero_id=c_target_id)
     t_saldo_final = saldo_ant + t_saldo
 
-    render_tarjetas_metricas(t_venta, t_comis, t_premios, t_gastos, t_pagos, t_saldo)
+    saldo_operativo = t_venta - t_comis - t_premios
+    render_tarjetas_metricas(t_venta, t_comis, t_premios, t_gastos, t_pagos, t_saldo, solo_operativo=True)
 
     st.markdown(
         f"""
-        <div style="background-color: rgba(13, 27, 34, 0.4); padding: 1rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); margin-top: 1rem; text-align: center;">
-            <span style="font-size: 0.85rem; color: #94a3b8;">Saldo Anterior:</span> <b style="font-size: 1rem; color: #ffffff;">${saldo_ant:,.2f}</b>
-            <span style="margin: 0 1rem; color: rgba(255,255,255,0.2);">|</span>
-            <span style="font-size: 0.85rem; color: #94a3b8;">Resultado del Día:</span> <b style="font-size: 1rem; color: #ffffff;">${t_saldo:,.2f}</b> <span style="font-size: 0.85rem; color: #94a3b8;">menos pagos +pago de premios =</span>
-            <span style="margin: 0 1rem; color: rgba(255,255,255,0.2);">|</span>
-            <span style="font-size: 0.85rem; color: #94a3b8;">Saldo Final:</span> <b style="font-size: 1.1rem; color: #00c853;">${t_saldo_final:,.2f}</b>
+        <div style="background-color: rgba(13, 27, 34, 0.4); padding: 0.85rem 1rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); margin-top: 1rem; text-align: center; font-size: 0.85rem;">
+            <span style="color: #94a3b8;">Saldo Anterior:</span> <b style="color: #ffffff;">${saldo_ant:,.2f}</b>
+            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">+</span>
+            <span style="color: #94a3b8;">Resultado del Día:</span> <b style="color: {'#34d399' if saldo_operativo >= 0 else '#fb7185'};">${saldo_operativo:,.2f}</b>
+            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
+            <span style="color: #94a3b8;">Gastos:</span> <b style="color: #ffffff;">${t_gastos:,.2f}</b>
+            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
+            <span style="color: #94a3b8;">Pagos:</span> <b style="color: #ffffff;">${t_pagos:,.2f}</b>
+            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">=</span>
+            <span style="color: #94a3b8;">Saldo Final:</span> <b style="font-size: 1.1rem; color: #00c853;">${t_saldo_final:,.2f}</b>
         </div>
         """,
         unsafe_allow_html=True

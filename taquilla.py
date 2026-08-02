@@ -2055,9 +2055,22 @@ def modulo_reporte_rango(agencia_data):
             )
     if not df_t.empty:
         with st.expander("🎟️ Tickets Premios"):
-            cols_t = ["id", "agencia", "sistema", "numero_ticket", "monto", "estado", "fecha", "created_at", "user_id"]
-            cols_t = [c for c in cols_t if c in df_t.columns]
-            st.dataframe(df_t[cols_t], use_container_width=True, hide_index=True)
+            df_t_disp = enriquecer_columna_cajero(df_t)
+            if "agencia" not in df_t_disp.columns and "nombre_agency" in df_t_disp.columns:
+                df_t_disp["agencia"] = df_t_disp["nombre_agency"]
+            elif "nombre_agency" in df_t_disp.columns:
+                df_t_disp["agencia"] = df_t_disp["agencia"].fillna(df_t_disp["nombre_agency"])
+            df_t_disp = df_t_disp.rename(columns={"numero_ticket": "numero ticket", "numero_tickets": "numero ticket"})
+            cols_t = ["id", "agencia", "cajero", "sistema", "numero ticket", "monto", "estado", "fecha"]
+            cols_t_show = [c for c in cols_t if c in df_t_disp.columns]
+            st.dataframe(
+                df_t_disp[cols_t_show],
+                column_config={
+                    "monto": st.column_config.NumberColumn("monto", format="$%,.2f")
+                },
+                use_container_width=True,
+                hide_index=True
+            )
 
     # WhatsApp
     def txt_rango():
@@ -2423,7 +2436,22 @@ def modulo_premios_tickets(agencia_data):
 
     if not df_t.empty:
         render_titulo_seccion("📋 Tickets Registrados")
-        st.dataframe(df_t, use_container_width=True, hide_index=True)
+        df_t_disp = enriquecer_columna_cajero(df_t)
+        if "agencia" not in df_t_disp.columns and "nombre_agency" in df_t_disp.columns:
+            df_t_disp["agencia"] = df_t_disp["nombre_agency"]
+        elif "nombre_agency" in df_t_disp.columns:
+            df_t_disp["agencia"] = df_t_disp["agencia"].fillna(df_t_disp["nombre_agency"])
+        df_t_disp = df_t_disp.rename(columns={"numero_ticket": "numero ticket", "numero_tickets": "numero ticket"})
+        cols_t = ["id", "agencia", "cajero", "sistema", "numero ticket", "monto", "estado", "fecha"]
+        cols_t_show = [c for c in cols_t if c in df_t_disp.columns]
+        st.dataframe(
+            df_t_disp[cols_t_show],
+            column_config={
+                "monto": st.column_config.NumberColumn("monto", format="$%,.2f")
+            },
+            use_container_width=True,
+            hide_index=True
+        )
     else:
         st.info("ℹ️ No hay tickets registrados por tu usuario para este día.")
 
@@ -2437,7 +2465,22 @@ def modulo_premios_tickets(agencia_data):
                 df_all = pd.DataFrame(res_all.data or [])
                 if not df_all.empty:
                     df_all.columns = [c.lower() for c in df_all.columns]
-                    st.dataframe(df_all, use_container_width=True, hide_index=True)
+                    df_all_disp = enriquecer_columna_cajero(df_all)
+                    if "agencia" not in df_all_disp.columns and "nombre_agency" in df_all_disp.columns:
+                        df_all_disp["agencia"] = df_all_disp["nombre_agency"]
+                    elif "nombre_agency" in df_all_disp.columns:
+                        df_all_disp["agencia"] = df_all_disp["agencia"].fillna(df_all_disp["nombre_agency"])
+                    df_all_disp = df_all_disp.rename(columns={"numero_ticket": "numero ticket", "numero_tickets": "numero ticket"})
+                    cols_t = ["id", "agencia", "cajero", "sistema", "numero ticket", "monto", "estado", "fecha"]
+                    cols_all_show = [c for c in cols_t if c in df_all_disp.columns]
+                    st.dataframe(
+                        df_all_disp[cols_all_show],
+                        column_config={
+                            "monto": st.column_config.NumberColumn("monto", format="$%,.2f")
+                        },
+                        use_container_width=True,
+                        hide_index=True
+                    )
                 else:
                     st.info("ℹ️ No hay tickets para este día.")
             except Exception as e:

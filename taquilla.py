@@ -335,6 +335,48 @@ def filtrar_df_por_cajero(df, target_cajero_id):
     mask = is_matched | is_general
     return df[mask]
 
+def enriquecer_columna_cajero(df):
+    """Añade o formatea la columna `cajero` traduciendo cajero_id/user_id al nombre del cajero."""
+    if df.empty:
+        return df
+    df = df.copy()
+
+    mapa_cajeros = {}
+    try:
+        res_u = supabase.table("taquilla_usuarios").select("id, usuario, nombre_cajero").execute()
+        for u in (res_u.data or []):
+            nom = u.get("nombre_cajero") or u.get("usuario") or ""
+            if u.get("id"):
+                mapa_cajeros[str(u["id"]).strip()] = nom
+            if u.get("usuario"):
+                mapa_cajeros[str(u["usuario"]).strip()] = nom
+    except Exception:
+        pass
+
+    cajero_actual = st.session_state.get("cajero_actual", {})
+    if cajero_actual.get("id"):
+        nom_act = cajero_actual.get("nombre") or cajero_actual.get("usuario")
+        if nom_act:
+            mapa_cajeros[str(cajero_actual["id"]).strip()] = nom_act
+            if cajero_actual.get("usuario"):
+                mapa_cajeros[str(cajero_actual["usuario"]).strip()] = nom_act
+
+    def resolver_cajero(row):
+        for c in ["cajero", "nombre_cajero"]:
+            val = str(row.get(c, "")).strip() if pd.notna(row.get(c)) else ""
+            if val and val.lower() not in ["none", "nan", ""]:
+                return val
+        for c in ["cajero_id", "user_id", "usuario"]:
+            val = str(row.get(c, "")).strip() if pd.notna(row.get(c)) else ""
+            if val in mapa_cajeros:
+                return mapa_cajeros[val]
+            elif val and val.lower() not in ["none", "nan", ""]:
+                return val
+        return "-"
+
+    df["cajero"] = df.apply(resolver_cajero, axis=1)
+    return df
+
 def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha_hasta=None, cajero_id=None, es_supervisor=False):
     """
     Carga y unifica los pagos de cda_pagos_diarios y cda_pagos_bancarios,
@@ -895,14 +937,14 @@ def modulo_home(agencia_data):
         if not df_g_hoy.empty or not df_p_hoy.empty:
             if not df_g_hoy.empty:
                 st.caption("💸 **Gastos Registrados:**")
-                df_g_disp = df_g_hoy.copy()
+                df_g_disp = enriquecer_columna_cajero(df_g_hoy)
                 if "confirmado" in df_g_disp.columns:
                     df_g_disp["Conf."] = df_g_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
                 if "agencia" not in df_g_disp.columns and "nombre_agency" in df_g_disp.columns:
                     df_g_disp["agencia"] = df_g_disp["nombre_agency"]
                 elif "nombre_agency" in df_g_disp.columns:
                     df_g_disp["agencia"] = df_g_disp["agencia"].fillna(df_g_disp["nombre_agency"])
-                cols_g_show = [c for c in ["agencia", "concepto", "moneda", "monto", "Conf."] if c in df_g_disp.columns]
+                cols_g_show = [c for c in ["agencia", "cajero", "concepto", "moneda", "monto", "Conf."] if c in df_g_disp.columns]
                 st.dataframe(
                     df_g_disp[cols_g_show],
                     column_config={
@@ -913,7 +955,7 @@ def modulo_home(agencia_data):
                 )
             if not df_p_hoy.empty:
                 st.caption("💰 **Pagos Registrados:**")
-                df_p_disp = df_p_hoy.copy()
+                df_p_disp = enriquecer_columna_cajero(df_p_hoy)
                 if "confirmado" in df_p_disp.columns:
                     df_p_disp["Conf."] = df_p_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
                 if "agencia" not in df_p_disp.columns and "nombre_agency" in df_p_disp.columns:
@@ -921,7 +963,7 @@ def modulo_home(agencia_data):
                 elif "nombre_agency" in df_p_disp.columns:
                     df_p_disp["agencia"] = df_p_disp["agencia"].fillna(df_p_disp["nombre_agency"])
                 df_p_disp = df_p_disp.rename(columns={"tipo_pago": "pagos registrados"})
-                cols_p_show = [c for c in ["agencia", "pagos registrados", "moneda", "monto", "Conf."] if c in df_p_disp.columns]
+                cols_p_show = [c for c in ["agencia", "cajero", "pagos registrados", "moneda", "monto", "Conf."] if c in df_p_disp.columns]
                 st.dataframe(
                     df_p_disp[cols_p_show],
                     column_config={
@@ -1104,14 +1146,14 @@ def modulo_gastos(agencia_data):
 
     if not df_g.empty:
         render_titulo_seccion("📋 Gastos del Día")
-        df_g_disp = df_g.copy()
+        df_g_disp = enriquecer_columna_cajero(df_g)
         if "confirmado" in df_g_disp.columns:
             df_g_disp["Conf."] = df_g_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
         if "agencia" not in df_g_disp.columns and "nombre_agency" in df_g_disp.columns:
             df_g_disp["agencia"] = df_g_disp["nombre_agency"]
         elif "nombre_agency" in df_g_disp.columns:
             df_g_disp["agencia"] = df_g_disp["agencia"].fillna(df_g_disp["nombre_agency"])
-        cols_g = ["agencia", "concepto", "moneda", "monto", "Conf."]
+        cols_g = ["agencia", "cajero", "concepto", "moneda", "monto", "Conf."]
         cols_existentes = [c for c in cols_g if c in df_g_disp.columns]
         st.dataframe(
             df_g_disp[cols_existentes],
@@ -1222,7 +1264,7 @@ def modulo_pagos(agencia_data):
 
     if not df_p.empty:
         render_titulo_seccion("📋 Pagos del Día")
-        df_p_disp = df_p.copy()
+        df_p_disp = enriquecer_columna_cajero(df_p)
         if "confirmado" in df_p_disp.columns:
             df_p_disp["Conf."] = df_p_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
         if "agencia" not in df_p_disp.columns and "nombre_agency" in df_p_disp.columns:
@@ -1230,7 +1272,7 @@ def modulo_pagos(agencia_data):
         elif "nombre_agency" in df_p_disp.columns:
             df_p_disp["agencia"] = df_p_disp["agencia"].fillna(df_p_disp["nombre_agency"])
         df_p_disp = df_p_disp.rename(columns={"tipo_pago": "pagos registrados"})
-        cols_p = ["agencia", "pagos registrados", "moneda", "monto", "Conf."]
+        cols_p = ["agencia", "cajero", "pagos registrados", "moneda", "monto", "Conf."]
         cols_p = [c for c in cols_p if c in df_p_disp.columns]
         st.dataframe(
             df_p_disp[cols_p],

@@ -2221,7 +2221,7 @@ def modulo_cierre_diario(agencia_data):
         <div style="background-color: rgba(13, 27, 34, 0.4); padding: 1rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); margin-top: 1rem; text-align: center;">
             <span style="font-size: 0.85rem; color: #94a3b8;">Saldo Anterior:</span> <b style="font-size: 1rem; color: #ffffff;">${saldo_ant:,.2f}</b>
             <span style="margin: 0 1rem; color: rgba(255,255,255,0.2);">|</span>
-            <span style="font-size: 0.85rem; color: #94a3b8;">Resultado del Día:</span> <b style="font-size: 1rem; color: #ffffff;">${t_saldo_dia:,.2f}</b>
+            <span style="font-size: 0.85rem; color: #94a3b8;">Resultado del Día:</span> <b style="font-size: 1rem; color: #ffffff;">${t_saldo_dia:,.2f}</b> <span style="font-size: 0.85rem; color: #94a3b8;">menos pagos +pago de premios =</span>
             <span style="margin: 0 1rem; color: rgba(255,255,255,0.2);">|</span>
             <span style="font-size: 0.85rem; color: #94a3b8;">Saldo Final:</span> <b style="font-size: 1.1rem; color: #00c853;">${t_saldo_final:,.2f}</b>
         </div>
@@ -2775,7 +2775,7 @@ def modulo_reporte_diario(agencia_data):
         <div style="background-color: rgba(13, 27, 34, 0.4); padding: 1rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); margin-top: 1rem; text-align: center;">
             <span style="font-size: 0.85rem; color: #94a3b8;">Saldo Anterior:</span> <b style="font-size: 1rem; color: #ffffff;">${saldo_ant:,.2f}</b>
             <span style="margin: 0 1rem; color: rgba(255,255,255,0.2);">|</span>
-            <span style="font-size: 0.85rem; color: #94a3b8;">Resultado del Día:</span> <b style="font-size: 1rem; color: #ffffff;">${t_saldo:,.2f}</b>
+            <span style="font-size: 0.85rem; color: #94a3b8;">Resultado del Día:</span> <b style="font-size: 1rem; color: #ffffff;">${t_saldo:,.2f}</b> <span style="font-size: 0.85rem; color: #94a3b8;">menos pagos +pago de premios =</span>
             <span style="margin: 0 1rem; color: rgba(255,255,255,0.2);">|</span>
             <span style="font-size: 0.85rem; color: #94a3b8;">Saldo Final:</span> <b style="font-size: 1.1rem; color: #00c853;">${t_saldo_final:,.2f}</b>
         </div>

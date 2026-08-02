@@ -898,7 +898,11 @@ def modulo_home(agencia_data):
                 df_g_disp = df_g_hoy.copy()
                 if "confirmado" in df_g_disp.columns:
                     df_g_disp["Conf."] = df_g_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
-                cols_g_show = [c for c in ["concepto", "monto", "moneda", "Conf."] if c in df_g_disp.columns]
+                if "agencia" not in df_g_disp.columns and "nombre_agency" in df_g_disp.columns:
+                    df_g_disp["agencia"] = df_g_disp["nombre_agency"]
+                elif "nombre_agency" in df_g_disp.columns:
+                    df_g_disp["agencia"] = df_g_disp["agencia"].fillna(df_g_disp["nombre_agency"])
+                cols_g_show = [c for c in ["agencia", "concepto", "moneda", "monto", "Conf."] if c in df_g_disp.columns]
                 st.dataframe(
                     df_g_disp[cols_g_show],
                     column_config={
@@ -912,10 +916,14 @@ def modulo_home(agencia_data):
                 df_p_disp = df_p_hoy.copy()
                 if "confirmado" in df_p_disp.columns:
                     df_p_disp["Conf."] = df_p_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
-                cols_p_show = [c for c in ["tipo_pago", "monto", "moneda", "Conf."] if c in df_p_disp.columns]
+                if "agencia" not in df_p_disp.columns and "nombre_agency" in df_p_disp.columns:
+                    df_p_disp["agencia"] = df_p_disp["nombre_agency"]
+                elif "nombre_agency" in df_p_disp.columns:
+                    df_p_disp["agencia"] = df_p_disp["agencia"].fillna(df_p_disp["nombre_agency"])
                 df_p_disp = df_p_disp.rename(columns={"tipo_pago": "pagos registrados"})
+                cols_p_show = [c for c in ["agencia", "pagos registrados", "moneda", "monto", "Conf."] if c in df_p_disp.columns]
                 st.dataframe(
-                    df_p_disp,
+                    df_p_disp[cols_p_show],
                     column_config={
                         "monto": st.column_config.NumberColumn("monto", format="$%,.2f")
                     },
@@ -1096,11 +1104,23 @@ def modulo_gastos(agencia_data):
 
     if not df_g.empty:
         render_titulo_seccion("📋 Gastos del Día")
-        if "confirmado" in df_g.columns:
-            df_g["Conf."] = df_g["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
-        cols_orden = ["id", "agencia", "nombre_agency", "moneda", "monto", "concepto", "Conf.", "fecha", "created_at", "user_id"]
-        cols_existentes = [c for c in cols_orden if c in df_g.columns]
-        st.dataframe(df_g[cols_existentes], use_container_width=True, hide_index=True)
+        df_g_disp = df_g.copy()
+        if "confirmado" in df_g_disp.columns:
+            df_g_disp["Conf."] = df_g_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
+        if "agencia" not in df_g_disp.columns and "nombre_agency" in df_g_disp.columns:
+            df_g_disp["agencia"] = df_g_disp["nombre_agency"]
+        elif "nombre_agency" in df_g_disp.columns:
+            df_g_disp["agencia"] = df_g_disp["agencia"].fillna(df_g_disp["nombre_agency"])
+        cols_g = ["agencia", "concepto", "moneda", "monto", "Conf."]
+        cols_existentes = [c for c in cols_g if c in df_g_disp.columns]
+        st.dataframe(
+            df_g_disp[cols_existentes],
+            column_config={
+                "monto": st.column_config.NumberColumn("monto", format="$%,.2f")
+            },
+            use_container_width=True,
+            hide_index=True
+        )
     else:
         st.info("ℹ️ No hay gastos en este día.")
 
@@ -1202,14 +1222,18 @@ def modulo_pagos(agencia_data):
 
     if not df_p.empty:
         render_titulo_seccion("📋 Pagos del Día")
-        if "confirmado" in df_p.columns:
-            df_p["Conf."] = df_p["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
-        cols_p = ["id", "agencia", "nombre_agency", "tipo_pago", "moneda", "monto", "Conf.", "fecha", "created_at", "user_id"]
-        cols_p = [c for c in cols_p if c in df_p.columns]
-        df_p_disp = df_p[cols_p].copy()
+        df_p_disp = df_p.copy()
+        if "confirmado" in df_p_disp.columns:
+            df_p_disp["Conf."] = df_p_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
+        if "agencia" not in df_p_disp.columns and "nombre_agency" in df_p_disp.columns:
+            df_p_disp["agencia"] = df_p_disp["nombre_agency"]
+        elif "nombre_agency" in df_p_disp.columns:
+            df_p_disp["agencia"] = df_p_disp["agencia"].fillna(df_p_disp["nombre_agency"])
         df_p_disp = df_p_disp.rename(columns={"tipo_pago": "pagos registrados"})
+        cols_p = ["agencia", "pagos registrados", "moneda", "monto", "Conf."]
+        cols_p = [c for c in cols_p if c in df_p_disp.columns]
         st.dataframe(
-            df_p_disp,
+            df_p_disp[cols_p],
             column_config={
                 "monto": st.column_config.NumberColumn("monto", format="$%,.2f")
             },

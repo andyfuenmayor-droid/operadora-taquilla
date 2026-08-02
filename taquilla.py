@@ -2015,14 +2015,44 @@ def modulo_reporte_rango(agencia_data):
 
     if not df_g.empty:
         with st.expander("💸 Gastos"):
-            cols_g = ["id", "agencia", "moneda", "monto", "concepto", "fecha", "created_at", "user_id"]
-            cols_g = [c for c in cols_g if c in df_g.columns]
-            st.dataframe(df_g[cols_g], use_container_width=True, hide_index=True)
+            df_g_disp = enriquecer_columna_cajero(df_g)
+            if "confirmado" in df_g_disp.columns:
+                df_g_disp["Conf."] = df_g_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
+            if "agencia" not in df_g_disp.columns and "nombre_agency" in df_g_disp.columns:
+                df_g_disp["agencia"] = df_g_disp["nombre_agency"]
+            elif "nombre_agency" in df_g_disp.columns:
+                df_g_disp["agencia"] = df_g_disp["agencia"].fillna(df_g_disp["nombre_agency"])
+            cols_g = ["agencia", "cajero", "concepto", "moneda", "monto", "Conf.", "fecha"]
+            cols_existentes = [c for c in cols_g if c in df_g_disp.columns]
+            st.dataframe(
+                df_g_disp[cols_existentes],
+                column_config={
+                    "monto": st.column_config.NumberColumn("monto", format="$%,.2f")
+                },
+                use_container_width=True,
+                hide_index=True
+            )
     if not df_p.empty:
         with st.expander("💰 Pagos"):
-            cols_p = ["id", "agencia", "sistema", "moneda", "monto", "estado", "fecha", "created_at", "user_id"]
-            cols_p = [c for c in cols_p if c in df_p.columns]
-            st.dataframe(df_p[cols_p], use_container_width=True, hide_index=True)
+            df_p_disp = sincronizar_confirmaciones_pagos(df_p, df_pb, agencia_data['nombre_agencia'])
+            df_p_disp = enriquecer_columna_cajero(df_p_disp)
+            if "confirmado" in df_p_disp.columns:
+                df_p_disp["Conf."] = df_p_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
+            if "agencia" not in df_p_disp.columns and "nombre_agency" in df_p_disp.columns:
+                df_p_disp["agencia"] = df_p_disp["nombre_agency"]
+            elif "nombre_agency" in df_p_disp.columns:
+                df_p_disp["agencia"] = df_p_disp["agencia"].fillna(df_p_disp["nombre_agency"])
+            df_p_disp = df_p_disp.rename(columns={"tipo_pago": "pagos registrados"})
+            cols_p = ["agencia", "cajero", "pagos registrados", "moneda", "monto", "Conf.", "fecha"]
+            cols_existentes_p = [c for c in cols_p if c in df_p_disp.columns]
+            st.dataframe(
+                df_p_disp[cols_existentes_p],
+                column_config={
+                    "monto": st.column_config.NumberColumn("monto", format="$%,.2f")
+                },
+                use_container_width=True,
+                hide_index=True
+            )
     if not df_t.empty:
         with st.expander("🎟️ Tickets Premios"):
             cols_t = ["id", "agencia", "sistema", "numero_ticket", "monto", "estado", "fecha", "created_at", "user_id"]

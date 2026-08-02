@@ -323,19 +323,40 @@ def modulo_auditoria_hibrida():
                     st.info("No hay ventas registradas en el periodo.")
             with tab2:
                 if not df_g_moneda.empty:
-                    if "confirmado" in df_g_moneda.columns:
-                        df_g_moneda["Conf."] = df_g_moneda["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
-                    cols_g = ["id", "agencia", "concepto", "moneda", "monto", "Conf.", "fecha"]
-                    cols_g_existentes = [c for c in cols_g if c in df_g_moneda.columns]
-                    st.dataframe(df_g_moneda[cols_g_existentes], use_container_width=True, hide_index=True)
+                    df_g_disp = df_g_moneda.copy()
+                    if "confirmado" in df_g_disp.columns:
+                        df_g_disp["Conf."] = df_g_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
+                    if "agencia" not in df_g_disp.columns and "nombre_agency" in df_g_disp.columns:
+                        df_g_disp["agencia"] = df_g_disp["nombre_agency"]
+                    elif "nombre_agency" in df_g_disp.columns:
+                        df_g_disp["agencia"] = df_g_disp["agencia"].fillna(df_g_disp["nombre_agency"])
+                    cols_g = ["agencia", "concepto", "moneda", "monto", "Conf.", "fecha"]
+                    cols_g_existentes = [c for c in cols_g if c in df_g_disp.columns]
+                    st.dataframe(
+                        df_g_disp[cols_g_existentes],
+                        column_config={"monto": st.column_config.NumberColumn("monto", format="$%,.2f")},
+                        use_container_width=True,
+                        hide_index=True
+                    )
                 else:
                     st.info("No hay gastos registrados en el periodo.")
             with tab3:
                 if not df_p_moneda.empty:
-                    if "confirmado" in df_p_moneda.columns:
-                        df_p_moneda["Conf."] = df_p_moneda["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
-                    cols_p = ["id", "agencia", "tipo_pago", "moneda", "monto", "Conf.", "fecha"]
-                    cols_p_existentes = [c for c in cols_p if c in df_p_moneda.columns]
-                    st.dataframe(df_p_moneda[cols_p_existentes], use_container_width=True, hide_index=True)
+                    df_p_disp = df_p_moneda.copy()
+                    if "confirmado" in df_p_disp.columns:
+                        df_p_disp["Conf."] = df_p_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
+                    if "agencia" not in df_p_disp.columns and "nombre_agency" in df_p_disp.columns:
+                        df_p_disp["agencia"] = df_p_disp["nombre_agency"]
+                    elif "nombre_agency" in df_p_disp.columns:
+                        df_p_disp["agencia"] = df_p_disp["agencia"].fillna(df_p_disp["nombre_agency"])
+                    df_p_disp = df_p_disp.rename(columns={"tipo_pago": "pagos registrados"})
+                    cols_p = ["agencia", "pagos registrados", "moneda", "monto", "Conf.", "fecha"]
+                    cols_p_existentes = [c for c in cols_p if c in df_p_disp.columns]
+                    st.dataframe(
+                        df_p_disp[cols_p_existentes],
+                        column_config={"monto": st.column_config.NumberColumn("monto", format="$%,.2f")},
+                        use_container_width=True,
+                        hide_index=True
+                    )
                 else:
                     st.info("No hay pagos registrados en el periodo.")

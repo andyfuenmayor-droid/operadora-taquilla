@@ -377,6 +377,50 @@ def enriquecer_columna_cajero(df):
     df["cajero"] = df.apply(resolver_cajero, axis=1)
     return df
 
+def sincronizar_confirmaciones_pagos(df_p, df_pb=None, ag_nombre=None):
+    """
+    Sincroniza el estado 'confirmado' de df_p cruzando con df_pb (cda_pagos_bancarios).
+    Cualquier pago en df_p cuya referencia (Ref: XXXX) aparezca confirmada en cda_pagos_bancarios
+    (o presente en la tabla bancaria como confirmada) actualizará su estado a confirmado = True.
+    """
+    if df_p.empty:
+        return df_p
+
+    df_p = df_p.copy()
+    if "confirmado" not in df_p.columns:
+        df_p["confirmado"] = False
+
+    if df_pb is None or (isinstance(df_pb, pd.DataFrame) and df_pb.empty):
+        try:
+            q = supabase.table("cda_pagos_bancarios").select("referencia, confirmado")
+            if ag_nombre:
+                q = q.eq("agencia", ag_nombre)
+            res_pb = q.execute()
+            df_pb = pd.DataFrame(res_pb.data or [])
+        except Exception:
+            df_pb = pd.DataFrame()
+
+    if df_pb is None or df_pb.empty:
+        return df_p
+
+    refs_confirmadas = set()
+    for _, r in df_pb.iterrows():
+        ref_val = str(r.get("referencia", "")).strip().upper()
+        conf_val = bool(r.get("confirmado", True))
+        if ref_val and conf_val:
+            refs_confirmadas.add(ref_val)
+
+    for idx, row in df_p.iterrows():
+        tipo_str = str(row.get("tipo_pago", "")).upper()
+        if "REF:" in tipo_str:
+            partes = tipo_str.split("REF:")
+            if len(partes) > 1:
+                ref_pago = partes[1].replace(")", "").strip()
+                if ref_pago in refs_confirmadas:
+                    df_p.at[idx, "confirmado"] = True
+
+    return df_p
+
 def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha_hasta=None, cajero_id=None, es_supervisor=False):
     """
     Carga y unifica los pagos de cda_pagos_diarios y cda_pagos_bancarios,
@@ -456,6 +500,7 @@ def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha
         df_nuevas = pd.DataFrame(nuevas_filas)
         df_p = pd.concat([df_p, df_nuevas], ignore_index=True)
 
+    df_p = sincronizar_confirmaciones_pagos(df_p, df_pb, agencia_nombre)
     return df_p, df_pb
 
 def dia_esta_cerrado(agencia_nombre, fecha, cajero_id=None):
@@ -955,7 +1000,8 @@ def modulo_home(agencia_data):
                 )
             if not df_p_hoy.empty:
                 st.caption("💰 **Pagos Registrados:**")
-                df_p_disp = enriquecer_columna_cajero(df_p_hoy)
+                df_p_disp = sincronizar_confirmaciones_pagos(df_p_hoy, df_pb_hoy, ag_nombre)
+                df_p_disp = enriquecer_columna_cajero(df_p_disp)
                 if "confirmado" in df_p_disp.columns:
                     df_p_disp["Conf."] = df_p_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
                 if "agencia" not in df_p_disp.columns and "nombre_agency" in df_p_disp.columns:
@@ -1264,7 +1310,8 @@ def modulo_pagos(agencia_data):
 
     if not df_p.empty:
         render_titulo_seccion("📋 Pagos del Día")
-        df_p_disp = enriquecer_columna_cajero(df_p)
+        df_p_disp = sincronizar_confirmaciones_pagos(df_p, ag_nombre=ag_nombre)
+        df_p_disp = enriquecer_columna_cajero(df_p_disp)
         if "confirmado" in df_p_disp.columns:
             df_p_disp["Conf."] = df_p_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
         if "agencia" not in df_p_disp.columns and "nombre_agency" in df_p_disp.columns:

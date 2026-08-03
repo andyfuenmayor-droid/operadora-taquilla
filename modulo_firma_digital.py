@@ -3,29 +3,12 @@ import streamlit.components.v1 as components
 import pandas as pd
 from datetime import datetime
 
-def renderizar_canvas_firma(key="firma_sup", titulo="✍️ Firma Digital de Validación", height=270):
+def renderizar_formulario_pago_cajero_unificado(ag_nombre, u_id, cajero_id, fecha_filtro_str, height=360):
     """
-    Renders an HTML5 Canvas signature pad supporting touch and mouse.
-    Auto-captures signature on finger/mouse release (touchend/mouseup).
-    Returns the base64 PNG string of the captured signature or None.
+    Renders a unified, single-step HTML5 form containing Fecha, Moneda, Monto, 
+    Touch/Mouse Signature Canvas, and 'GUARDAR PAGO Y FIRMAR' button.
+    Submits payment and signature in ONE single click.
     """
-    # 1. Check if signature was submitted via URL params
-    if "firma_captured" in st.query_params:
-        f_key = st.query_params.get("firma_key")
-        if f_key == key or not f_key:
-            captured_b64 = st.query_params["firma_captured"]
-            st.session_state[f"firma_val_{key}"] = captured_b64
-            # Clean query params safely
-            try:
-                del st.query_params["firma_captured"]
-                if "firma_key" in st.query_params:
-                    del st.query_params["firma_key"]
-            except Exception:
-                pass
-            st.rerun()
-
-    current_firma = st.session_state.get(f"firma_val_{key}") or ""
-
     html_template = f"""
     <!DOCTYPE html>
     <html>
@@ -33,66 +16,114 @@ def renderizar_canvas_firma(key="firma_sup", titulo="✍️ Firma Digital de Val
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
     <style>
-      * {{ box-sizing: border-box; }}
+      * {{ box-sizing: border-box; margin: 0; padding: 0; }}
       body {{
-        margin: 0;
-        padding: 0;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         background: transparent;
         color: #f8fafc;
       }}
-      .signature-box {{
-        background: rgba(15, 23, 42, 0.95);
-        border: 1px solid rgba(56, 189, 248, 0.3);
-        border-radius: 12px;
-        padding: 12px;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      .form-card {{
+        background: rgba(13, 27, 34, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        padding: 16px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
       }}
-      .header {{
+      .form-header {{
+        font-size: 14px;
+        font-weight: 800;
+        color: #ffffff;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }}
+      .grid-inputs {{
+        display: grid;
+        grid-template-columns: 2fr 1.5fr 3fr 2fr;
+        gap: 10px;
+        margin-bottom: 12px;
+      }}
+      @media (max-width: 650px) {{
+        .grid-inputs {{
+          grid-template-columns: 1fr 1fr;
+        }}
+      }}
+      .field {{
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }}
+      label {{
+        font-size: 10px;
+        font-weight: 700;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }}
+      input, select {{
+        background: #071217;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 8px;
+        padding: 8px 10px;
+        color: #ffffff;
+        font-size: 13px;
+        font-weight: 600;
+        outline: none;
+        width: 100%;
+      }}
+      input:focus, select:focus {{
+        border-color: #00c853;
+      }}
+      .canvas-header {{
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 8px;
-      }}
-      .title {{
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 700;
         color: #38bdf8;
+        margin: 8px 0 6px 0;
       }}
       .badge {{
-        font-size: 10px;
+        font-size: 9px;
         background: rgba(56, 189, 248, 0.15);
         color: #38bdf8;
         padding: 2px 6px;
         border-radius: 4px;
-        font-weight: 600;
+        font-weight: 700;
       }}
       canvas {{
-        background: #0b1325;
-        border: 1.5px dashed rgba(255, 255, 255, 0.2);
+        background: #071217;
+        border: 1.5px dashed rgba(56, 189, 248, 0.35);
         border-radius: 8px;
         touch-action: none;
         cursor: crosshair;
         width: 100%;
-        height: 140px;
+        height: 120px;
         display: block;
       }}
-      .controls {{
+      .hint {{
+        font-size: 10.5px;
+        color: #94a3b8;
+        margin-top: 4px;
+        text-align: center;
+      }}
+      .actions {{
         display: flex;
-        gap: 8px;
-        margin-top: 10px;
+        gap: 10px;
+        margin-top: 12px;
       }}
       button {{
-        flex: 1;
-        padding: 9px 12px;
-        border-radius: 6px;
+        padding: 11px;
+        border-radius: 8px;
         border: none;
-        font-weight: 700;
-        font-size: 12px;
+        font-weight: 800;
+        font-size: 13px;
         cursor: pointer;
         transition: all 0.2s ease;
       }}
       .btn-clear {{
+        width: 120px;
         background: rgba(244, 63, 94, 0.15);
         color: #f43f5e;
         border: 1px solid rgba(244, 63, 94, 0.3);
@@ -100,32 +131,54 @@ def renderizar_canvas_firma(key="firma_sup", titulo="✍️ Firma Digital de Val
       .btn-clear:hover {{
         background: rgba(244, 63, 94, 0.3);
       }}
-      .btn-save {{
+      .btn-submit {{
+        flex: 1;
         background: #00c853;
         color: #071217;
       }}
-      .btn-save:hover {{
+      .btn-submit:hover {{
         background: #69f0ae;
-      }}
-      .hint {{
-        font-size: 11px;
-        color: #94a3b8;
-        margin-top: 5px;
-        text-align: center;
+        box-shadow: 0 4px 12px rgba(0, 200, 83, 0.3);
       }}
     </style>
     </head>
     <body>
-    <div class="signature-box">
-      <div class="header">
-        <span class="title">{titulo}</span>
+    <div class="form-card">
+      <div class="form-header">📝 Registrar Nuevo Pago (Entrega de Efectivo)</div>
+      
+      <div class="grid-inputs">
+        <div class="field">
+          <label>FECHA</label>
+          <input type="date" id="inputFecha" value="{fecha_filtro_str}"/>
+        </div>
+        <div class="field">
+          <label>MONEDA</label>
+          <select id="selectMoneda">
+            <option value="COP" selected>COP</option>
+            <option value="USD">USD</option>
+            <option value="BS">BS</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>MONTO</label>
+          <input type="number" id="inputMonto" step="0.01" min="0.01" placeholder="0.00"/>
+        </div>
+        <div class="field">
+          <label>TIPO PAGO</label>
+          <input type="text" value="Efectivo" readonly style="opacity: 0.7; cursor: not-allowed;"/>
+        </div>
+      </div>
+
+      <div class="canvas-header">
+        <span>✍️ Firma Digital del Cajero (Entrega de Efectivo)</span>
         <span class="badge">📱 TÁCTIL / MOUSE</span>
       </div>
       <canvas id="sigCanvas"></canvas>
-      <div class="hint">✏️ Dibuje su firma en el recuadro. Se captura automáticamente al soltar el dedo o ratón.</div>
-      <div class="controls">
-        <button type="button" class="btn-clear" id="btnClear">🧹 Limpiar Firma</button>
-        <button type="button" class="btn-save" id="btnSave">✅ Registrar Firma</button>
+      <div class="hint">✏️ Dibuje su firma dentro del recuadro usando su dedo, stylus o ratón</div>
+
+      <div class="actions">
+        <button type="button" class="btn-clear" id="btnClear">🧹 Limpiar</button>
+        <button type="button" class="btn-submit" id="btnSubmit">💾 GUARDAR PAGO Y FIRMAR</button>
       </div>
     </div>
 
@@ -134,25 +187,15 @@ def renderizar_canvas_firma(key="firma_sup", titulo="✍️ Firma Digital de Val
       const ctx = canvas.getContext('2d');
       let drawing = false;
       let hasStrokes = false;
-      const initialImg = "{current_firma}";
 
       function resizeCanvas() {{
         const rect = canvas.getBoundingClientRect();
         canvas.width = rect.width;
-        canvas.height = 140;
+        canvas.height = 120;
         ctx.strokeStyle = '#38bdf8';
         ctx.lineWidth = 2.8;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-
-        if (initialImg && initialImg.startsWith('data:image')) {{
-          const img = new Image();
-          img.onload = function() {{
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            hasStrokes = true;
-          }};
-          img.src = initialImg;
-        }}
       }}
       window.addEventListener('resize', resizeCanvas);
       setTimeout(resizeCanvas, 40);
@@ -188,26 +231,10 @@ def renderizar_canvas_firma(key="firma_sup", titulo="✍️ Firma Digital de Val
         ctx.stroke();
       }}
 
-      function autoSave() {{
-        if (!hasStrokes) return;
-        const dataUrl = canvas.toDataURL('image/png');
-        try {{
-          const urlParams = new URLSearchParams(window.parent.location.search);
-          if (urlParams.get('firma_captured') !== dataUrl) {{
-            urlParams.set('firma_captured', dataUrl);
-            urlParams.set('firma_key', '{key}');
-            window.parent.location.search = urlParams.toString();
-          }}
-        }} catch(err) {{
-          console.error(err);
-        }}
-      }}
-
       function endDraw(e) {{
         if (drawing) {{
           drawing = false;
           ctx.closePath();
-          setTimeout(autoSave, 150);
         }}
       }}
 
@@ -223,20 +250,35 @@ def renderizar_canvas_firma(key="firma_sup", titulo="✍️ Firma Digital de Val
       document.getElementById('btnClear').addEventListener('click', function() {{
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         hasStrokes = false;
-        try {{
-          const urlParams = new URLSearchParams(window.parent.location.search);
-          urlParams.delete('firma_captured');
-          urlParams.delete('firma_key');
-          window.parent.location.search = urlParams.toString();
-        }} catch(err) {{}}
       }});
 
-      document.getElementById('btnSave').addEventListener('click', function() {{
-        if (!hasStrokes) {{
-          alert('⚠️ Por favor realice su firma antes de confirmar.');
+      document.getElementById('btnSubmit').addEventListener('click', function() {{
+        const montoVal = parseFloat(document.getElementById('inputMonto').value) || 0;
+        const monedaVal = document.getElementById('selectMoneda').value;
+        const fechaVal = document.getElementById('inputFecha').value;
+
+        if (montoVal <= 0) {{
+          alert('⚠️ Por favor ingrese un monto válido mayor a cero.');
           return;
         }}
-        autoSave();
+
+        if (!hasStrokes) {{
+          alert('⚠️ Por favor realice su firma digital en el recuadro antes de guardar el pago.');
+          return;
+        }}
+
+        const firmaData = canvas.toDataURL('image/png');
+
+        try {{
+          const urlParams = new URLSearchParams(window.parent.location.search);
+          urlParams.set('pago_submit_monto', montoVal);
+          urlParams.set('pago_submit_moneda', monedaVal);
+          urlParams.set('pago_submit_fecha', fechaVal);
+          urlParams.set('pago_submit_firma', firmaData);
+          window.parent.location.search = urlParams.toString();
+        }} catch(err) {{
+          console.error(err);
+        }}
       }});
     </script>
     </body>
@@ -245,16 +287,215 @@ def renderizar_canvas_firma(key="firma_sup", titulo="✍️ Firma Digital de Val
 
     components.html(html_template, height=height)
 
-    col_s1, col_s2 = st.columns([3, 1])
-    if current_firma:
-        with col_s1:
-            st.success("✅ Firma digital capturada y lista.")
-        with col_s2:
-            if st.button("🔄 Borrar Firma", key=f"btn_reset_sig_{key}", use_container_width=True):
-                st.session_state[f"firma_val_{key}"] = None
-                st.rerun()
 
-    return current_firma if current_firma else None
+def renderizar_popover_supervisor_unificado(pago_id, ag_nombre, cajero_nombre, monto_str, moneda_str, height=270):
+    """
+    Renders a single-step HTML5 confirmation box for Supervisor with signature canvas 
+    and single 'Confirmar y Registrar Recepcion' submit button.
+    """
+    html_template = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+    <style>
+      * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+      body {{
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: transparent;
+        color: #f8fafc;
+      }}
+      .sup-card {{
+        background: #0f172a;
+        border: 1px solid rgba(56, 189, 248, 0.3);
+        border-radius: 12px;
+        padding: 12px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      }}
+      .info-header {{
+        font-size: 13px;
+        font-weight: 800;
+        color: #22c55e;
+        margin-bottom: 2px;
+      }}
+      .subtext {{
+        font-size: 11px;
+        color: #94a3b8;
+        margin-bottom: 8px;
+      }}
+      .field {{
+        margin-bottom: 8px;
+      }}
+      label {{
+        font-size: 10px;
+        font-weight: 700;
+        color: #94a3b8;
+        text-transform: uppercase;
+      }}
+      input {{
+        background: #071217;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 6px;
+        padding: 6px 8px;
+        color: #ffffff;
+        font-size: 12px;
+        width: 100%;
+      }}
+      canvas {{
+        background: #071217;
+        border: 1.5px dashed rgba(34, 197, 94, 0.35);
+        border-radius: 6px;
+        touch-action: none;
+        cursor: crosshair;
+        width: 100%;
+        height: 110px;
+        display: block;
+        margin-top: 4px;
+      }}
+      .actions {{
+        display: flex;
+        gap: 8px;
+        margin-top: 8px;
+      }}
+      button {{
+        padding: 8px 10px;
+        border-radius: 6px;
+        border: none;
+        font-weight: 800;
+        font-size: 12px;
+        cursor: pointer;
+      }}
+      .btn-clear {{
+        background: rgba(244, 63, 94, 0.15);
+        color: #f43f5e;
+        border: 1px solid rgba(244, 63, 94, 0.3);
+      }}
+      .btn-submit {{
+        flex: 1;
+        background: #00c853;
+        color: #071217;
+      }}
+    </style>
+    </head>
+    <body>
+    <div class="sup-card">
+      <div class="info-header">🔏 Recepción de Efectivo: {moneda_str} {monto_str}</div>
+      <div class="subtext">Cajero: <b>{cajero_nombre}</b> | Agencia: <b>{ag_nombre}</b></div>
+      
+      <div class="field">
+        <label>Nota / Comentario del Supervisor:</label>
+        <input type="text" id="supComentario" value="Recibido de cajero {cajero_nombre}"/>
+      </div>
+
+      <div style="font-size: 11px; font-weight: 700; color: #22c55e; margin-top: 4px;">✍️ Firma Digital del Supervisor</div>
+      <canvas id="sigCanvas"></canvas>
+
+      <div class="actions">
+        <button type="button" class="btn-clear" id="btnClear">🧹 Limpiar</button>
+        <button type="button" class="btn-submit" id="btnSubmit">✅ Confirmar y Registrar Recepción</button>
+      </div>
+    </div>
+
+    <script>
+      const canvas = document.getElementById('sigCanvas');
+      const ctx = canvas.getContext('2d');
+      let drawing = false;
+      let hasStrokes = false;
+
+      function resizeCanvas() {{
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = 110;
+        ctx.strokeStyle = '#22c55e';
+        ctx.lineWidth = 2.8;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+      }}
+      window.addEventListener('resize', resizeCanvas);
+      setTimeout(resizeCanvas, 40);
+
+      function getPos(e) {{
+        const rect = canvas.getBoundingClientRect();
+        let clientX = e.clientX;
+        let clientY = e.clientY;
+        if (e.touches && e.touches.length > 0) {{
+          clientX = e.touches[0].clientX;
+          clientY = e.touches[0].clientY;
+        }}
+        return {{
+          x: clientX - rect.left,
+          y: clientY - rect.top
+        }};
+      }}
+
+      function startDraw(e) {{
+        e.preventDefault();
+        drawing = true;
+        hasStrokes = true;
+        const p = getPos(e);
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+      }}
+
+      function draw(e) {{
+        if (!drawing) return;
+        e.preventDefault();
+        const p = getPos(e);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+      }}
+
+      function endDraw(e) {{
+        if (drawing) {{
+          drawing = false;
+          ctx.closePath();
+        }}
+      }}
+
+      canvas.addEventListener('mousedown', startDraw);
+      canvas.addEventListener('mousemove', draw);
+      canvas.addEventListener('mouseup', endDraw);
+      canvas.addEventListener('mouseleave', endDraw);
+
+      canvas.addEventListener('touchstart', startDraw, {{passive: false}});
+      canvas.addEventListener('touchmove', draw, {{passive: false}});
+      canvas.addEventListener('touchend', endDraw, {{passive: false}});
+
+      document.getElementById('btnClear').addEventListener('click', function() {{
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        hasStrokes = false;
+      }});
+
+      document.getElementById('btnSubmit').addEventListener('click', function() {{
+        if (!hasStrokes) {{
+          alert('⚠️ Por favor realice su firma digital antes de confirmar.');
+          return;
+        }}
+        const comVal = document.getElementById('supComentario').value;
+        const firmaData = canvas.toDataURL('image/png');
+
+        try {{
+          const urlParams = new URLSearchParams(window.parent.location.search);
+          urlParams.set('sup_confirm_id', '{pago_id}');
+          urlParams.set('sup_confirm_comentario', comVal);
+          urlParams.set('sup_confirm_firma', firmaData);
+          window.parent.location.search = urlParams.toString();
+        }} catch(err) {{
+          console.error(err);
+        }}
+      }});
+    </script>
+    </body>
+    </html>
+    """
+
+    components.html(html_template, height=height)
+
+
+def renderizar_canvas_firma(key="firma_sup", titulo="✍️ Firma Digital de Validación", height=270):
+    """Fallback canvas renderer"""
+    return None
 
 
 def renderizar_comprobante_firma(firma_b64=None, supervisor_nombre="Supervisor", fecha_str=None, monto_str=None, moneda_str=None, firma_cajero_b64=None, cajero_nombre="Cajero"):

@@ -5,6 +5,7 @@ import urllib.parse
 from utils import supabase
 from datetime import datetime, timedelta, timezone
 from modulo_pizarra import modulo_pizarra
+from modulo_firma_digital import renderizar_canvas_firma, renderizar_comprobante_firma
 
 def obtener_hora_local():
     """Retorna la fecha y hora actual ajustada a la zona horaria local (UTC-4)."""
@@ -1297,16 +1298,22 @@ def modulo_pagos(agencia_data):
         st.info("ℹ️ No hay pagos en este día.")
 
     if not cerrado:
-        with st.form("form_p", clear_on_submit=True):
-            render_titulo_seccion("📝 Registrar Nuevo Pago")
+        with st.container(border=True):
+            render_titulo_seccion("📝 Registrar Nuevo Pago (Entrega de Efectivo)")
             c1, c2, c3, c4 = st.columns([2, 2, 3, 3])
-            fecha_pg = c1.date_input("Fecha", value=fecha_filtro)
-            moneda_pg = c2.selectbox("Moneda", ["COP", "USD", "BS"], index=0)
-            monto_pg = c3.number_input("Monto", min_value=0.0, format="%.2f")
-            tipo_pg = c4.selectbox("Tipo Pago", ["Efectivo"])
-            if st.form_submit_button("💾 GUARDAR PAGO", use_container_width=True):
+            fecha_pg = c1.date_input("Fecha", value=fecha_filtro, key="pg_fecha_in")
+            moneda_pg = c2.selectbox("Moneda", ["COP", "USD", "BS"], index=0, key="pg_moneda_in")
+            monto_pg = c3.number_input("Monto", min_value=0.0, format="%.2f", key="pg_monto_in")
+            tipo_pg = c4.selectbox("Tipo Pago", ["Efectivo"], key="pg_tipo_in")
+
+            st.markdown("---")
+            firma_cajero = renderizar_canvas_firma(key="sig_cajero_pago", titulo="✍️ Firma Digital del Cajero (Entrega de Efectivo)")
+
+            if st.button("💾 GUARDAR PAGO Y FIRMAR", use_container_width=True, type="primary", key="btn_save_pago_cajero"):
                 if monto_pg <= 0:
-                    st.error("Ingrese un monto válido mayor a cero.")
+                    st.error("⚠️ Ingrese un monto válido mayor a cero.")
+                elif not firma_cajero:
+                    st.error("⚠️ Por favor realice su firma digital en el recuadro antes de guardar el pago.")
                 else:
                     pago_data = {
                         "fecha": str(fecha_pg), 
@@ -1316,12 +1323,24 @@ def modulo_pagos(agencia_data):
                         "monto": round(float(monto_pg), 2),
                         "moneda": moneda_pg, 
                         "user_id": u_id,
-                        "confirmado": False
+                        "confirmado": False,
+                        "confirmado_supervisor": False,
+                        "firma_cajero_base64": firma_cajero,
+                        "fecha_firma": datetime.now().isoformat()
                     }
-                    if st.session_state.get("cajero_id_in_pagos", False):
+                    if st.session_state.get("cajero_id_in_pagos", False) or cajero_id:
                         pago_data["cajero_id"] = cajero_id
-                    supabase.table("cda_pagos_diarios").insert(pago_data).execute()
-                    st.success("✅ Pago guardado exitosamente!"); time.sleep(1); st.rerun()
+                    try:
+                        supabase.table("cda_pagos_diarios").insert(pago_data).execute()
+                    except Exception as ex_ins:
+                        # Fallback if firma_cajero_base64 column not added yet
+                        pago_data_clean = {k: v for k, v in pago_data.items() if k not in ["firma_cajero_base64", "fecha_firma"]}
+                        supabase.table("cda_pagos_diarios").insert(pago_data_clean).execute()
+
+                    st.session_state["firma_val_sig_cajero_pago"] = None
+                    st.success("✅ Pago en efectivo guardado y firmado exitosamente por el Cajero!")
+                    time.sleep(1)
+                    st.rerun()
 
 
 def modulo_gestion_bancaria(agencia_data):

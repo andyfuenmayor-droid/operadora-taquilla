@@ -235,6 +235,7 @@ def _renderizar_lista_transacciones(df_list, key_prefix="act", es_pizarra_superv
             sup_info_html = f"<br><small style='color: #38bdf8; font-weight: 700; background: rgba(56, 189, 248, 0.12); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.25); display: inline-block; margin-top: 3px;'>💬 Entregado a Supervisor: <b>{sup_nom or 'Supervisor'}</b>{nota_sup}</small>"
         
         firma_sup_b64 = str(row.get("firma_supervisor_base64") or "").strip()
+        firma_cajero_b64 = str(row.get("firma_cajero_base64") or "").strip()
 
         num_badge = f"<span style='background-color: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 1px 6px; border-radius: 4px; font-size: 12px; font-weight: 800; margin-right: 6px;'>#{idx_pos}</span>"
 
@@ -266,9 +267,17 @@ def _renderizar_lista_transacciones(df_list, key_prefix="act", es_pizarra_superv
                     unsafe_allow_html=True
                 )
 
-            if firma_sup_b64:
-                with st.expander("🔏 Ver Comprobante con Firma Digital"):
-                    renderizar_comprobante_firma(firma_sup_b64, supervisor_nombre=sup_nom or "Supervisor", fecha_str=str(row.get("fecha") or ""), monto_str=f"{row['monto']:,.2f}", moneda_str=row['moneda'])
+            if firma_sup_b64 or firma_cajero_b64:
+                with st.expander("🔏 Ver Comprobantes con Firma Digital"):
+                    renderizar_comprobante_firma(
+                        firma_b64=firma_sup_b64 if firma_sup_b64 else None, 
+                        supervisor_nombre=sup_nom or "Supervisor", 
+                        fecha_str=str(row.get("fecha") or ""), 
+                        monto_str=f"{row['monto']:,.2f}", 
+                        moneda_str=row['moneda'],
+                        firma_cajero_b64=firma_cajero_b64 if firma_cajero_b64 else None,
+                        cajero_nombre=row.get("cajero_nombre", "Cajero")
+                    )
 
             with c_action:
                 btn_key = f"btn_conf_{key_prefix}_{row['tabla']}_{row['id']}"

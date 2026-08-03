@@ -3827,7 +3827,6 @@ else:
     else:
         menu_items = [
             ("🏠 Inicio", "Inicio"),
-            ("📌 Pizarra", "Pizarra"),
             ("🎰 Carga de Ventas", "Carga de Ventas"),
             ("🎟️ Tickets Premiados", "Tickets Premiados"),
             ("💸 Gestión de Gastos", "Gestión de Gastos"),

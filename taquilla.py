@@ -915,60 +915,7 @@ def modulo_home(agencia_data):
                             unsafe_allow_html=True
                         )
 
-    # ACCESOS RAPIDOS A MODULOS
-    render_titulo_seccion("⚡ Accesos Rápidos a Módulos")
-    if es_supervisor:
-        c_act1, c_act2, c_act3 = st.columns(3)
-        with c_act1:
-            if st.button("📆 Reporte Diario", use_container_width=True, key="home_btn_rep_diario"):
-                st.session_state["opcion_actual"] = "Reporte Diario"
-                st.rerun()
-        with c_act2:
-            if st.button("📊 Reporte Rango", use_container_width=True, key="home_btn_rep_rango"):
-                st.session_state["opcion_actual"] = "Reporte por Rango"
-                st.rerun()
-        with c_act3:
-            if st.button("🔒 Cierre Diario", use_container_width=True, key="home_btn_cierre"):
-                st.session_state["opcion_actual"] = "Cierre Diario"
-                st.rerun()
-    else:
-        c_act1, c_act2, c_act3, c_act4 = st.columns(4)
-        with c_act1:
-            if st.button("🎰 Cargar Ventas", use_container_width=True, key="home_btn_ventas"):
-                st.session_state["opcion_actual"] = "Carga de Ventas"
-                st.rerun()
-        with c_act2:
-            if st.button("🎟️ Tickets Premiados", use_container_width=True, key="home_btn_premios"):
-                st.session_state["opcion_actual"] = "Tickets Premiados"
-                st.rerun()
-        with c_act3:
-            if st.button("💸 Registrar Gasto", use_container_width=True, key="home_btn_gastos"):
-                st.session_state["opcion_actual"] = "Gestión de Gastos"
-                st.rerun()
-        with c_act4:
-            if st.button("💵 Pago Efectivo", use_container_width=True, key="home_btn_pagos"):
-                st.session_state["opcion_actual"] = "Gestión de Pagos"
-                st.rerun()
 
-        c_act5, c_act6, c_act7, c_act8 = st.columns(4)
-        with c_act5:
-            if st.button("🏦 Gestión Bancaria", use_container_width=True, key="home_btn_bancaria"):
-                st.session_state["opcion_actual"] = "Gestión Bancaria"
-                st.rerun()
-        with c_act6:
-            if st.button("📆 Reporte Diario", use_container_width=True, key="home_btn_rep_diario"):
-                st.session_state["opcion_actual"] = "Reporte Diario"
-                st.rerun()
-        with c_act7:
-            if st.button("📊 Reporte Rango", use_container_width=True, key="home_btn_rep_rango"):
-                st.session_state["opcion_actual"] = "Reporte por Rango"
-                st.rerun()
-        with c_act8:
-            if st.button("🔒 Cierre Diario", use_container_width=True, key="home_btn_cierre"):
-                st.session_state["opcion_actual"] = "Cierre Diario"
-                st.rerun()
-
-    st.markdown("<br>", unsafe_allow_html=True)
 
     # DETALLE DE ACTIVIDAD
     col_t1, col_t2 = st.columns([1, 1])

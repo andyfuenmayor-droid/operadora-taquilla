@@ -1298,19 +1298,23 @@ def modulo_pagos(agencia_data):
         st.info("ℹ️ No hay pagos en este día.")
 
     if not cerrado:
+        if "pago_form_counter" not in st.session_state:
+            st.session_state["pago_form_counter"] = 0
+        form_cnt = st.session_state["pago_form_counter"]
+
         with st.container(border=True):
             render_titulo_seccion("📝 Registrar Nuevo Pago (Entrega de Efectivo)")
             c1, c2, c3, c4 = st.columns([2, 2, 3, 3])
-            fecha_pg = c1.date_input("Fecha", value=fecha_filtro, key="pg_fecha_in")
-            moneda_pg = c2.selectbox("Moneda", ["COP", "USD", "BS"], index=0, key="pg_moneda_in")
-            monto_pg = c3.number_input("Monto", min_value=0.0, format="%.2f", key="pg_monto_in")
-            tipo_pg = c4.selectbox("Tipo Pago", ["Efectivo"], key="pg_tipo_in")
+            fecha_pg = c1.date_input("Fecha", value=fecha_filtro, key=f"pg_fecha_in_{form_cnt}")
+            moneda_pg = c2.selectbox("Moneda", ["COP", "USD", "BS"], index=0, key=f"pg_moneda_in_{form_cnt}")
+            monto_pg = c3.number_input("Monto", min_value=0.0, format="%.2f", key=f"pg_monto_in_{form_cnt}")
+            tipo_pg = c4.selectbox("Tipo Pago", ["Efectivo"], key=f"pg_tipo_in_{form_cnt}")
 
             st.markdown("---")
             st.caption("✍️ Firma Digital del Cajero (Entrega de Efectivo)")
-            firma_cajero = renderizar_canvas_firma(key="sig_cajero_pago")
+            firma_cajero = renderizar_canvas_firma(key=f"sig_cajero_pago_{form_cnt}")
 
-            if st.button("💾 GUARDAR PAGO Y FIRMAR", use_container_width=True, type="primary", key="btn_save_pago_cajero"):
+            if st.button("💾 GUARDAR PAGO Y FIRMAR", use_container_width=True, type="primary", key=f"btn_save_pago_cajero_{form_cnt}"):
                 if monto_pg <= 0:
                     st.error("⚠️ Ingrese un monto válido mayor a cero.")
                 elif not firma_cajero:
@@ -1337,6 +1341,8 @@ def modulo_pagos(agencia_data):
                         pago_data_clean = {k: v for k, v in pago_data.items() if k not in ["firma_cajero_base64", "fecha_firma"]}
                         supabase.table("cda_pagos_diarios").insert(pago_data_clean).execute()
 
+                    # Reset form inputs and canvas to fresh blank state
+                    st.session_state["pago_form_counter"] += 1
                     st.success("✅ Pago en efectivo guardado y firmado exitosamente por el Cajero!")
                     time.sleep(1)
                     st.rerun()

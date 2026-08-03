@@ -331,36 +331,44 @@ def _renderizar_lista_transacciones(df_list, key_prefix="act", es_pizarra_superv
                     else:
                         st.info(f"🤝 Recibido por: {sup_nom or 'Supervisor'}")
 
-                # Flujo Administrador / General
+                # Flujo Administrador / Supervisor General
                 else:
                     if not is_c:
-                        if st.button("✅ Confirmar", key=btn_key, use_container_width=True):
+                        with st.popover("✅ Confirmar con Firma", use_container_width=True):
+                            st.markdown(f"##### 🔏 Confirmación y Firma Digital del Supervisor")
+                            st.caption(f"Agencia: **{row['agencia']}** | Cajero: **{row['cajero_nombre']}** | Monto: **{row['moneda']} {row['monto']:,.2f}**")
+                            
                             current_usr = obtener_nombre_usuario_actual()
-                            data_conf = {"confirmado": True, "confirmado_por": current_usr}
-                            try:
-                                try:
-                                    supabase.table(row["tabla"]).update(data_conf).eq("id", row["id"]).execute()
-                                except Exception as ex1:
-                                    err_str1 = str(ex1).lower()
-                                    if "confirmado_por" in err_str1:
-                                        supabase.table(row["tabla"]).update({"confirmado": True}).eq("id", row["id"]).execute()
-                                    else:
-                                        raise ex1
+                            st.markdown("---")
+                            firma_captured_general = renderizar_canvas_firma(key=f"sig_gen_{key_prefix}_{row['tabla']}_{row['id']}", titulo="✍️ Firma Digital del Supervisor")
 
-                                if row["tabla"] == "cda_pagos_bancarios":
+                            if st.button("✍️ Confirmar y Validar Transacción", key=f"btn_save_gen_{key_prefix}_{row['tabla']}_{row['id']}", use_container_width=True, type="primary"):
+                                try:
+                                    f_time = datetime.now().isoformat()
+                                    data_conf = {
+                                        "confirmado": True, 
+                                        "confirmado_por": current_usr,
+                                        "confirmado_supervisor": True,
+                                        "supervisor_nombre": current_usr,
+                                        "fecha_confirmacion_supervisor": f_time,
+                                        "firma_supervisor_base64": firma_captured_general or None
+                                    }
                                     try:
-                                        supabase.table("cda_pagos_diarios").update(data_conf).eq("agencia", row["agencia"]).eq("fecha", row["fecha"]).eq("monto", row["monto"]).execute()
+                                        supabase.table(row["tabla"]).update(data_conf).eq("id", row["id"]).execute()
                                     except Exception:
+                                        supabase.table(row["tabla"]).update({"confirmado": True, "confirmado_por": current_usr}).eq("id", row["id"]).execute()
+
+                                    if row["tabla"] == "cda_pagos_bancarios":
                                         try:
-                                            supabase.table("cda_pagos_diarios").update({"confirmado": True}).eq("agencia", row["agencia"]).eq("fecha", row["fecha"]).eq("monto", row["monto"]).execute()
+                                            supabase.table("cda_pagos_diarios").update(data_conf).eq("agencia", row["agencia"]).eq("fecha", row["fecha"]).eq("monto", row["monto"]).execute()
                                         except Exception:
                                             pass
 
-                                st.success(f"✅ Confirmado por {current_usr}")
-                                time.sleep(0.5)
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"❌ Error al confirmar: {e}")
+                                    st.success(f"✅ Transacción confirmada y firmada por {current_usr}")
+                                    time.sleep(0.5)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"❌ Error al confirmar: {e}")
                     else:
                         if st.button("↩️ Revertir", key=btn_key, use_container_width=True):
                             data_rev = {"confirmado": False, "confirmado_por": None}

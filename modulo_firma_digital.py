@@ -6,6 +6,7 @@ from datetime import datetime
 def renderizar_canvas_firma(key="firma_sup", titulo="✍️ Firma Digital de Validación", height=270):
     """
     Renders an HTML5 Canvas signature pad supporting touch and mouse.
+    Auto-captures signature on finger/mouse release (touchend/mouseup).
     Returns the base64 PNG string of the captured signature or None.
     """
     # 1. Check if signature was submitted via URL params
@@ -23,7 +24,7 @@ def renderizar_canvas_firma(key="firma_sup", titulo="✍️ Firma Digital de Val
                 pass
             st.rerun()
 
-    current_firma = st.session_state.get(f"firma_val_{key}")
+    current_firma = st.session_state.get(f"firma_val_{key}") or ""
 
     html_template = f"""
     <!DOCTYPE html>
@@ -108,7 +109,7 @@ def renderizar_canvas_firma(key="firma_sup", titulo="✍️ Firma Digital de Val
       }}
       .hint {{
         font-size: 11px;
-        color: #64748b;
+        color: #94a3b8;
         margin-top: 5px;
         text-align: center;
       }}
@@ -121,9 +122,9 @@ def renderizar_canvas_firma(key="firma_sup", titulo="✍️ Firma Digital de Val
         <span class="badge">📱 TÁCTIL / MOUSE</span>
       </div>
       <canvas id="sigCanvas"></canvas>
-      <div class="hint">✏️ Dibuje su firma con su dedo, stylus o ratón dentro del recuadro</div>
+      <div class="hint">✏️ Dibuje su firma en el recuadro. Se captura automáticamente al soltar el dedo o ratón.</div>
       <div class="controls">
-        <button type="button" class="btn-clear" id="btnClear">🧹 Limpiar</button>
+        <button type="button" class="btn-clear" id="btnClear">🧹 Limpiar Firma</button>
         <button type="button" class="btn-save" id="btnSave">✅ Registrar Firma</button>
       </div>
     </div>
@@ -133,6 +134,7 @@ def renderizar_canvas_firma(key="firma_sup", titulo="✍️ Firma Digital de Val
       const ctx = canvas.getContext('2d');
       let drawing = false;
       let hasStrokes = false;
+      const initialImg = "{current_firma}";
 
       function resizeCanvas() {{
         const rect = canvas.getBoundingClientRect();
@@ -142,6 +144,15 @@ def renderizar_canvas_firma(key="firma_sup", titulo="✍️ Firma Digital de Val
         ctx.lineWidth = 2.8;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
+
+        if (initialImg && initialImg.startsWith('data:image')) {{
+          const img = new Image();
+          img.onload = function() {{
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            hasStrokes = true;
+          }};
+          img.src = initialImg;
+        }}
       }}
       window.addEventListener('resize', resizeCanvas);
       setTimeout(resizeCanvas, 40);
@@ -177,10 +188,26 @@ def renderizar_canvas_firma(key="firma_sup", titulo="✍️ Firma Digital de Val
         ctx.stroke();
       }}
 
+      function autoSave() {{
+        if (!hasStrokes) return;
+        const dataUrl = canvas.toDataURL('image/png');
+        try {{
+          const urlParams = new URLSearchParams(window.parent.location.search);
+          if (urlParams.get('firma_captured') !== dataUrl) {{
+            urlParams.set('firma_captured', dataUrl);
+            urlParams.set('firma_key', '{key}');
+            window.parent.location.search = urlParams.toString();
+          }}
+        }} catch(err) {{
+          console.error(err);
+        }}
+      }}
+
       function endDraw(e) {{
         if (drawing) {{
           drawing = false;
           ctx.closePath();
+          setTimeout(autoSave, 150);
         }}
       }}
 
@@ -196,6 +223,12 @@ def renderizar_canvas_firma(key="firma_sup", titulo="✍️ Firma Digital de Val
       document.getElementById('btnClear').addEventListener('click', function() {{
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         hasStrokes = false;
+        try {{
+          const urlParams = new URLSearchParams(window.parent.location.search);
+          urlParams.delete('firma_captured');
+          urlParams.delete('firma_key');
+          window.parent.location.search = urlParams.toString();
+        }} catch(err) {{}}
       }});
 
       document.getElementById('btnSave').addEventListener('click', function() {{
@@ -203,15 +236,7 @@ def renderizar_canvas_firma(key="firma_sup", titulo="✍️ Firma Digital de Val
           alert('⚠️ Por favor realice su firma antes de confirmar.');
           return;
         }}
-        const dataUrl = canvas.toDataURL('image/png');
-        try {{
-          const urlParams = new URLSearchParams(window.parent.location.search);
-          urlParams.set('firma_captured', dataUrl);
-          urlParams.set('firma_key', '{key}');
-          window.parent.location.search = urlParams.toString();
-        }} catch(err) {{
-          console.error(err);
-        }}
+        autoSave();
       }});
     </script>
     </body>
@@ -223,13 +248,13 @@ def renderizar_canvas_firma(key="firma_sup", titulo="✍️ Firma Digital de Val
     col_s1, col_s2 = st.columns([3, 1])
     if current_firma:
         with col_s1:
-            st.success("✅ Firma registrada correctamente.")
+            st.success("✅ Firma digital capturada y lista.")
         with col_s2:
             if st.button("🔄 Borrar Firma", key=f"btn_reset_sig_{key}", use_container_width=True):
                 st.session_state[f"firma_val_{key}"] = None
                 st.rerun()
 
-    return current_firma
+    return current_firma if current_firma else None
 
 
 def renderizar_comprobante_firma(firma_b64=None, supervisor_nombre="Supervisor", fecha_str=None, monto_str=None, moneda_str=None, firma_cajero_b64=None, cajero_nombre="Cajero"):

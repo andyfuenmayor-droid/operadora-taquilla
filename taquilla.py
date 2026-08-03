@@ -4,6 +4,7 @@ import time
 import urllib.parse
 from utils import supabase
 from datetime import datetime, timedelta, timezone
+from modulo_pizarra import modulo_pizarra
 
 def obtener_hora_local():
     """Retorna la fecha y hora actual ajustada a la zona horaria local (UTC-4)."""
@@ -3797,6 +3798,7 @@ else:
     if es_sup_role:
         menu_items = [
             ("🏠 Inicio", "Inicio"),
+            ("📌 Pizarra", "Pizarra"),
             ("📆 Reporte Diario", "Reporte Diario"),
             ("📊 Reporte por Rango", "Reporte por Rango"),
             ("🔒 Cierre Diario", "Cierre Diario")
@@ -3806,6 +3808,7 @@ else:
     else:
         menu_items = [
             ("🏠 Inicio", "Inicio"),
+            ("📌 Pizarra", "Pizarra"),
             ("🎰 Carga de Ventas", "Carga de Ventas"),
             ("🎟️ Tickets Premiados", "Tickets Premiados"),
             ("💸 Gestión de Gastos", "Gestión de Gastos"),
@@ -3850,6 +3853,7 @@ else:
     opcion = st.session_state["opcion_actual"]
 
     if opcion == "Inicio": modulo_home(ag)
+    elif opcion == "Pizarra": modulo_pizarra(ag)
     elif opcion == "Carga de Ventas": modulo_registro_taquilla(ag)
     elif opcion == "Gestión de Gastos": modulo_gastos(ag)
     elif opcion == "Gestión de Pagos": modulo_pagos(ag)

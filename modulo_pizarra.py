@@ -1,4 +1,3 @@
-from modulo_firma_digital import renderizar_canvas_firma, renderizar_comprobante_firma
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -64,9 +63,6 @@ def _check_confirmado_cols_cms():
             sql_lines.append("ALTER TABLE cda_pagos_diarios ADD COLUMN IF NOT EXISTS fecha_confirmacion_supervisor TIMESTAMP WITH TIME ZONE;")
             sql_lines.append("ALTER TABLE cda_pagos_diarios ADD COLUMN IF NOT EXISTS comentario_supervisor TEXT;")
             sql_lines.append("ALTER TABLE cda_pagos_diarios ADD COLUMN IF NOT EXISTS entregado_admin BOOLEAN DEFAULT FALSE;")
-            sql_lines.append("ALTER TABLE cda_pagos_diarios ADD COLUMN IF NOT EXISTS firma_supervisor_base64 TEXT;")
-            sql_lines.append("ALTER TABLE cda_pagos_diarios ADD COLUMN IF NOT EXISTS firma_cajero_base64 TEXT;")
-            sql_lines.append("ALTER TABLE cda_caja_efectivo_supervisor ADD COLUMN IF NOT EXISTS firma_supervisor_base64 TEXT;")
 
         if not caja_sup_existe:
             sql_lines.append("""
@@ -233,9 +229,6 @@ def _renderizar_lista_transacciones(df_list, key_prefix="act", es_pizarra_superv
         if is_c_sup or sup_nom:
             nota_sup = f" | {com_sup}" if com_sup else ""
             sup_info_html = f"<br><small style='color: #38bdf8; font-weight: 700; background: rgba(56, 189, 248, 0.12); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.25); display: inline-block; margin-top: 3px;'>💬 Entregado a Supervisor: <b>{sup_nom or 'Supervisor'}</b>{nota_sup}</small>"
-        
-        firma_sup_b64 = str(row.get("firma_supervisor_base64") or "").strip()
-        firma_cajero_b64 = str(row.get("firma_cajero_base64") or "").strip()
 
         num_badge = f"<span style='background-color: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 1px 6px; border-radius: 4px; font-size: 12px; font-weight: 800; margin-right: 6px;'>#{idx_pos}</span>"
 
@@ -267,108 +260,76 @@ def _renderizar_lista_transacciones(df_list, key_prefix="act", es_pizarra_superv
                     unsafe_allow_html=True
                 )
 
-            if firma_sup_b64 or firma_cajero_b64:
-                with st.expander("🔏 Ver Comprobantes con Firma Digital"):
-                    renderizar_comprobante_firma(
-                        firma_b64=firma_sup_b64 if firma_sup_b64 else None, 
-                        supervisor_nombre=sup_nom or "Supervisor", 
-                        fecha_str=str(row.get("fecha") or ""), 
-                        monto_str=f"{row['monto']:,.2f}", 
-                        moneda_str=row['moneda'],
-                        firma_cajero_b64=firma_cajero_b64 if firma_cajero_b64 else None,
-                        cajero_nombre=row.get("cajero_nombre", "Cajero")
-                    )
-
             with c_action:
                 btn_key = f"btn_conf_{key_prefix}_{row['tabla']}_{row['id']}"
                 
                 # Flujo Supervisor si estamos en la Pizarra de Efectivo Cajero<->Supervisor
                 if es_pizarra_supervisor and row["categoria"] == "Efectivo":
                     if not is_c_sup:
-                        with st.popover("🤝 Confirmar con Firma", use_container_width=True):
-                            st.markdown(f"##### 🔏 Recepción de Efectivo: {row['moneda']} {row['monto']:,.2f}")
-                            st.caption(f"Cajero: **{row['cajero_nombre']}** | Agencia: **{row['agencia']}**")
-                            
+                        if st.button("🤝 Confirmar (Supervisor)", key=f"sup_{btn_key}", use_container_width=True):
                             current_usr = obtener_nombre_usuario_actual()
-                            com_input = st.text_input("Nota / Comentario del Supervisor:", value=f"Recibido de cajero {row['cajero_nombre']}", key=f"nota_sup_{row['id']}")
-                            
-                            st.markdown("---")
-                            firma_captured = renderizar_canvas_firma(key=f"sig_pizarra_{row['id']}", titulo="✍️ Firma Digital del Supervisor")
-                            
-                            if st.button("✅ Confirmar y Registrar Recepción", key=f"btn_save_sig_{row['id']}", use_container_width=True, type="primary"):
+                            try:
+                                data_sup = {
+                                    "confirmado_supervisor": True,
+                                    "supervisor_nombre": current_usr,
+                                    "comentario_supervisor": f"Entregado a Supervisor {current_usr}",
+                                    "fecha_confirmacion_supervisor": datetime.now().isoformat()
+                                }
+                                supabase.table("cda_pagos_diarios").update(data_sup).eq("id", row["id"]).execute()
+                                
+                                # Registrar entrada en Caja de Efectivo del Supervisor
                                 try:
-                                    f_time = datetime.now().isoformat()
-                                    data_sup = {
-                                        "confirmado_supervisor": True,
+                                    supabase.table("cda_caja_efectivo_supervisor").insert({
+                                        "user_id": str(st.session_state.get("user", {}).id if hasattr(st.session_state.get("user"), "id") else ""),
+                                        "agencia": row["agencia"],
                                         "supervisor_nombre": current_usr,
-                                        "comentario_supervisor": com_input,
-                                        "fecha_confirmacion_supervisor": f_time,
-                                        "firma_supervisor_base64": firma_captured or None
-                                    }
-                                    supabase.table("cda_pagos_diarios").update(data_sup).eq("id", row["id"]).execute()
-                                    
-                                    # Registrar entrada en Caja de Efectivo del Supervisor
-                                    try:
-                                        supabase.table("cda_caja_efectivo_supervisor").insert({
-                                            "user_id": str(st.session_state.get("user", {}).id if hasattr(st.session_state.get("user"), "id") else ""),
-                                            "agencia": row["agencia"],
-                                            "supervisor_nombre": current_usr,
-                                            "tipo_movimiento": "ENTRADA_CAJERO",
-                                            "monto": float(row["monto"]),
-                                            "moneda": str(row["moneda"]).upper(),
-                                            "pago_id": row["id"],
-                                            "comentario": com_input,
-                                            "firma_supervisor_base64": firma_captured or None
-                                        }).execute()
-                                    except Exception:
-                                        pass
+                                        "tipo_movimiento": "ENTRADA_CAJERO",
+                                        "monto": float(row["monto"]),
+                                        "moneda": str(row["moneda"]).upper(),
+                                        "pago_id": row["id"],
+                                        "comentario": f"Recibido de cajero {row['cajero_nombre']}"
+                                    }).execute()
+                                except Exception:
+                                    pass
 
-                                    st.success(f"🤝 Efectivo y Firma validados correctamente por Supervisor {current_usr}")
-                                    time.sleep(0.5)
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"❌ Error al confirmar: {e}")
+                                st.success(f"🤝 Efectivo recibido por Supervisor {current_usr}")
+                                time.sleep(0.5)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Error al confirmar por Supervisor: {e}")
                     else:
                         st.info(f"🤝 Recibido por: {sup_nom or 'Supervisor'}")
 
-                # Flujo Administrador / Supervisor General
+                # Flujo Administrador / General
                 else:
                     if not is_c:
-                        with st.popover("✅ Confirmar con Firma", use_container_width=True):
-                            st.markdown(f"##### 🔏 Confirmación y Firma Digital del Supervisor")
-                            st.caption(f"Agencia: **{row['agencia']}** | Cajero: **{row['cajero_nombre']}** | Monto: **{row['moneda']} {row['monto']:,.2f}**")
-                            
+                        if st.button("✅ Confirmar", key=btn_key, use_container_width=True):
                             current_usr = obtener_nombre_usuario_actual()
-                            st.markdown("---")
-                            firma_captured_general = renderizar_canvas_firma(key=f"sig_gen_{key_prefix}_{row['tabla']}_{row['id']}", titulo="✍️ Firma Digital del Supervisor")
-
-                            if st.button("✍️ Confirmar y Validar Transacción", key=f"btn_save_gen_{key_prefix}_{row['tabla']}_{row['id']}", use_container_width=True, type="primary"):
+                            data_conf = {"confirmado": True, "confirmado_por": current_usr}
+                            try:
                                 try:
-                                    f_time = datetime.now().isoformat()
-                                    data_conf = {
-                                        "confirmado": True, 
-                                        "confirmado_por": current_usr,
-                                        "confirmado_supervisor": True,
-                                        "supervisor_nombre": current_usr,
-                                        "fecha_confirmacion_supervisor": f_time,
-                                        "firma_supervisor_base64": firma_captured_general or None
-                                    }
-                                    try:
-                                        supabase.table(row["tabla"]).update(data_conf).eq("id", row["id"]).execute()
-                                    except Exception:
-                                        supabase.table(row["tabla"]).update({"confirmado": True, "confirmado_por": current_usr}).eq("id", row["id"]).execute()
+                                    supabase.table(row["tabla"]).update(data_conf).eq("id", row["id"]).execute()
+                                except Exception as ex1:
+                                    err_str1 = str(ex1).lower()
+                                    if "confirmado_por" in err_str1:
+                                        supabase.table(row["tabla"]).update({"confirmado": True}).eq("id", row["id"]).execute()
+                                    else:
+                                        raise ex1
 
-                                    if row["tabla"] == "cda_pagos_bancarios":
+                                if row["tabla"] == "cda_pagos_bancarios":
+                                    try:
+                                        supabase.table("cda_pagos_diarios").update(data_conf).eq("agencia", row["agencia"]).eq("fecha", row["fecha"]).eq("monto", row["monto"]).execute()
+                                    except Exception:
                                         try:
-                                            supabase.table("cda_pagos_diarios").update(data_conf).eq("agencia", row["agencia"]).eq("fecha", row["fecha"]).eq("monto", row["monto"]).execute()
+                                            supabase.table("cda_pagos_diarios").update({"confirmado": True}).eq("agencia", row["agencia"]).eq("fecha", row["fecha"]).eq("monto", row["monto"]).execute()
                                         except Exception:
                                             pass
 
-                                    st.success(f"✅ Transacción confirmada y firmada por {current_usr}")
-                                    time.sleep(0.5)
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"❌ Error al confirmar: {e}")
+                                st.success(f"✅ Confirmado por {current_usr}")
+                                time.sleep(0.5)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Error al confirmar: {e}")
                     else:
                         if st.button("↩️ Revertir", key=btn_key, use_container_width=True):
                             data_rev = {"confirmado": False, "confirmado_por": None}
@@ -669,9 +630,7 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
                     "confirmado_por": conf_por,
                     "confirmado_supervisor": is_conf_sup,
                     "supervisor_nombre": sup_nom,
-                    "comentario_supervisor": com_sup,
-                    "firma_supervisor_base64": r.get("firma_supervisor_base64") or "",
-                    "firma_cajero_base64": r.get("firma_cajero_base64") or ""
+                    "comentario_supervisor": com_sup
                 })
 
     df_raw = pd.DataFrame(registros)

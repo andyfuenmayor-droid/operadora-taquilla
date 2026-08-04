@@ -59,8 +59,8 @@ def _sincronizar_efectivo_supervisor_con_pagos(existe_supervisor=True):
         pagos_registrados = set()
         if res_movs.data:
             for rm in res_movs.data:
-                if rm.get("pago_id"):
-                    pagos_registrados.add(rm["pago_id"])
+                if rm.get("pago_id") is not None:
+                    pagos_registrados.add(str(rm["pago_id"]))
 
         mapa_cajeros = {}
         try:
@@ -74,10 +74,11 @@ def _sincronizar_efectivo_supervisor_con_pagos(existe_supervisor=True):
 
         for pago in res_pd.data:
             pid = pago.get("id")
-            tipo = str(pago.get("tipo_pago") or "").upper()
-            es_efectivo = "EFECTIVO" in tipo or ("REF:" not in tipo and "PUNTO" not in tipo and "TRANSFERENCIA" not in tipo and "ZELLE" not in tipo and "PAGO MÓVIL" not in tipo)
+            cat_val = str(pago.get("categoria") or "").upper()
+            tipo = str(pago.get("tipo_pago") or pago.get("metodo") or "").upper()
+            es_efectivo = "EFECTIVO" in cat_val or "EFECTIVO" in tipo or ("REF:" not in tipo and "PUNTO" not in tipo and "TRANSFERENCIA" not in tipo and "ZELLE" not in tipo and "PAGO MÓVIL" not in tipo)
 
-            if pid and es_efectivo and pid not in pagos_registrados:
+            if pid is not None and es_efectivo and str(pid) not in pagos_registrados:
                 cid = str(pago.get("cajero_id") or pago.get("user_id") or "")
                 c_nombre = mapa_cajeros.get(cid, f"ID {cid}" if cid else "Cajero")
                 sup_nom = str(pago.get("supervisor_nombre") or c_nombre or "Cajero").strip()
@@ -98,7 +99,7 @@ def _sincronizar_efectivo_supervisor_con_pagos(existe_supervisor=True):
                         "pago_id": pid,
                         "comentario": comentario_text
                     }).execute()
-                    pagos_registrados.add(pid)
+                    pagos_registrados.add(str(pid))
                 except Exception:
                     try:
                         supabase.table("cda_caja_efectivo_supervisor").insert({
@@ -531,20 +532,68 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True):
     st.caption(caption_caja)
 
     totales_caja = {"BS": 0.0, "USD": 0.0, "COP": 0.0}
-    df_movs = pd.DataFrame()
-    
+    movs_lista = []
+    pagos_ids_en_movs = set()
+
+    # 1. Cargar movimientos explícitos de cda_caja_efectivo_supervisor
     try:
         res_movs = supabase.table("cda_caja_efectivo_supervisor").select("*").execute()
         if res_movs.data:
-            df_movs = pd.DataFrame(res_movs.data)
-            if "moneda" in df_movs.columns:
-                df_movs["moneda_norm"] = df_movs["moneda"].apply(normalizar_moneda)
-                for m in ["BS", "USD", "COP"]:
-                    entradas = df_movs[(df_movs["moneda_norm"] == m) & (df_movs["tipo_movimiento"] == "ENTRADA_CAJERO")]["monto"].sum()
-                    salidas = df_movs[(df_movs["moneda_norm"] == m) & (df_movs["tipo_movimiento"] == "ENTREGA_ADMIN")]["monto"].sum()
-                    totales_caja[m] = float(entradas - salidas)
+            for rm in res_movs.data:
+                movs_lista.append(rm)
+                if rm.get("pago_id") is not None:
+                    pagos_ids_en_movs.add(str(rm["pago_id"]))
     except Exception:
         pass
+
+    # 2. Incluir dinámicamente pagos en efectivo de cda_pagos_diarios recibidos/confirmados
+    try:
+        res_pd = supabase.table("cda_pagos_diarios").select("*").execute()
+        if res_pd.data:
+            for pago in res_pd.data:
+                pid = str(pago.get("id") or "")
+                if pid and pid in pagos_ids_en_movs:
+                    continue  # Ya está contabilizado en la tabla explícita
+
+                cat_val = str(pago.get("categoria") or "").upper()
+                tipo = str(pago.get("tipo_pago") or pago.get("metodo") or "").upper()
+                es_efectivo = "EFECTIVO" in cat_val or "EFECTIVO" in tipo or ("REF:" not in tipo and "PUNTO" not in tipo and "TRANSFERENCIA" not in tipo and "ZELLE" not in tipo and "PAGO MÓVIL" not in tipo)
+
+                if es_efectivo:
+                    is_conf_sup = bool(pago.get("confirmado_supervisor", False))
+                    # Si existe supervisor, se contabiliza al recibirlo. Si no existe supervisor, se contabiliza siempre en caja chica.
+                    if (existe_supervisor and is_conf_sup) or (not existe_supervisor):
+                        sup_nom = str(pago.get("supervisor_nombre") or "Cajero").strip()
+                        u_id_val = str(pago.get("user_id") or "SYSTEM").strip()
+                        monto_val = float(pago.get("monto") or 0.0)
+                        moneda_val = normalizar_moneda(pago.get("moneda"))
+                        f_val = str(pago.get("fecha") or "")
+
+                        movs_lista.append({
+                            "id": f"pd_{pid}",
+                            "pago_id": pid,
+                            "user_id": u_id_val,
+                            "agencia": str(pago.get("agencia") or "TODAS").upper(),
+                            "supervisor_nombre": sup_nom,
+                            "tipo_movimiento": "ENTRADA_CAJERO",
+                            "monto": monto_val,
+                            "moneda": moneda_val,
+                            "comentario": f"Recibido de cajero (Pago #{pid})",
+                            "fecha": f_val
+                        })
+    except Exception:
+        pass
+
+    if movs_lista:
+        df_movs = pd.DataFrame(movs_lista)
+        if "moneda" in df_movs.columns:
+            df_movs["moneda_norm"] = df_movs["moneda"].apply(normalizar_moneda)
+            for m in ["BS", "USD", "COP"]:
+                entradas = df_movs[(df_movs["moneda_norm"] == m) & (df_movs["tipo_movimiento"] == "ENTRADA_CAJERO")]["monto"].sum()
+                salidas = df_movs[(df_movs["moneda_norm"] == m) & (df_movs["tipo_movimiento"] == "ENTREGA_ADMIN")]["monto"].sum()
+                totales_caja[m] = float(entradas - salidas)
+    else:
+        df_movs = pd.DataFrame()
 
     col_cs1, col_cs2, col_cs3, col_cs4 = st.columns([3, 3, 3, 3])
     with col_cs1:
@@ -629,9 +678,13 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True):
                 st.dataframe(pd.DataFrame(resumen_agencias), use_container_width=True, hide_index=True)
 
             st.markdown("<h5 style='font-size: 14px; font-weight: 700; color: #eab308; margin-top: 12px;'>📜 Movimientos Recientes en Caja Supervisor</h5>", unsafe_allow_html=True)
-            df_disp_movs = df_movs[["fecha", "agencia", "supervisor_nombre", "tipo_movimiento", "monto", "moneda_norm", "comentario"]].copy()
+            cols_req = ["fecha", "agencia", "supervisor_nombre", "tipo_movimiento", "monto", "moneda_norm", "comentario"]
+            for col in cols_req:
+                if col not in df_movs.columns:
+                    df_movs[col] = ""
+            df_disp_movs = df_movs[cols_req].copy()
             df_disp_movs.columns = ["Fecha / Hora", "Agencia", "Supervisor", "Tipo Movimiento", "Monto", "Moneda", "Comentario / Cajero"]
-            df_disp_movs["Monto"] = df_disp_movs["Monto"].apply(lambda m: f"{float(m):,.2f}")
+            df_disp_movs["Monto"] = df_disp_movs["Monto"].apply(lambda m: f"{float(m or 0.0):,.2f}")
             df_disp_movs = df_disp_movs.sort_values(by="Fecha / Hora", ascending=False)
             st.dataframe(df_disp_movs.head(50), use_container_width=True, hide_index=True)
         else:

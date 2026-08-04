@@ -517,25 +517,21 @@ def _renderizar_lista_transacciones(df_list, key_prefix="act", es_pizarra_superv
                                 st.error(f"❌ Error al revertir: {e}")
 
 def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True):
-    """Muestra la Caja Chica / Caja Acumulable de Efectivo (del Supervisor o del Cajero si no existe rol Supervisor) con botón de liquidación a Administración."""
-    
-    # Auto-sincronizar pagos confirmados por supervisor o de cajeros según corresponda
+    """Muestra el desglose de efectivo por etapas (Pendiente Supervisor, Recibido Supervisor, Confirmado Admin) con liquidación y desglose por Agencia / Cajero."""
     _sincronizar_efectivo_supervisor_con_pagos(existe_supervisor=existe_supervisor)
 
-    titulo_caja = "📦 Caja Acumulable de Efectivo del Supervisor" if existe_supervisor else "📦 Caja Acumulable de Efectivo del Cajero (Caja Chica)"
-    caption_caja = "Efectivo recibido de Cajeros pendiente por entregar / liquidar al Administrador." if existe_supervisor else "Efectivo recaudado por Cajeros pendiente por entregar / liquidar al Administrador."
-    popover_btn_label = "💸 Entregar al Administrador"
-    popover_title = "##### 💸 Liquidación de Efectivo al Administrador" if existe_supervisor else "##### 💸 Liquidación de Caja Chica de Cajero a Administración"
-    nota_default = "Entrega de caja acumulada a Administración" if existe_supervisor else "Entrega de caja chica del Cajero a Administración"
+    titulo_caja = "📦 Control de Efectivo por Cajas: Cajero ➔ Supervisor ➔ Administrador" if existe_supervisor else "📦 Control de Efectivo de Cajeros"
+    st.markdown(f"<h4 style='font-size: 17px; font-weight: 800; color: #38bdf8; margin-top: 10px;'>{titulo_caja}</h4>", unsafe_allow_html=True)
+    st.caption("Verificación y balance de efectivo recaudado por Cajeros, acumulado por Supervisores y auditado / recibido por Administración.")
 
-    st.markdown(f"<h4 style='font-size: 16px; font-weight: 800; color: #38bdf8; margin-top: 10px;'>{titulo_caja}</h4>", unsafe_allow_html=True)
-    st.caption(caption_caja)
+    totales_pend_sup = {"BS": 0.0, "USD": 0.0, "COP": 0.0}
+    totales_rec_sup = {"BS": 0.0, "USD": 0.0, "COP": 0.0}
+    totales_conf_admin = {"BS": 0.0, "USD": 0.0, "COP": 0.0}
 
-    totales_caja = {"BS": 0.0, "USD": 0.0, "COP": 0.0}
     movs_lista = []
     pagos_ids_en_movs = set()
 
-    # 1. Cargar movimientos explícitos de cda_caja_efectivo_supervisor
+    # Cargar movimientos de cda_caja_efectivo_supervisor
     try:
         res_movs = supabase.table("cda_caja_efectivo_supervisor").select("*").execute()
         if res_movs.data:
@@ -543,32 +539,39 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True):
                 movs_lista.append(rm)
                 if rm.get("pago_id") is not None:
                     pagos_ids_en_movs.add(str(rm["pago_id"]))
+                
+                mon_m = normalizar_moneda(rm.get("moneda"))
+                monto_m = float(rm.get("monto") or 0.0)
+                tipo_m = str(rm.get("tipo_movimiento") or "").upper()
+
+                if tipo_m == "ENTREGA_ADMIN":
+                    totales_rec_sup[mon_m] -= monto_m
+                    totales_conf_admin[mon_m] += monto_m
+                elif tipo_m == "ENTRADA_CAJERO" and rm.get("pago_id") is None:
+                    totales_rec_sup[mon_m] += monto_m
     except Exception:
         pass
 
-    # 2. Incluir dinámicamente pagos en efectivo de cda_pagos_diarios recibidos/confirmados
+    # Cargar pagos en efectivo desde cda_pagos_diarios
     try:
         res_pd = supabase.table("cda_pagos_diarios").select("*").execute()
         if res_pd.data:
             for pago in res_pd.data:
                 pid = str(pago.get("id") or "")
-                if pid and pid in pagos_ids_en_movs:
-                    continue  # Ya está contabilizado en la tabla explícita
-
                 cat_val = str(pago.get("categoria") or "").upper()
                 tipo = str(pago.get("tipo_pago") or pago.get("metodo") or "").upper()
                 es_efectivo = "EFECTIVO" in cat_val or "EFECTIVO" in tipo or ("REF:" not in tipo and "PUNTO" not in tipo and "TRANSFERENCIA" not in tipo and "ZELLE" not in tipo and "PAGO MÓVIL" not in tipo)
 
                 if es_efectivo:
+                    is_conf_admin = bool(pago.get("confirmado", False))
                     is_conf_sup = bool(pago.get("confirmado_supervisor", False))
-                    # Si existe supervisor, se contabiliza al recibirlo. Si no existe supervisor, se contabiliza siempre en caja chica.
-                    if (existe_supervisor and is_conf_sup) or (not existe_supervisor):
-                        sup_nom = str(pago.get("supervisor_nombre") or "Cajero").strip()
-                        u_id_val = str(pago.get("user_id") or "SYSTEM").strip()
-                        monto_val = float(pago.get("monto") or 0.0)
-                        moneda_val = normalizar_moneda(pago.get("moneda"))
-                        f_val = str(pago.get("fecha") or "")
+                    monto_val = float(pago.get("monto") or 0.0)
+                    moneda_val = normalizar_moneda(pago.get("moneda"))
+                    sup_nom = str(pago.get("supervisor_nombre") or "Cajero").strip()
+                    u_id_val = str(pago.get("user_id") or "SYSTEM").strip()
+                    f_val = str(pago.get("fecha") or "")
 
+                    if pid and pid not in pagos_ids_en_movs:
                         movs_lista.append({
                             "id": f"pd_{pid}",
                             "pago_id": pid,
@@ -578,50 +581,50 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True):
                             "tipo_movimiento": "ENTRADA_CAJERO",
                             "monto": monto_val,
                             "moneda": moneda_val,
-                            "comentario": f"Recibido de cajero (Pago #{pid})",
+                            "comentario": f"Pago Cajero #{pid}",
                             "fecha": f_val
                         })
+
+                    if is_conf_admin:
+                        totales_conf_admin[moneda_val] += monto_val
+                    elif is_conf_sup or not existe_supervisor:
+                        totales_rec_sup[moneda_val] += monto_val
+                    else:
+                        totales_pend_sup[moneda_val] += monto_val
     except Exception:
         pass
 
-    if movs_lista:
-        df_movs = pd.DataFrame(movs_lista)
-        if "moneda" in df_movs.columns:
-            df_movs["moneda_norm"] = df_movs["moneda"].apply(normalizar_moneda)
-            for m in ["BS", "USD", "COP"]:
-                entradas = df_movs[(df_movs["moneda_norm"] == m) & (df_movs["tipo_movimiento"] == "ENTRADA_CAJERO")]["monto"].sum()
-                salidas = df_movs[(df_movs["moneda_norm"] == m) & (df_movs["tipo_movimiento"] == "ENTREGA_ADMIN")]["monto"].sum()
-                totales_caja[m] = float(entradas - salidas)
-    else:
-        df_movs = pd.DataFrame()
+    # Asegurar que totales no sean menores a cero por descuento de liquidación
+    for m in ["BS", "USD", "COP"]:
+        totales_rec_sup[m] = max(0.0, totales_rec_sup[m])
 
-    col_cs1, col_cs2, col_cs3, col_cs4 = st.columns([3, 3, 3, 3])
-    with col_cs1:
-        st.markdown(f"""
-            <div style="background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.25); border-radius: 10px; padding: 10px 14px;">
-                <div style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">🇻🇪 Efectivo BS en Caja</div>
-                <div style="font-size: 17px; font-weight: 800; color: #22c55e; margin-top: 4px;">Bs {totales_caja['BS']:,.2f}</div>
-            </div>
-        """, unsafe_allow_html=True)
-    with col_cs2:
-        st.markdown(f"""
-            <div style="background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.25); border-radius: 10px; padding: 10px 14px;">
-                <div style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">💵 Efectivo USD en Caja</div>
-                <div style="font-size: 17px; font-weight: 800; color: #22c55e; margin-top: 4px;">${totales_caja['USD']:,.2f}</div>
-            </div>
-        """, unsafe_allow_html=True)
-    with col_cs3:
-        st.markdown(f"""
-            <div style="background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.25); border-radius: 10px; padding: 10px 14px;">
-                <div style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">🇨🇴 Efectivo COP en Caja</div>
-                <div style="font-size: 17px; font-weight: 800; color: #22c55e; margin-top: 4px;">COP {totales_caja['COP']:,.2f}</div>
-            </div>
-        """, unsafe_allow_html=True)
-    with col_cs4:
+    # SECCIÓN DE TARJETAS MÉTRICAS DE EFECTIVO
+    st.markdown("<div style='font-size: 13px; font-weight: 800; color: #eab308; margin-top: 6px;'>⏳ 1. PENDIENTE POR RECIBIR SUPERVISOR (Caja Cajeros)</div>", unsafe_allow_html=True)
+    c_p1, c_p2, c_p3 = st.columns(3)
+    with c_p1:
+        st.markdown(f"<div style='background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.25); border-radius: 8px; padding: 8px 12px;'><div style='font-size: 10px; font-weight: 700; color: #94a3b8;'>🇻🇪 PENDIENTE BS (SUPERVISOR)</div><div style='font-size: 15px; font-weight: 800; color: #eab308; margin-top: 2px;'>Bs {totales_pend_sup['BS']:,.2f}</div></div>", unsafe_allow_html=True)
+    with c_p2:
+        st.markdown(f"<div style='background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.25); border-radius: 8px; padding: 8px 12px;'><div style='font-size: 10px; font-weight: 700; color: #94a3b8;'>💵 PENDIENTE USD (SUPERVISOR)</div><div style='font-size: 15px; font-weight: 800; color: #eab308; margin-top: 2px;'>${totales_pend_sup['USD']:,.2f}</div></div>", unsafe_allow_html=True)
+    with c_p3:
+        st.markdown(f"<div style='background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.25); border-radius: 8px; padding: 8px 12px;'><div style='font-size: 10px; font-weight: 700; color: #94a3b8;'>🇨🇴 PENDIENTE COP (SUPERVISOR)</div><div style='font-size: 15px; font-weight: 800; color: #eab308; margin-top: 2px;'>COP {totales_pend_sup['COP']:,.2f}</div></div>", unsafe_allow_html=True)
+
+    st.markdown("<div style='font-size: 13px; font-weight: 800; color: #38bdf8; margin-top: 12px;'>📦 2. RECIBIDO POR SUPERVISOR (Caja Acumulable - Pendiente Admin)</div>", unsafe_allow_html=True)
+    c_r1, c_r2, c_r3, c_r4 = st.columns([3, 3, 3, 3])
+    with c_r1:
+        st.markdown(f"<div style='background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 8px 12px;'><div style='font-size: 10px; font-weight: 700; color: #94a3b8;'>🇻🇪 EN CAJA BS (SUPERVISOR)</div><div style='font-size: 15px; font-weight: 800; color: #38bdf8; margin-top: 2px;'>Bs {totales_rec_sup['BS']:,.2f}</div></div>", unsafe_allow_html=True)
+    with c_r2:
+        st.markdown(f"<div style='background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 8px 12px;'><div style='font-size: 10px; font-weight: 700; color: #94a3b8;'>💵 EN CAJA USD (SUPERVISOR)</div><div style='font-size: 15px; font-weight: 800; color: #38bdf8; margin-top: 2px;'>${totales_rec_sup['USD']:,.2f}</div></div>", unsafe_allow_html=True)
+    with c_r3:
+        st.markdown(f"<div style='background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 8px 12px;'><div style='font-size: 10px; font-weight: 700; color: #94a3b8;'>🇨🇴 EN CAJA COP (SUPERVISOR)</div><div style='font-size: 15px; font-weight: 800; color: #38bdf8; margin-top: 2px;'>COP {totales_rec_sup['COP']:,.2f}</div></div>", unsafe_allow_html=True)
+    with c_r4:
+        popover_btn_label = "💸 Entregar al Administrador"
+        popover_title = "##### 💸 Liquidación de Efectivo al Administrador" if existe_supervisor else "##### 💸 Liquidación de Caja Chica de Cajero a Administración"
+        nota_default = "Entrega de caja acumulada a Administración" if existe_supervisor else "Entrega de caja chica del Cajero a Administración"
+
         with st.popover(popover_btn_label, use_container_width=True):
             st.markdown(popover_title)
             moneda_liq = st.selectbox("Moneda:", ["USD", "BS", "COP"], key="liq_moneda_sup")
-            monto_liq = st.number_input(f"Monto a Entregar ({moneda_liq}):", min_value=0.0, value=float(totales_caja.get(moneda_liq, 0.0)), key="liq_monto_sup")
+            monto_liq = st.number_input(f"Monto a Entregar ({moneda_liq}):", min_value=0.0, value=float(totales_rec_sup.get(moneda_liq, 0.0)), key="liq_monto_sup")
             nota_liq = st.text_input("Nota / Comentario:", value=nota_default, key="liq_nota_sup")
             
             if st.button("🚀 Confirmar Entrega a Admin", key="btn_confirm_liq_admin", use_container_width=True):
@@ -647,31 +650,67 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True):
                     except Exception as ex_l:
                         st.error(f"❌ Error al registrar liquidación: {ex_l}")
 
+    st.markdown("<div style='font-size: 13px; font-weight: 800; color: #22c55e; margin-top: 12px;'>✅ 3. CONFIRMADO / RECIBIDO POR ADMINISTRACIÓN (Caja Admin)</div>", unsafe_allow_html=True)
+    c_a1, c_a2, c_a3 = st.columns(3)
+    with c_a1:
+        st.markdown(f"<div style='background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.25); border-radius: 8px; padding: 8px 12px;'><div style='font-size: 10px; font-weight: 700; color: #94a3b8;'>🇻🇪 CONFIRMADO BS (ADMIN)</div><div style='font-size: 15px; font-weight: 800; color: #22c55e; margin-top: 2px;'>Bs {totales_conf_admin['BS']:,.2f}</div></div>", unsafe_allow_html=True)
+    with c_a2:
+        st.markdown(f"<div style='background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.25); border-radius: 8px; padding: 8px 12px;'><div style='font-size: 10px; font-weight: 700; color: #94a3b8;'>💵 CONFIRMADO USD (ADMIN)</div><div style='font-size: 15px; font-weight: 800; color: #22c55e; margin-top: 2px;'>${totales_conf_admin['USD']:,.2f}</div></div>", unsafe_allow_html=True)
+    with c_a3:
+        st.markdown(f"<div style='background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.25); border-radius: 8px; padding: 8px 12px;'><div style='font-size: 10px; font-weight: 700; color: #94a3b8;'>🇨🇴 CONFIRMADO COP (ADMIN)</div><div style='font-size: 15px; font-weight: 800; color: #22c55e; margin-top: 2px;'>COP {totales_conf_admin['COP']:,.2f}</div></div>", unsafe_allow_html=True)
+
     # --- LISTA / DESGLOSE DE EFECTIVO POR CAJA Y AGENCIA ---
     with st.expander("📋 Ver Lista / Desglose de Efectivo por Caja (Agencia y Cajero)", expanded=False):
-        if not df_movs.empty:
+        if movs_lista:
+            df_movs = pd.DataFrame(movs_lista)
             df_movs["moneda_norm"] = df_movs["moneda"].apply(normalizar_moneda)
             df_movs["agencia_norm"] = df_movs["agencia"].astype(str).str.upper().str.strip()
             
-            st.markdown("<h5 style='font-size: 14px; font-weight: 700; color: #38bdf8;'>🏛️ Total de Efectivo Acumulado por Agencia</h5>", unsafe_allow_html=True)
+            st.markdown("<h5 style='font-size: 14px; font-weight: 700; color: #38bdf8;'>🏛️ Total de Efectivo por Agencia (Pendiente, En Caja y Confirmado)</h5>", unsafe_allow_html=True)
             
-            resumen_agencias = []
-            for ag, group in df_movs.groupby("agencia_norm"):
-                bs_in = group[(group["moneda_norm"] == "BS") & (group["tipo_movimiento"] == "ENTRADA_CAJERO")]["monto"].sum()
-                bs_out = group[(group["moneda_norm"] == "BS") & (group["tipo_movimiento"] == "ENTREGA_ADMIN")]["monto"].sum()
-                
-                usd_in = group[(group["moneda_norm"] == "USD") & (group["tipo_movimiento"] == "ENTRADA_CAJERO")]["monto"].sum()
-                usd_out = group[(group["moneda_norm"] == "USD") & (group["tipo_movimiento"] == "ENTREGA_ADMIN")]["monto"].sum()
+            # Cargar estado de confirmación de pagos de cda_pagos_diarios para el desglose por agencia
+            df_pd_all = pd.DataFrame()
+            try:
+                res_pd_all = supabase.table("cda_pagos_diarios").select("*").execute()
+                if res_pd_all.data:
+                    df_pd_all = pd.DataFrame(res_pd_all.data)
+            except Exception:
+                pass
 
-                cop_in = group[(group["moneda_norm"] == "COP") & (group["tipo_movimiento"] == "ENTRADA_CAJERO")]["monto"].sum()
-                cop_out = group[(group["moneda_norm"] == "COP") & (group["tipo_movimiento"] == "ENTREGA_ADMIN")]["monto"].sum()
+            resumen_agencias = []
+            all_ags = set(df_movs["agencia_norm"].unique())
+            if not df_pd_all.empty and "agencia" in df_pd_all.columns:
+                df_pd_all["agencia_norm"] = df_pd_all["agencia"].astype(str).str.upper().str.strip()
+                df_pd_all["moneda_norm"] = df_pd_all["moneda"].apply(normalizar_moneda)
+                all_ags.update(df_pd_all["agencia_norm"].unique())
+
+            for ag in sorted(all_ags):
+                if not ag or ag == "NONE":
+                    continue
+
+                sub_pd = df_pd_all[df_pd_all["agencia_norm"] == ag] if not df_pd_all.empty else pd.DataFrame()
+                
+                # Filtrar solo efectivo en cda_pagos_diarios
+                if not sub_pd.empty:
+                    sub_pd = sub_pd[sub_pd.apply(lambda r: "EFECTIVO" in str(r.get("categoria","")).upper() or "EFECTIVO" in str(r.get("tipo_pago","")).upper() or ("REF:" not in str(r.get("tipo_pago","")).upper() and "PUNTO" not in str(r.get("tipo_pago","")).upper() and "TRANSFERENCIA" not in str(r.get("tipo_pago","")).upper() and "ZELLE" not in str(r.get("tipo_pago","")).upper() and "PAGO MÓVIL" not in str(r.get("tipo_pago","")).upper()), axis=1)]
+
+                p_bs = sub_pd[(sub_pd["moneda_norm"] == "BS") & (sub_pd["confirmado_supervisor"] == False) & (sub_pd["confirmado"] == False)]["monto"].sum() if not sub_pd.empty and "confirmado_supervisor" in sub_pd.columns else 0.0
+                c_bs = sub_pd[(sub_pd["moneda_norm"] == "BS") & (sub_pd["confirmado_supervisor"] == True) & (sub_pd["confirmado"] == False)]["monto"].sum() if not sub_pd.empty and "confirmado_supervisor" in sub_pd.columns else 0.0
+                a_bs = sub_pd[(sub_pd["moneda_norm"] == "BS") & (sub_pd["confirmado"] == True)]["monto"].sum() if not sub_pd.empty else 0.0
+
+                p_usd = sub_pd[(sub_pd["moneda_norm"] == "USD") & (sub_pd["confirmado_supervisor"] == False) & (sub_pd["confirmado"] == False)]["monto"].sum() if not sub_pd.empty and "confirmado_supervisor" in sub_pd.columns else 0.0
+                c_usd = sub_pd[(sub_pd["moneda_norm"] == "USD") & (sub_pd["confirmado_supervisor"] == True) & (sub_pd["confirmado"] == False)]["monto"].sum() if not sub_pd.empty and "confirmado_supervisor" in sub_pd.columns else 0.0
+                a_usd = sub_pd[(sub_pd["moneda_norm"] == "USD") & (sub_pd["confirmado"] == True)]["monto"].sum() if not sub_pd.empty else 0.0
+
+                p_cop = sub_pd[(sub_pd["moneda_norm"] == "COP") & (sub_pd["confirmado_supervisor"] == False) & (sub_pd["confirmado"] == False)]["monto"].sum() if not sub_pd.empty and "confirmado_supervisor" in sub_pd.columns else 0.0
+                c_cop = sub_pd[(sub_pd["moneda_norm"] == "COP") & (sub_pd["confirmado_supervisor"] == True) & (sub_pd["confirmado"] == False)]["monto"].sum() if not sub_pd.empty and "confirmado_supervisor" in sub_pd.columns else 0.0
+                a_cop = sub_pd[(sub_pd["moneda_norm"] == "COP") & (sub_pd["confirmado"] == True)]["monto"].sum() if not sub_pd.empty else 0.0
 
                 resumen_agencias.append({
                     "Agencia": ag,
-                    "Efectivo BS": f"Bs {float(bs_in - bs_out):,.2f}",
-                    "Efectivo USD": f"${float(usd_in - usd_out):,.2f}",
-                    "Efectivo COP": f"COP {float(cop_in - cop_out):,.2f}",
-                    "Total Movs": len(group)
+                    "Pendiente Sup (BS / USD / COP)": f"Bs {float(p_bs):,.2f} | ${float(p_usd):,.2f} | COP {float(p_cop):,.2f}",
+                    "En Caja Sup (BS / USD / COP)": f"Bs {float(c_bs):,.2f} | ${float(c_usd):,.2f} | COP {float(c_cop):,.2f}",
+                    "Confirmado Admin (BS / USD / COP)": f"Bs {float(a_bs):,.2f} | ${float(a_usd):,.2f} | COP {float(a_cop):,.2f}"
                 })
 
             if resumen_agencias:

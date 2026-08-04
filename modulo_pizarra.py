@@ -853,7 +853,6 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
     df_raw["fecha_str"] = df_raw["fecha"].astype(str).str.slice(0, 10)
 
     df_activo = df_raw[(df_raw["confirmado"] == False) | (df_raw["fecha_str"] >= ciclo_desde_str)].copy()
-    df_historial = df_raw[(df_raw["confirmado"] == True) & (df_raw["fecha_str"] < ciclo_desde_str)].copy()
 
     # Verificar si existe el rol supervisor en el sistema
     existe_sup = verificar_existe_supervisor(u_id)
@@ -861,10 +860,9 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
     # ORGANIZACIÓN EN PESTAÑAS
     tab_names = [
         "📌 Pizarra Ciclo Activo", 
-        "💵 Pizarra Efectivo (Cajero ↔ Supervisor) & Caja" if existe_sup else "💵 Pizarra Efectivo (Cajero) & Caja Chica", 
-        "📜 Historial Mensual / Cierres Anteriores"
+        "💵 Pizarra Efectivo (Cajero ↔ Supervisor) & Caja" if existe_sup else "💵 Pizarra Efectivo (Cajero) & Caja Chica"
     ]
-    tab_pizarra, tab_efectivo_sup, tab_historial = st.tabs(tab_names)
+    tab_pizarra, tab_efectivo_sup = st.tabs(tab_names)
 
     # -------------------------------------------------------------
     # PESTAÑA 1: 📌 PIZARRA CICLO ACTIVO (ADMINISTRADOR / GENERAL)
@@ -981,43 +979,3 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
             df_ef_work = df_ef_work.sort_values(by="fecha", ascending=False)
 
         _renderizar_lista_transacciones(df_ef_work, key_prefix="ef_sup", es_pizarra_supervisor=True, existe_supervisor=existe_sup)
-
-    # -------------------------------------------------------------
-    # PESTAÑA 3: 📜 HISTORIAL MENSUAL / CIERRES ANTERIORES
-    # -------------------------------------------------------------
-    with tab_historial:
-        st.caption("📜 Transacciones confirmadas de cierres y meses anteriores al último ciclo activo.")
-
-        col_h1, col_h2, col_h3, col_h4 = st.columns([2, 2, 2, 2])
-        sel_ag_hist = col_h1.selectbox("🏢 Agencia:", lista_agencias, key="hist_ag_sel")
-        sel_caj_hist = col_h2.selectbox("👤 Cajero:", lista_cajeros, key="hist_caj_sel")
-        sel_cat_hist = col_h3.selectbox("💳 Categoría:", ["Todas", "Transferencia / Zelle / Pago Móvil", "Punto de Venta (Punde)", "Gastos", "Efectivo"], key="hist_cat_sel")
-        
-        hoy_hist = datetime.now().date()
-        f_hist_desde = col_h4.date_input("📅 Desde (Historial):", value=hoy_hist.replace(day=1), key="hist_f_desde")
-
-        df_hist_work = df_historial.copy()
-
-        if not df_hist_work.empty:
-            f_h_str = str(f_hist_desde)
-            df_hist_work = df_hist_work[df_hist_work["fecha_str"] >= f_h_str]
-
-            if sel_ag_hist != "Todas":
-                df_hist_work = df_hist_work[df_hist_work["agencia"] == sel_ag_hist]
-
-            if sel_caj_hist != "Todos":
-                df_hist_work = df_hist_work[df_hist_work["cajero_nombre"] == sel_caj_hist]
-
-            if sel_cat_hist != "Todas":
-                df_hist_work = df_hist_work[df_hist_work["categoria"] == sel_cat_hist]
-
-            if "fecha" in df_hist_work.columns:
-                df_hist_work = df_hist_work.sort_values(by="fecha", ascending=False)
-
-        st.markdown("---")
-        st.markdown("<h5 style='font-size: 15px; font-weight: 800; color: #a855f7; margin-bottom: 8px;'>🏛️ Totales Confirmados en Historial Anteriores</h5>", unsafe_allow_html=True)
-        _renderizar_resumen_metricas(df_hist_work)
-        st.markdown("---")
-
-        st.markdown("<h4 style='font-size: 16px; font-weight: 700; margin-top: 10px;'>📜 Transacciones Confirmadas (Historial)</h4>", unsafe_allow_html=True)
-        _renderizar_lista_transacciones(df_hist_work, key_prefix="hist", es_pizarra_supervisor=False, existe_supervisor=existe_sup)

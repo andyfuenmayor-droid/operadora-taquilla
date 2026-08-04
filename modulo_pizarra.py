@@ -531,6 +531,7 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True):
     st.caption(caption_caja)
 
     totales_caja = {"BS": 0.0, "USD": 0.0, "COP": 0.0}
+    df_movs = pd.DataFrame()
     
     try:
         res_movs = supabase.table("cda_caja_efectivo_supervisor").select("*").execute()

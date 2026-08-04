@@ -43,6 +43,66 @@ def verificar_existe_supervisor(u_id=None):
 
     return False
 
+def obtener_mapa_cajeros(u_id=None):
+    mapa = {}
+    try:
+        query = supabase.table("taquilla_usuarios").select("id, usuario, nombre_cajero")
+        if u_id:
+            query = query.eq("user_id", u_id)
+        res_usr = query.execute()
+        rows = res_usr.data or []
+        if not rows and u_id:
+            rows = supabase.table("taquilla_usuarios").select("id, usuario, nombre_cajero").execute().data or []
+
+        for u in rows:
+            nom = u.get("nombre_cajero") or u.get("usuario") or ""
+            if nom:
+                if u.get("id"):
+                    mapa[str(u["id"]).strip()] = nom
+                if u.get("usuario"):
+                    mapa[str(u["usuario"]).strip()] = nom
+                if u.get("nombre_cajero"):
+                    mapa[str(u["nombre_cajero"]).strip()] = nom
+    except Exception:
+        pass
+
+    cajero_actual = st.session_state.get("cajero_actual", {})
+    if isinstance(cajero_actual, dict):
+        nom_act = cajero_actual.get("nombre") or cajero_actual.get("usuario")
+        if nom_act:
+            if cajero_actual.get("id"):
+                mapa[str(cajero_actual["id"]).strip()] = nom_act
+            if cajero_actual.get("usuario"):
+                mapa[str(cajero_actual["usuario"]).strip()] = nom_act
+
+    return mapa
+
+def resolver_nombre_cajero(cid_or_user, pago_dict=None, mapa=None):
+    """Resuelve el nombre del cajero/usuario para evitar que aparezca como 'Cajero' genérico."""
+    if pago_dict and isinstance(pago_dict, dict):
+        for k in ["cajero_nombre", "nombre_cajero", "cajero"]:
+            val = str(pago_dict.get(k) or "").strip()
+            if val and val.lower() not in ["none", "nan", "system", "cajero", "desconocido", ""]:
+                return val
+
+    c_str = str(cid_or_user or "").strip()
+    if mapa and isinstance(mapa, dict) and c_str:
+        if c_str in mapa and mapa[c_str]:
+            return mapa[c_str]
+        for k, v in mapa.items():
+            if str(k).strip() == c_str and v:
+                return v
+
+    if c_str and c_str.lower() not in ["none", "nan", "system", "cajero", "desconocido", ""]:
+        return c_str
+
+    if pago_dict and isinstance(pago_dict, dict):
+        usr_val = str(pago_dict.get("usuario") or "").strip()
+        if usr_val and usr_val.lower() not in ["none", "nan", "system", "cajero", "desconocido", ""]:
+            return usr_val
+
+    return "Cajero"
+
 def _sincronizar_efectivo_supervisor_con_pagos(existe_supervisor=True):
     """Garantiza que todos los pagos en efectivo confirmados por el supervisor (o todos los de los cajeros si no hay supervisor)
     tengan su movimiento correspondiente registrado en cda_caja_efectivo_supervisor."""
@@ -62,15 +122,7 @@ def _sincronizar_efectivo_supervisor_con_pagos(existe_supervisor=True):
                 if rm.get("pago_id") is not None:
                     pagos_registrados.add(str(rm["pago_id"]))
 
-        mapa_cajeros = {}
-        try:
-            res_usr = supabase.table("taquilla_usuarios").select("id, usuario, nombre_cajero").execute()
-            if res_usr.data:
-                for u in res_usr.data:
-                    cid = str(u["id"])
-                    mapa_cajeros[cid] = u.get("nombre_cajero") or u.get("usuario") or f"Cajero {cid}"
-        except Exception:
-            pass
+        mapa_cajeros = obtener_mapa_cajeros()
 
         for pago in res_pd.data:
             pid = pago.get("id")
@@ -79,9 +131,11 @@ def _sincronizar_efectivo_supervisor_con_pagos(existe_supervisor=True):
             es_efectivo = "EFECTIVO" in cat_val or "EFECTIVO" in tipo or ("REF:" not in tipo and "PUNTO" not in tipo and "TRANSFERENCIA" not in tipo and "ZELLE" not in tipo and "PAGO MÓVIL" not in tipo)
 
             if pid is not None and es_efectivo and str(pid) not in pagos_registrados:
-                cid = str(pago.get("cajero_id") or pago.get("user_id") or "")
-                c_nombre = mapa_cajeros.get(cid, f"ID {cid}" if cid else "Cajero")
-                sup_nom = str(pago.get("supervisor_nombre") or c_nombre or "Cajero").strip()
+                cid = str(pago.get("cajero_id") or pago.get("user_id") or "").strip()
+                c_nombre = resolver_nombre_cajero(cid, pago_dict=pago, mapa=mapa_cajeros)
+                sup_nom = str(pago.get("supervisor_nombre") or c_nombre).strip()
+                if sup_nom in ["", "None", "Cajero", "SYSTEM"]:
+                    sup_nom = c_nombre
                 u_id_val = str(pago.get("user_id") or "SYSTEM").strip()
                 monto_val = float(pago.get("monto") or 0.0)
                 moneda_val = normalizar_moneda(pago.get("moneda"))
@@ -398,29 +452,30 @@ def _renderizar_lista_transacciones(df_list, key_prefix="act", es_pizarra_superv
                                     supabase.table("cda_pagos_diarios").update(data_sup).eq("id", row["id"]).execute()
                                     
                                     # Registrar entrada en Caja de Efectivo del Supervisor
+                                    c_nom_pago = row.get("cajero_nombre") or resolver_nombre_cajero(row.get("cajero_id"), pago_dict=row, mapa=mapa_cajeros)
                                     u_id_val = str(row.get("cajero_id") or row.get("user_id") or "SYSTEM")
                                     mon_norm = normalizar_moneda(row["moneda"])
                                     try:
                                         supabase.table("cda_caja_efectivo_supervisor").insert({
                                             "user_id": u_id_val,
                                             "agencia": str(row.get("agencia") or "TODAS").upper(),
-                                            "supervisor_nombre": current_usr,
+                                            "supervisor_nombre": c_nom_pago,
                                             "tipo_movimiento": "ENTRADA_CAJERO",
                                             "monto": float(row["monto"]),
                                             "moneda": mon_norm,
                                             "pago_id": row["id"],
-                                            "comentario": f"Recibido de cajero {row['cajero_nombre']}"
+                                            "comentario": f"Recibido de cajero {c_nom_pago}"
                                         }).execute()
                                     except Exception:
                                         try:
                                             supabase.table("cda_caja_efectivo_supervisor").insert({
                                                 "user_id": u_id_val,
                                                 "agencia": str(row.get("agencia") or "TODAS").upper(),
-                                                "supervisor_nombre": current_usr,
+                                                "supervisor_nombre": c_nom_pago,
                                                 "tipo_movimiento": "ENTRADA_CAJERO",
                                                 "monto": float(row["monto"]),
                                                 "moneda": mon_norm,
-                                                "comentario": f"Recibido de cajero {row['cajero_nombre']}"
+                                                "comentario": f"Recibido de cajero {c_nom_pago}"
                                             }).execute()
                                         except Exception:
                                             pass
@@ -530,69 +585,92 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True):
 
     movs_lista = []
     pagos_ids_en_movs = set()
+    mapa_cajeros_movs = obtener_mapa_cajeros()
+    mapa_pd = {}
+
+    try:
+        res_pd_all = supabase.table("cda_pagos_diarios").select("*").execute()
+        if res_pd_all.data:
+            for p in res_pd_all.data:
+                if p.get("id") is not None:
+                    mapa_pd[str(p["id"])] = p
+    except Exception:
+        pass
 
     # Cargar movimientos de cda_caja_efectivo_supervisor
     try:
         res_movs = supabase.table("cda_caja_efectivo_supervisor").select("*").execute()
         if res_movs.data:
             for rm in res_movs.data:
-                movs_lista.append(rm)
-                if rm.get("pago_id") is not None:
-                    pagos_ids_en_movs.add(str(rm["pago_id"]))
+                rm_copy = dict(rm)
+                pid_str = str(rm_copy.get("pago_id") or "")
+                p_asoc = mapa_pd.get(pid_str, {}) if pid_str else {}
                 
-                mon_m = normalizar_moneda(rm.get("moneda"))
-                monto_m = float(rm.get("monto") or 0.0)
-                tipo_m = str(rm.get("tipo_movimiento") or "").upper()
+                sup_nom_curr = str(rm_copy.get("supervisor_nombre") or "").strip()
+                if sup_nom_curr in ["", "None", "Cajero", "SYSTEM"]:
+                    cid = str(rm_copy.get("user_id") or p_asoc.get("cajero_id") or p_asoc.get("user_id") or "").strip()
+                    nombre_res = resolver_nombre_cajero(cid, pago_dict=p_asoc, mapa=mapa_cajeros_movs)
+                    if nombre_res and nombre_res != "Cajero":
+                        rm_copy["supervisor_nombre"] = nombre_res
+
+                movs_lista.append(rm_copy)
+                if rm_copy.get("pago_id") is not None:
+                    pagos_ids_en_movs.add(str(rm_copy["pago_id"]))
+                
+                mon_m = normalizar_moneda(rm_copy.get("moneda"))
+                monto_m = float(rm_copy.get("monto") or 0.0)
+                tipo_m = str(rm_copy.get("tipo_movimiento") or "").upper()
 
                 if tipo_m == "ENTREGA_ADMIN":
                     totales_rec_sup[mon_m] -= monto_m
                     totales_conf_admin[mon_m] += monto_m
-                elif tipo_m == "ENTRADA_CAJERO" and rm.get("pago_id") is None:
+                elif tipo_m == "ENTRADA_CAJERO" and rm_copy.get("pago_id") is None:
                     totales_rec_sup[mon_m] += monto_m
     except Exception:
         pass
 
     # Cargar pagos en efectivo desde cda_pagos_diarios
-    try:
-        res_pd = supabase.table("cda_pagos_diarios").select("*").execute()
-        if res_pd.data:
-            for pago in res_pd.data:
-                pid = str(pago.get("id") or "")
-                cat_val = str(pago.get("categoria") or "").upper()
-                tipo = str(pago.get("tipo_pago") or pago.get("metodo") or "").upper()
-                es_efectivo = "EFECTIVO" in cat_val or "EFECTIVO" in tipo or ("REF:" not in tipo and "PUNTO" not in tipo and "TRANSFERENCIA" not in tipo and "ZELLE" not in tipo and "PAGO MÓVIL" not in tipo)
+    if mapa_pd:
+        for pid, pago in mapa_pd.items():
+            cat_val = str(pago.get("categoria") or "").upper()
+            tipo = str(pago.get("tipo_pago") or pago.get("metodo") or "").upper()
+            es_efectivo = "EFECTIVO" in cat_val or "EFECTIVO" in tipo or ("REF:" not in tipo and "PUNTO" not in tipo and "TRANSFERENCIA" not in tipo and "ZELLE" not in tipo and "PAGO MÓVIL" not in tipo)
 
-                if es_efectivo:
-                    is_conf_admin = bool(pago.get("confirmado", False))
-                    is_conf_sup = bool(pago.get("confirmado_supervisor", False))
-                    monto_val = float(pago.get("monto") or 0.0)
-                    moneda_val = normalizar_moneda(pago.get("moneda"))
-                    sup_nom = str(pago.get("supervisor_nombre") or "Cajero").strip()
-                    u_id_val = str(pago.get("user_id") or "SYSTEM").strip()
-                    f_val = str(pago.get("fecha") or "")
+            if es_efectivo:
+                is_conf_admin = bool(pago.get("confirmado", False))
+                is_conf_sup = bool(pago.get("confirmado_supervisor", False))
+                monto_val = float(pago.get("monto") or 0.0)
+                moneda_val = normalizar_moneda(pago.get("moneda"))
+                
+                cid = str(pago.get("cajero_id") or pago.get("user_id") or "").strip()
+                c_nom = resolver_nombre_cajero(cid, pago_dict=pago, mapa=mapa_cajeros_movs)
+                sup_nom = str(pago.get("supervisor_nombre") or c_nom).strip()
+                if sup_nom in ["", "None", "Cajero", "SYSTEM"]:
+                    sup_nom = c_nom
 
-                    if pid and pid not in pagos_ids_en_movs:
-                        movs_lista.append({
-                            "id": f"pd_{pid}",
-                            "pago_id": pid,
-                            "user_id": u_id_val,
-                            "agencia": str(pago.get("agencia") or "TODAS").upper(),
-                            "supervisor_nombre": sup_nom,
-                            "tipo_movimiento": "ENTRADA_CAJERO",
-                            "monto": monto_val,
-                            "moneda": moneda_val,
-                            "comentario": f"Pago Cajero #{pid}",
-                            "fecha": f_val
-                        })
+                u_id_val = str(pago.get("user_id") or "SYSTEM").strip()
+                f_val = str(pago.get("fecha") or "")
 
-                    if is_conf_admin:
-                        totales_conf_admin[moneda_val] += monto_val
-                    elif is_conf_sup or not existe_supervisor:
-                        totales_rec_sup[moneda_val] += monto_val
-                    else:
-                        totales_pend_sup[moneda_val] += monto_val
-    except Exception:
-        pass
+                if pid and pid not in pagos_ids_en_movs:
+                    movs_lista.append({
+                        "id": f"pd_{pid}",
+                        "pago_id": pid,
+                        "user_id": u_id_val,
+                        "agencia": str(pago.get("agencia") or "TODAS").upper(),
+                        "supervisor_nombre": sup_nom,
+                        "tipo_movimiento": "ENTRADA_CAJERO",
+                        "monto": monto_val,
+                        "moneda": moneda_val,
+                        "comentario": f"Pago Cajero #{pid}",
+                        "fecha": f_val
+                    })
+
+                if is_conf_admin:
+                    totales_conf_admin[moneda_val] += monto_val
+                elif is_conf_sup or not existe_supervisor:
+                    totales_rec_sup[moneda_val] += monto_val
+                else:
+                    totales_pend_sup[moneda_val] += monto_val
 
     # Asegurar que totales no sean menores a cero por descuento de liquidación
     for m in ["BS", "USD", "COP"]:
@@ -781,19 +859,11 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
         pass
 
     # Cargar usuarios cajeros del usuario
-    mapa_cajeros = {}
+    mapa_cajeros = obtener_mapa_cajeros(u_id)
     lista_cajeros = ["Todos"]
-    try:
-        res_usr = supabase.table("taquilla_usuarios").select("id, usuario, nombre_cajero").eq("user_id", u_id).execute()
-        if res_usr.data:
-            for u in res_usr.data:
-                cid = str(u["id"])
-                unombre = u.get("nombre_cajero") or u.get("usuario") or f"Cajero {cid}"
-                mapa_cajeros[cid] = unombre
-                if unombre not in lista_cajeros:
-                    lista_cajeros.append(unombre)
-    except Exception:
-        pass
+    for unombre in set(mapa_cajeros.values()):
+        if unombre and unombre not in lista_cajeros:
+            lista_cajeros.append(unombre)
 
     # Fetch total data from Supabase
     df_bancarios = pd.DataFrame()
@@ -825,8 +895,9 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
     if not df_bancarios.empty:
         df_bancarios.columns = [c.lower().strip() for c in df_bancarios.columns]
         for _, r in df_bancarios.iterrows():
-            cid = str(r.get("cajero_id") or r.get("user_id") or "")
-            c_nombre = mapa_cajeros.get(cid, f"ID {cid}" if cid else "Desconocido")
+            r_dict = r.to_dict()
+            cid = str(r.get("cajero_id") or r.get("user_id") or "").strip()
+            c_nombre = resolver_nombre_cajero(cid, pago_dict=r_dict, mapa=mapa_cajeros)
             metodo_raw = str(r.get("metodo_pago") or "Bancario").strip().upper()
             if "TRANSFERENCIA" in metodo_raw:
                 metodo = "TRANSFERENCIA"
@@ -870,8 +941,9 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
     if not df_gastos.empty:
         df_gastos.columns = [c.lower().strip() for c in df_gastos.columns]
         for _, r in df_gastos.iterrows():
-            cid = str(r.get("cajero_id") or r.get("user_id") or "")
-            c_nombre = mapa_cajeros.get(cid, f"ID {cid}" if cid else "Desconocido")
+            r_dict = r.to_dict()
+            cid = str(r.get("cajero_id") or r.get("user_id") or "").strip()
+            c_nombre = resolver_nombre_cajero(cid, pago_dict=r_dict, mapa=mapa_cajeros)
             ag_nom = str(r.get("agencia") or r.get("nombre_agency") or "").upper()
             is_conf = bool(r.get("confirmado", False))
             conf_por = str(r.get("confirmado_por") or r.get("confirmado_usuario") or r.get("usuario_confirmacion") or "").strip()
@@ -904,8 +976,9 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
         for _, r in df_pagos_diarios.iterrows():
             tipo = str(r.get("tipo_pago") or "").upper()
             if "EFECTIVO" in tipo or ("REF:" not in tipo and "PUNTO" not in tipo and "TRANSFERENCIA" not in tipo and "ZELLE" not in tipo and "PAGO MÓVIL" not in tipo):
-                cid = str(r.get("cajero_id") or r.get("user_id") or "")
-                c_nombre = mapa_cajeros.get(cid, f"ID {cid}" if cid else "Desconocido")
+                r_dict = r.to_dict()
+                cid = str(r.get("cajero_id") or r.get("user_id") or "").strip()
+                c_nombre = resolver_nombre_cajero(cid, pago_dict=r_dict, mapa=mapa_cajeros)
                 ag_nom = str(r.get("agencia") or r.get("nombre_agency") or "").upper()
                 is_conf = bool(r.get("confirmado", False))
                 conf_por = str(r.get("confirmado_por") or r.get("confirmado_usuario") or r.get("usuario_confirmacion") or "").strip()

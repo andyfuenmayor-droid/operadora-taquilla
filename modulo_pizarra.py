@@ -308,18 +308,38 @@ def _renderizar_lista_transacciones(df_list, key_prefix="act", es_pizarra_superv
         return
 
     for idx_pos, (idx, row) in enumerate(df_list.iterrows(), start=1):
-        is_c = row["confirmado"]
+        is_c = bool(row["confirmado"])
         conf_por = str(row.get("confirmado_por") or "").strip()
         
         is_c_sup = bool(row.get("confirmado_supervisor", False))
         sup_nom = str(row.get("supervisor_nombre") or "").strip()
         com_sup = str(row.get("comentario_supervisor") or "").strip()
+        es_efectivo = (row.get("categoria") == "Efectivo")
 
-        badge_html = "<span class='badge-confirmed'>✅ CONFIRMADO <sup style='background:#1b4332; color:#52b788; border-radius:3px; padding:1px 4px; font-weight:bold;'>C</sup></span>" if is_c else "<span class='badge-pending'>⏳ PENDIENTE</span>"
+        # Insignias de Estado
+        if es_efectivo:
+            if is_c:
+                badge_html = "<span class='badge-confirmed'>✅ CONFIRMADO ADMIN <sup style='background:#1b4332; color:#52b788; border-radius:3px; padding:1px 4px; font-weight:bold;'>C</sup></span>"
+            elif is_c_sup:
+                badge_html = "<span class='badge-pending' style='background-color: rgba(234, 179, 8, 0.15); color: #eab308; border: 1px solid rgba(234, 179, 8, 0.3); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700;'>⏳ PEND. ADMIN</span>"
+            else:
+                badge_html = "<span style='background-color: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.3); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 700;'>⏳ ESPERANDO SUPERVISOR</span>"
+        else:
+            badge_html = "<span class='badge-confirmed'>✅ CONFIRMADO <sup style='background:#1b4332; color:#52b788; border-radius:3px; padding:1px 4px; font-weight:bold;'>C</sup></span>" if is_c else "<span class='badge-pending'>⏳ PENDIENTE</span>"
+
         conf_info_html = f"<br><small style='color: #22c55e; font-weight: 600;'>👤 Confirmado Admin: <b>{conf_por}</b></small>" if (is_c and conf_por) else ""
         
         sup_info_html = ""
-        if existe_supervisor and (is_c_sup or sup_nom):
+        if es_efectivo:
+            if is_c_sup and not is_c:
+                nota_sup = f" ({com_sup})" if com_sup else ""
+                sup_info_html = f"<br><small style='color: #38bdf8; font-weight: 700; background: rgba(56, 189, 248, 0.12); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.25); display: inline-block; margin-top: 3px;'>🤝 Recibido Supervisor (<b>{sup_nom or 'Supervisor'}</b>{nota_sup}) — ⏳ Pendiente por confirmar Admin</small>"
+            elif is_c_sup and is_c:
+                nota_sup = f" ({com_sup})" if com_sup else ""
+                sup_info_html = f"<br><small style='color: #38bdf8; font-weight: 700; background: rgba(56, 189, 248, 0.12); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.25); display: inline-block; margin-top: 3px;'>💬 Recibido por Supervisor: <b>{sup_nom or 'Supervisor'}</b>{nota_sup}</small>"
+            else:
+                sup_info_html = f"<br><small style='color: #f59e0b; font-weight: 600; background: rgba(245, 158, 11, 0.1); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(245, 158, 11, 0.2); display: inline-block; margin-top: 3px;'>⏳ Pendiente por ser confirmado / recibido por Supervisor</small>"
+        elif existe_supervisor and (is_c_sup or sup_nom):
             nota_sup = f" | {com_sup}" if com_sup else ""
             sup_info_html = f"<br><small style='color: #38bdf8; font-weight: 700; background: rgba(56, 189, 248, 0.12); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.25); display: inline-block; margin-top: 3px;'>💬 Entregado a Supervisor: <b>{sup_nom or 'Supervisor'}</b>{nota_sup}</small>"
         elif not existe_supervisor and row["categoria"] == "Efectivo":
@@ -345,7 +365,7 @@ def _renderizar_lista_transacciones(df_list, key_prefix="act", es_pizarra_superv
                 badge_sup_state = ""
                 if row["categoria"] == "Efectivo":
                     if existe_supervisor:
-                        badge_sup_state = "<br><span style='background-color: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700;'>🤝 RECIBIDO SUPERVISOR</span>" if is_c_sup else "<br><span style='background-color: rgba(234, 179, 8, 0.15); color: #eab308; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700;'>⏳ PEND. SUPERVISOR</span>"
+                        badge_sup_state = "<br><span style='background-color: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; border: 1px solid rgba(56, 189, 248, 0.3);'>🤝 RECIBIDO SUPERVISOR</span>" if is_c_sup else "<br><span style='background-color: rgba(234, 179, 8, 0.15); color: #eab308; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; border: 1px solid rgba(234, 179, 8, 0.3);'>⏳ PEND. RECIBIR SUPERVISOR</span>"
                     else:
                         badge_sup_state = "<br><span style='background-color: rgba(34, 197, 94, 0.15); color: #22c55e; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700;'>📦 EN CAJA DE CAJERO</span>"
 
@@ -437,33 +457,36 @@ def _renderizar_lista_transacciones(df_list, key_prefix="act", es_pizarra_superv
                 # Flujo Administrador / General
                 else:
                     if not is_c:
-                        if st.button("✅ Confirmar", key=btn_key, use_container_width=True):
-                            current_usr = obtener_nombre_usuario_actual()
-                            data_conf = {"confirmado": True, "confirmado_por": current_usr}
-                            try:
+                        if es_efectivo and not is_c_sup:
+                            st.button("✅ Confirmar", key=btn_key, disabled=True, use_container_width=True, help="⚠️ El Supervisor debe confirmar la recepción del efectivo primero")
+                        else:
+                            if st.button("✅ Confirmar", key=btn_key, use_container_width=True):
+                                current_usr = obtener_nombre_usuario_actual()
+                                data_conf = {"confirmado": True, "confirmado_por": current_usr}
                                 try:
-                                    supabase.table(row["tabla"]).update(data_conf).eq("id", row["id"]).execute()
-                                except Exception as ex1:
-                                    err_str1 = str(ex1).lower()
-                                    if "confirmado_por" in err_str1:
-                                        supabase.table(row["tabla"]).update({"confirmado": True}).eq("id", row["id"]).execute()
-                                    else:
-                                        raise ex1
-
-                                if row["tabla"] == "cda_pagos_bancarios":
                                     try:
-                                        supabase.table("cda_pagos_diarios").update(data_conf).eq("agencia", row["agencia"]).eq("fecha", row["fecha"]).eq("monto", row["monto"]).execute()
-                                    except Exception:
-                                        try:
-                                            supabase.table("cda_pagos_diarios").update({"confirmado": True}).eq("agencia", row["agencia"]).eq("fecha", row["fecha"]).eq("monto", row["monto"]).execute()
-                                        except Exception:
-                                            pass
+                                        supabase.table(row["tabla"]).update(data_conf).eq("id", row["id"]).execute()
+                                    except Exception as ex1:
+                                        err_str1 = str(ex1).lower()
+                                        if "confirmado_por" in err_str1:
+                                            supabase.table(row["tabla"]).update({"confirmado": True}).eq("id", row["id"]).execute()
+                                        else:
+                                            raise ex1
 
-                                st.success(f"✅ Confirmado por {current_usr}")
-                                time.sleep(0.5)
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"❌ Error al confirmar: {e}")
+                                    if row["tabla"] == "cda_pagos_bancarios":
+                                        try:
+                                            supabase.table("cda_pagos_diarios").update(data_conf).eq("agencia", row["agencia"]).eq("fecha", row["fecha"]).eq("monto", row["monto"]).execute()
+                                        except Exception:
+                                            try:
+                                                supabase.table("cda_pagos_diarios").update({"confirmado": True}).eq("agencia", row["agencia"]).eq("fecha", row["fecha"]).eq("monto", row["monto"]).execute()
+                                            except Exception:
+                                                pass
+
+                                    st.success(f"✅ Confirmado por {current_usr}")
+                                    time.sleep(0.5)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"❌ Error al confirmar: {e}")
                     else:
                         if st.button("↩️ Revertir", key=btn_key, use_container_width=True):
                             data_rev = {"confirmado": False, "confirmado_por": None}
@@ -573,6 +596,45 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True):
                         st.rerun()
                     except Exception as ex_l:
                         st.error(f"❌ Error al registrar liquidación: {ex_l}")
+
+    # --- LISTA / DESGLOSE DE EFECTIVO POR CAJA Y AGENCIA ---
+    with st.expander("📋 Ver Lista / Desglose de Efectivo por Caja (Agencia y Cajero)", expanded=False):
+        if not df_movs.empty:
+            df_movs["moneda_norm"] = df_movs["moneda"].apply(normalizar_moneda)
+            df_movs["agencia_norm"] = df_movs["agencia"].astype(str).str.upper().str.strip()
+            
+            st.markdown("<h5 style='font-size: 14px; font-weight: 700; color: #38bdf8;'>🏛️ Total de Efectivo Acumulado por Agencia</h5>", unsafe_allow_html=True)
+            
+            resumen_agencias = []
+            for ag, group in df_movs.groupby("agencia_norm"):
+                bs_in = group[(group["moneda_norm"] == "BS") & (group["tipo_movimiento"] == "ENTRADA_CAJERO")]["monto"].sum()
+                bs_out = group[(group["moneda_norm"] == "BS") & (group["tipo_movimiento"] == "ENTREGA_ADMIN")]["monto"].sum()
+                
+                usd_in = group[(group["moneda_norm"] == "USD") & (group["tipo_movimiento"] == "ENTRADA_CAJERO")]["monto"].sum()
+                usd_out = group[(group["moneda_norm"] == "USD") & (group["tipo_movimiento"] == "ENTREGA_ADMIN")]["monto"].sum()
+
+                cop_in = group[(group["moneda_norm"] == "COP") & (group["tipo_movimiento"] == "ENTRADA_CAJERO")]["monto"].sum()
+                cop_out = group[(group["moneda_norm"] == "COP") & (group["tipo_movimiento"] == "ENTREGA_ADMIN")]["monto"].sum()
+
+                resumen_agencias.append({
+                    "Agencia": ag,
+                    "Efectivo BS": f"Bs {float(bs_in - bs_out):,.2f}",
+                    "Efectivo USD": f"${float(usd_in - usd_out):,.2f}",
+                    "Efectivo COP": f"COP {float(cop_in - cop_out):,.2f}",
+                    "Total Movs": len(group)
+                })
+
+            if resumen_agencias:
+                st.dataframe(pd.DataFrame(resumen_agencias), use_container_width=True, hide_index=True)
+
+            st.markdown("<h5 style='font-size: 14px; font-weight: 700; color: #eab308; margin-top: 12px;'>📜 Movimientos Recientes en Caja Supervisor</h5>", unsafe_allow_html=True)
+            df_disp_movs = df_movs[["fecha", "agencia", "supervisor_nombre", "tipo_movimiento", "monto", "moneda_norm", "comentario"]].copy()
+            df_disp_movs.columns = ["Fecha / Hora", "Agencia", "Supervisor", "Tipo Movimiento", "Monto", "Moneda", "Comentario / Cajero"]
+            df_disp_movs["Monto"] = df_disp_movs["Monto"].apply(lambda m: f"{float(m):,.2f}")
+            df_disp_movs = df_disp_movs.sort_values(by="Fecha / Hora", ascending=False)
+            st.dataframe(df_disp_movs.head(50), use_container_width=True, hide_index=True)
+        else:
+            st.info("ℹ️ No hay movimientos registrados en la Caja de Efectivo del Supervisor aún.")
 
 def modulo_pizarra(agencia_data=None):
     return modulo_pizarra_confirmaciones(agencia_data)
@@ -848,7 +910,11 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
         df_act_metricas = df_act_work.copy()
 
         if sel_estado == "⏳ Pendientes" and not df_act_work.empty:
-            df_act_work = df_act_work[df_act_work["confirmado"] == False]
+            # Los pagos en efectivo solo cuentan como pendientes del Admin si YA los recibió el Supervisor.
+            # Si el supervisor no los ha recibido (confirmado_supervisor == False), pertenecen únicamente a la Pizarra del Supervisor.
+            is_not_cash = df_act_work["categoria"] != "Efectivo"
+            is_cash_ready_admin = (df_act_work["categoria"] == "Efectivo") & (df_act_work["confirmado_supervisor"] == True)
+            df_act_work = df_act_work[(df_act_work["confirmado"] == False) & (is_not_cash | is_cash_ready_admin)]
         elif sel_estado == "✅ Confirmados" and not df_act_work.empty:
             df_act_work = df_act_work[df_act_work["confirmado"] == True]
 
@@ -901,7 +967,7 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
 
         if existe_sup:
             if sel_est_sup == "⏳ Pendientes por Recibir" and not df_ef_work.empty:
-                df_ef_work = df_ef_work[df_ef_work["confirmado_supervisor"] == False]
+                df_ef_work = df_ef_work[(df_ef_work["confirmado_supervisor"] == False) & (df_ef_work["confirmado"] == False)]
             elif sel_est_sup == "🤝 Recibidos por Supervisor" and not df_ef_work.empty:
                 df_ef_work = df_ef_work[df_ef_work["confirmado_supervisor"] == True]
         else:

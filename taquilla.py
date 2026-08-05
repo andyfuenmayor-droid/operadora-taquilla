@@ -1313,7 +1313,7 @@ def modulo_pagos(agencia_data):
             fecha_pg = c1.date_input("Fecha", value=fecha_filtro)
             moneda_pg = c2.selectbox("Moneda", ["COP", "USD", "BS"], index=0)
             monto_pg = c3.number_input("Monto", min_value=0.0, format="%.2f")
-            tipo_pg = c4.selectbox("Tipo Pago", ["Efectivo"])
+            tipo_pg = c4.selectbox("Tipo Pago", ["Efectivo (Entregado a Admin)", "Pago de Premios / Abono de Pérdida", "Abono / Reposición de Caja"])
             if st.form_submit_button("💾 GUARDAR PAGO", use_container_width=True):
                 if monto_pg <= 0:
                     st.error("Ingrese un monto válido mayor a cero.")
@@ -2172,8 +2172,18 @@ def modulo_cierre_diario(agencia_data):
     t_p_tick = float(df_t['monto'].sum()) if not df_t.empty and 'monto' in df_t.columns else 0.0
     t_premios = max(t_p_rep, t_p_tick)
 
-    t_gastos = float(df_g['monto'].sum()) if not df_g.empty and 'monto' in df_g.columns else 0.0
-    t_pagos = float(df_pg['monto'].sum()) if not df_pg.empty and 'monto' in df_pg.columns else 0.0
+    pagos_entregados = 0.0
+    abonos_recibidos = 0.0
+    if not df_pg.empty and 'monto' in df_pg.columns:
+        for _, r_pg in df_pg.iterrows():
+            t_pg_tipo = str(r_pg.get("tipo_pago", "") or r_pg.get("metodo", "")).upper()
+            m_pg = float(r_pg.get("monto", 0.0))
+            if any(k in t_pg_tipo for k in ["PREMIO", "PREMIOS", "PERDIDA", "PÉRDIDA", "ABONO", "REPOSICION", "REPOSICIÓN", "ENTRADA"]):
+                abonos_recibidos += m_pg
+            else:
+                pagos_entregados += m_pg
+
+    t_pagos = pagos_entregados - abonos_recibidos
     t_saldo_dia = t_venta - t_comis - t_premios - t_gastos - t_pagos
 
     # Calcular Saldo Anterior y Saldo Final

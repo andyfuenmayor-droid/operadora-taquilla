@@ -110,7 +110,7 @@ def modulo_auditoria_hibrida():
                                 np_ = st.text_input("Clave", type="password", key=f"np_{ag_id}")
                             with col2:
                                 n_cajero = st.text_input("Nombre (opcional)", key=f"nom_{ag_id}")
-                                rol_new = st.selectbox("Rol", ["cajero", "supervisor"], key=f"rol_{ag_id}")
+                                rol_new = st.selectbox("Rol", ["cajero", "supervisor", "agencia"], key=f"rol_{ag_id}")
                             col_btn1, col_btn2 = st.columns([1, 1])
                             with col_btn1:
                                 if st.form_submit_button("💾 Guardar", use_container_width=True):
@@ -136,7 +136,10 @@ def modulo_auditoria_hibrida():
                         with st.popover(f"✏️ {u['usuario']}", key=f"pop_{ag_id}_{uid}"):
                             col_a, col_b = st.columns(2)
                             with col_a:
-                                nuevo_rol = st.selectbox("Rol", ["cajero", "supervisor"], index=0 if u.get('rol') == 'cajero' else 1, key=f"rol_edit_{uid}")
+                                roles_lista = ["cajero", "supervisor", "agencia"]
+                                u_rol = str(u.get('rol', 'cajero')).lower()
+                                idx_r = roles_lista.index(u_rol) if u_rol in roles_lista else 0
+                                nuevo_rol = st.selectbox("Rol", roles_lista, index=idx_r, key=f"rol_edit_{uid}")
                                 nuevo_activo = st.checkbox("Activo", value=u.get('activo', True), key=f"act_{uid}")
                                 if st.button("💾 Actualizar", key=f"upd_{uid}", use_container_width=True):
                                     try:

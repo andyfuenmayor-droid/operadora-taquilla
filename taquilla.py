@@ -3994,9 +3994,9 @@ else:
     if "opcion_actual" not in st.session_state:
         st.session_state["opcion_actual"] = "Inicio"
 
-    es_sup_role = (str(cajero.get("rol", "")).lower() == "supervisor")
+    rol_lower = str(cajero.get("rol", "")).lower()
 
-    if es_sup_role:
+    if rol_lower == "supervisor":
         menu_items = [
             ("🏠 Inicio", "Inicio"),
             ("📌 Pizarra", "Pizarra"),
@@ -4004,8 +4004,14 @@ else:
             ("📊 Reporte por Rango", "Reporte por Rango"),
             ("🔒 Cierre Diario", "Cierre Diario")
         ]
-        if st.session_state["opcion_actual"] not in [m[1] for m in menu_items]:
-            st.session_state["opcion_actual"] = "Inicio"
+    elif rol_lower == "agencia":
+        menu_items = [
+            ("🏠 Inicio", "Inicio"),
+            ("💵 Pago Efectivo", "Gestión de Pagos"),
+            ("🏦 Gestión Bancaria", "Gestión Bancaria"),
+            ("📆 Reporte Diario", "Reporte Diario"),
+            ("📊 Reporte por Rango", "Reporte por Rango")
+        ]
     else:
         menu_items = [
             ("🏠 Inicio", "Inicio"),

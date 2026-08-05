@@ -36,7 +36,11 @@ def modulo_auditoria_hibrida():
         df_pagos_periodo = df_pagos_periodo[df_pagos_periodo['fecha'].apply(lambda x: str(x) >= '2026-06-29')] if not df_pagos_periodo.empty else df_pagos_periodo
 
         df_oficial_gastos = pd.DataFrame(supabase.table("gastos").select("*").eq("user_id", u_id).gte("fecha", f_desde_str).lte("fecha", f_hasta_str).execute().data or [])
-        df_oficial_pagos = pd.DataFrame(supabase.table("pagos_semana").select("*").eq("user_id", u_id).gte("fecha", f"{f_desde_str}T00:00:00").execute().data or [])
+        res_ofic_p = supabase.table("pagos_semana").select("*").eq("user_id", u_id).execute()
+        df_oficial_pagos = pd.DataFrame(res_ofic_p.data or [])
+        if not df_oficial_pagos.empty and "fecha" in df_oficial_pagos.columns:
+            f_subs = df_oficial_pagos["fecha"].astype(str).str.slice(0, 10)
+            df_oficial_pagos = df_oficial_pagos[(f_subs >= f_desde_str) & (f_subs <= f_hasta_str)]
 
         # Normalizar moneda de reportes de taquilla si la agencia solo opera en una moneda (ej: BS)
         mapa_moneda_unica_ag = {}

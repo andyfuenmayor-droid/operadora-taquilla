@@ -264,12 +264,13 @@ def cargar_datos_agencia_tabla(tabla, agencia_nombre, fecha=None, fecha_desde=No
     """
     try:
         q = supabase.table(tabla).select("*")
-        if fecha:
-            q = q.eq("fecha", str(fecha))
-        if fecha_desde:
-            q = q.gte("fecha", str(fecha_desde))
-        if fecha_hasta:
-            q = q.lte("fecha", str(fecha_hasta))
+        if tabla != "pagos_semana":
+            if fecha:
+                q = q.eq("fecha", str(fecha))
+            if fecha_desde:
+                q = q.gte("fecha", str(fecha_desde))
+            if fecha_hasta:
+                q = q.lte("fecha", str(fecha_hasta))
             
         res = q.execute()
         df = pd.DataFrame(res.data or [])
@@ -277,19 +278,29 @@ def cargar_datos_agencia_tabla(tabla, agencia_nombre, fecha=None, fecha_desde=No
             return df
             
         df.columns = [c.lower() for c in df.columns]
-        ag_str = str(agencia_nombre).strip()
+        ag_str = str(agencia_nombre).strip().upper()
         
         mask = pd.Series(False, index=df.index)
         found_col = False
         if "agencia" in df.columns:
-            mask = mask | (df["agencia"].astype(str).str.strip() == ag_str)
+            mask = mask | (df["agencia"].astype(str).str.strip().str.upper() == ag_str)
             found_col = True
         if "nombre_agency" in df.columns:
-            mask = mask | (df["nombre_agency"].astype(str).str.strip() == ag_str)
+            mask = mask | (df["nombre_agency"].astype(str).str.strip().str.upper() == ag_str)
             found_col = True
             
         if found_col:
-            return df[mask]
+            df = df[mask]
+
+        if tabla == "pagos_semana" and not df.empty and "fecha" in df.columns:
+            fechas_str = df["fecha"].astype(str).str.slice(0, 10)
+            if fecha:
+                df = df[fechas_str == str(fecha)]
+            if fecha_desde:
+                df = df[fechas_str >= str(fecha_desde)]
+            if fecha_hasta:
+                df = df[fechas_str <= str(fecha_hasta)]
+
         return df
     except Exception as e:
         return pd.DataFrame()
@@ -434,16 +445,88 @@ def sincronizar_confirmaciones_pagos(df_p, df_pb=None, ag_nombre=None):
 
 def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha_hasta=None, cajero_id=None, es_supervisor=False):
     """
-    Carga y unifica los pagos de cda_pagos_diarios y cda_pagos_bancarios,
-    aplicando el filtro por cajero y evitando duplicar pagos que estén en ambas tablas.
+    Carga y unifica los pagos de cda_pagos_diarios, cda_pagos_bancarios y pagos_semana,
+    aplicando el filtro por cajero y evitando duplicar pagos que estén en múltiples tablas.
     Retorna tuple: (df_p_total, df_pb)
     """
     df_p = cargar_datos_agencia_tabla("cda_pagos_diarios", agencia_nombre, fecha=fecha, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta)
     df_pb = cargar_datos_agencia_tabla("cda_pagos_bancarios", agencia_nombre, fecha=fecha, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta)
+    df_ps = cargar_datos_agencia_tabla("pagos_semana", agencia_nombre, fecha=fecha, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta)
 
     if cajero_id:
         df_p = filtrar_df_por_cajero(df_p, cajero_id)
         df_pb = filtrar_df_por_cajero(df_pb, cajero_id)
+        df_ps = filtrar_df_por_cajero(df_ps, cajero_id)
+
+    # Integrar pagos de pagos_semana
+    if not df_ps.empty:
+        nuevas_ps_p = []
+        nuevas_ps_pb = []
+        for _, r_ps in df_ps.iterrows():
+            monto_ps = float(r_ps.get("monto", 0))
+            fecha_ps_str = str(r_ps.get("fecha", ""))[:10]
+            tipo_ps = str(r_ps.get("tipo_pago", "Pago")).strip()
+            metodo_ps = str(r_ps.get("metodo", "EFECTIVO")).strip().upper()
+            ref_ps = str(r_ps.get("referencia", "")).strip()
+
+            ya_existe_p = False
+            if not df_p.empty and "monto" in df_p.columns:
+                fechas_p = df_p["fecha"].astype(str).str.slice(0, 10)
+                coincides = df_p[
+                    (fechas_p == fecha_ps_str) & 
+                    (abs(df_p["monto"].astype(float) - monto_ps) < 0.01)
+                ]
+                if not coincides.empty:
+                    ya_existe_p = True
+
+            if not ya_existe_p:
+                tipo_final = tipo_ps
+                if metodo_ps == "BANCO":
+                    ref_t = ref_ps if ref_ps else "BANCO"
+                    if "ref" not in tipo_ps.lower():
+                        tipo_final = f"{tipo_ps} - BANCO (Ref: {ref_t})"
+                
+                nuevas_ps_p.append({
+                    "fecha": fecha_ps_str,
+                    "agencia": agencia_nombre,
+                    "nombre_agency": agencia_nombre,
+                    "tipo_pago": tipo_final,
+                    "monto": monto_ps,
+                    "moneda": r_ps.get("moneda", "COP"),
+                    "user_id": r_ps.get("user_id"),
+                    "confirmado": True
+                })
+
+            if metodo_ps == "BANCO":
+                ya_existe_pb = False
+                if not df_pb.empty and "monto" in df_pb.columns:
+                    fechas_pb = df_pb["fecha"].astype(str).str.slice(0, 10)
+                    coincides_pb = df_pb[
+                        (fechas_pb == fecha_ps_str) & 
+                        (abs(df_pb["monto"].astype(float) - monto_ps) < 0.01)
+                    ]
+                    if not coincides_pb.empty:
+                        ya_existe_pb = True
+                
+                if not ya_existe_pb:
+                    nuevas_ps_pb.append({
+                        "fecha": fecha_ps_str,
+                        "agencia": agencia_nombre,
+                        "metodo_pago": "BANCO",
+                        "monto": monto_ps,
+                        "moneda": r_ps.get("moneda", "COP"),
+                        "referencia": ref_ps,
+                        "concepto": tipo_ps,
+                        "datos_pagador": ref_ps,
+                        "pos_o_cuenta": ref_ps,
+                        "user_id": r_ps.get("user_id"),
+                        "confirmado": True
+                    })
+
+        if nuevas_ps_p:
+            df_p = pd.concat([df_p, pd.DataFrame(nuevas_ps_p)], ignore_index=True)
+        if nuevas_ps_pb:
+            df_pb = pd.concat([df_pb, pd.DataFrame(nuevas_ps_pb)], ignore_index=True)
 
     if df_pb.empty:
         return df_p, df_pb

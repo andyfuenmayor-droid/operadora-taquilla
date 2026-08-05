@@ -680,6 +680,33 @@ def obtener_ultimo_dia_cerrado(agencia_nombre, cajero_id=None):
         pass
     return None
 
+def obtener_fecha_inicial_operativa(agencia_nombre, cajero_id=None):
+    """
+    Retorna la fecha desde la cual se deben cargar los datos del periodo operativo.
+    Si hay un último día cerrado, retorna ultimo_dia_cerrado + 1 día.
+    Si no hay cierres, busca la fecha más antigua con registros (ventas, gastos, pagos o tickets) sin cerrar.
+    Si no hay ningún registro, retorna la fecha de hoy.
+    """
+    ult_cierre = obtener_ultimo_dia_cerrado(agencia_nombre, cajero_id=cajero_id)
+    if ult_cierre:
+        return ult_cierre + timedelta(days=1)
+    
+    fechas_encontradas = []
+    for tabla in ["cda_reportes_diarios", "cda_gastos_diarios", "cda_pagos_diarios", "cda_premios_tickets", "pagos_semana"]:
+        try:
+            df = cargar_datos_agencia_tabla(tabla, agencia_nombre)
+            if not df.empty and "fecha" in df.columns:
+                f_min = df["fecha"].dropna().astype(str).str.slice(0, 10).min()
+                if f_min and len(f_min) == 10:
+                    fechas_encontradas.append(pd.to_datetime(f_min).date())
+        except Exception:
+            pass
+
+    if fechas_encontradas:
+        return min(fechas_encontradas)
+    
+    return datetime.now().date()
+
 def _check_saldo_taquilla_table():
     """Verifica que la tabla `saldo_taquilla` exista en Supabase; de lo contrario, muestra una advertencia con el SQL para crearla."""
     if "check_saldo_ok" not in st.session_state:
@@ -810,7 +837,7 @@ def modulo_home(agencia_data):
     str_hoy = str(fecha_hoy)
 
     ult_cierre = obtener_ultimo_dia_cerrado(ag_nombre, cajero_id=cajero_id if not es_supervisor else None)
-    fecha_operativa = (ult_cierre + timedelta(days=1)) if ult_cierre else datetime.now().date()
+    fecha_operativa = obtener_fecha_inicial_operativa(ag_nombre, cajero_id=cajero_id if not es_supervisor else None)
     str_operativa = str(fecha_operativa)
 
     saldo_anterior = obtener_saldo_anterior(ag_nombre, fecha_operativa, cajero_id=cajero_id if not es_supervisor else None)
@@ -2186,7 +2213,7 @@ def modulo_cierre_diario(agencia_data):
     es_supervisor = (cajero_info.get("rol", "") == "supervisor")
 
     ult_fecha = obtener_ultimo_dia_cerrado(nom, cajero_id=cajero_id if not es_supervisor else None)
-    fecha_defecto = ult_fecha if ult_fecha else datetime.now().date()
+    fecha_defecto = obtener_fecha_inicial_operativa(nom, cajero_id=cajero_id if not es_supervisor else None)
 
     if "fecha_cierre" not in st.session_state or st.session_state.get("last_cierre_cajero") != str(cajero_id):
         st.session_state["fecha_cierre"] = fecha_defecto

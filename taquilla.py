@@ -487,14 +487,27 @@ def filtrar_df_por_cajero(df, target_cajero_id):
     """
     Filtra un DataFrame para incluir los registros del cajero indicado,
     coincidiendo por cajero_id, user_id, usuario o nombre, o incluyendo registros
-    general de agencia sin cajero específico asignado (cajero_id y user_id vacíos)
-    o pagos de premios/abonos nivel agencia.
+    general de agencia sin cajero específico asignado o generados por Admin/Supervisor.
     """
     if df.empty or target_cajero_id is None:
         return df
     c_str = str(target_cajero_id).strip()
     if not c_str or c_str.lower() in ["none", "nan"]:
         return df
+
+    # Identificadores de cajeros registrados
+    cajeros_ids = set()
+    try:
+        res_u = supabase.table("taquilla_usuarios").select("id, usuario, nombre_cajero, rol").execute()
+        for u in (res_u.data or []):
+            if u.get("rol") == "cajero":
+                for k in ["id", "usuario", "nombre_cajero"]:
+                    val = str(u.get(k, "")).strip()
+                    if val and val.lower() not in ["none", "nan", ""]:
+                        cajeros_ids.add(val)
+                        cajeros_ids.add(val.lower())
+    except Exception:
+        pass
 
     targets = {c_str, c_str.lower()}
     cajero_actual = st.session_state.get("cajero_actual", {})
@@ -522,7 +535,7 @@ def filtrar_df_por_cajero(df, target_cajero_id):
 
     is_agency_payment = pd.Series(False, index=df.index)
     if "tipo_pago" in df.columns:
-        is_agency_payment = df["tipo_pago"].astype(str).str.upper().str.contains("PREMIO|PÉRDIDA|PERDIDA|ABONO|REPOSICION|REPOSICIÓN", regex=True)
+        is_agency_payment = df["tipo_pago"].astype(str).str.upper().str.contains("PREMIO|PÉRDIDA|PERDIDA|ABONO|REPOSICION|REPOSICIÓN|PAGO", regex=True)
 
     if not has_cajero and not has_user:
         return df
@@ -535,8 +548,11 @@ def filtrar_df_por_cajero(df, target_cajero_id):
 
     is_matched = (c_col.isin(targets) | c_col.str.lower().isin(targets)) | (u_col.isin(targets) | u_col.str.lower().isin(targets))
     is_general = c_unassigned & u_unassigned
+    
+    # Registros creados por Admin/Supervisor
+    is_admin_registered = (~c_col.isin(cajeros_ids) & ~c_col.str.lower().isin(cajeros_ids)) & (~u_col.isin(cajeros_ids) & ~u_col.str.lower().isin(cajeros_ids))
 
-    mask = is_matched | is_general | is_agency_payment
+    mask = is_matched | is_general | is_agency_payment | is_admin_registered
     return df[mask]
 
 def enriquecer_columna_cajero(df):

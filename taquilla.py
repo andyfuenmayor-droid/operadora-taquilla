@@ -456,7 +456,7 @@ def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha
     if cajero_id:
         df_p = filtrar_df_por_cajero(df_p, cajero_id)
         df_pb = filtrar_df_por_cajero(df_pb, cajero_id)
-        df_ps = filtrar_df_por_cajero(df_ps, cajero_id)
+        # Nota: df_ps proviene de pagos_semana (cargados por el Admin/CMS para la agencia). No se filtra por cajero_id.
 
     # Integrar pagos de pagos_semana
     if not df_ps.empty:
@@ -850,7 +850,6 @@ def obtener_saldo_anterior(agencia_nombre, fecha_sel, cajero_id=None, moneda="BS
 
     return 0.0
 
-
 def modulo_home(agencia_data):
     ag_nombre = agencia_data['nombre_agencia']
     u_id = agencia_data['user_id']
@@ -925,7 +924,7 @@ def modulo_home(agencia_data):
     t_pago_banco_bancarios = float(df_pb_hoy["monto"].sum()) if not df_pb_hoy.empty and "monto" in df_pb_hoy.columns else 0.0
     t_pago_banco = max(t_pago_banco_diarios, t_pago_banco_bancarios)
 
-    saldo_neto_hoy = t_ventas - t_comis - t_premios - t_gastos - t_pago_efectivo - t_pago_banco - t_pago_premios
+    saldo_neto_hoy = t_ventas - t_comis - t_premios - t_gastos - t_pago_efectivo - t_pago_banco + t_pago_premios
     saldo_final_estimado = saldo_anterior + saldo_neto_hoy
 
     # BANNER PRINCIPAL DE BIENVENIDA
@@ -974,8 +973,8 @@ def modulo_home(agencia_data):
             <span style="color: #94a3b8;">Pagos Bancos:</span> <b style="color: #ffffff;">${t_pago_banco:,.2f}</b>
             <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
             <span style="color: #94a3b8;">Pago Efectivo:</span> <b style="color: #ffffff;">${t_pago_efectivo:,.2f}</b>
-            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
-            <span style="color: #94a3b8;">Pago Pérdidas / Premios:</span> <b style="color: #ffffff;">${t_pago_premios:,.2f}</b>
+            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">+</span>
+            <span style="color: #94a3b8;">Pago Pérdidas / Premios:</span> <b style="color: #34d399;">${t_pago_premios:,.2f}</b>
             <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">=</span>
             <span style="color: #94a3b8;">Saldo Final Estimado:</span> <b style="font-size: 1.1rem; color: {cur_sf_color};">${saldo_final_estimado:,.2f}</b>
         </div>

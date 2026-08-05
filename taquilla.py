@@ -4111,6 +4111,26 @@ else:
         if st.session_state["opcion_actual"] not in [m[1] for m in menu_items]:
             st.session_state["opcion_actual"] = "Inicio"
 
+    u_id_admin_sb = ag.get("user_id")
+    ciclo_admin_sb = obtener_periodo_trabajo(u_id_admin_sb)
+    
+    if rol_lower in ["agencia", "supervisor"]:
+        label_periodo_sb = "Periodo de Trabajo"
+        def _fmt_f(f_str):
+            try: return pd.to_datetime(f_str).strftime("%d/%m/%Y")
+            except Exception: return str(f_str)
+        if ciclo_admin_sb and ciclo_admin_sb.get("desde"):
+            f1_sb = _fmt_f(ciclo_admin_sb.get("desde"))
+            f2_sb = _fmt_f(ciclo_admin_sb.get("hasta"))
+            val_periodo_sb = f"📅 {f1_sb} al {f2_sb}"
+        else:
+            val_periodo_sb = "📅 Sin periodo"
+        val_color_sb = "#69f0ae"
+    else:
+        label_periodo_sb = "Último Cierre"
+        val_periodo_sb = f"📅 {ultimo_cierre.strftime('%d/%m/%Y')}" if ultimo_cierre else "📅 Sin cierres"
+        val_color_sb = '#34d399' if ultimo_cierre else '#fb7185'
+
     with st.sidebar:
         sidebar_info = f"""<div style="background-color: {card_bg}; border: 1px solid {card_border}; padding: 0.85rem 1rem; border-radius: 12px; margin-bottom: 0.5rem;">
 <div style="font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.1rem;">Terminal</div>
@@ -4119,8 +4139,8 @@ else:
 <div style="font-size: 0.9rem; font-weight: 600; color: {text_val_color}; margin-bottom: 0.5rem;">👤 {(cajero.get('nombre') or cajero.get('usuario') or 'USUARIO').upper()}</div>
 <div style="font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.1rem;">Rol</div>
 <div style="display: inline-block; background-color: {badge_bg}; border: 1px solid {badge_border}; color: {badge_text}; font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.4rem; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">{cajero['rol'].upper()}</div>
-<div style="font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.1rem;">Último Cierre</div>
-<div style="font-size: 0.85rem; font-weight: 500; color: { '#34d399' if ultimo_cierre else '#fb7185' }; font-family: inherit;">📅 {ultimo_cierre if ultimo_cierre else 'Sin cierres'}</div>
+<div style="font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.1rem;">{label_periodo_sb}</div>
+<div style="font-size: 0.85rem; font-weight: 500; color: {val_color_sb}; font-family: inherit;">{val_periodo_sb}</div>
 </div>"""
         st.markdown(sidebar_info, unsafe_allow_html=True)
 

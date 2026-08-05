@@ -3,19 +3,31 @@ import pandas as pd
 import time
 import urllib.parse
 from utils import supabase
+
 from datetime import datetime, timedelta, timezone
 from modulo_pizarra import modulo_pizarra
+
+st.set_page_config(
+    page_title="Taquilla POS",
+    page_icon="assets/pos_icon.png",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 def obtener_hora_local():
     """Retorna la fecha y hora actual ajustada a la zona horaria local (UTC-4)."""
     return datetime.now(timezone(timedelta(hours=-4)))
 
-user_agent = st.context.headers.get("User-Agent", "").lower()
-if "ipad" in user_agent or ("android" in user_agent and "mobile" not in user_agent):
-    st.session_state["dispositivo"] = "Tablet"
-elif any(word in user_agent for word in ["iphone", "android", "blackberry", "opera mini"]):
-    st.session_state["dispositivo"] = "Teléfono"
-else:
+try:
+    headers = getattr(st.context, "headers", {}) or {}
+    user_agent = str(headers.get("User-Agent", "") or headers.get("user-agent", "")).lower()
+    if "ipad" in user_agent or ("android" in user_agent and "mobile" not in user_agent):
+        st.session_state["dispositivo"] = "Tablet"
+    elif any(word in user_agent for word in ["iphone", "android", "blackberry", "opera mini"]):
+        st.session_state["dispositivo"] = "Teléfono"
+    else:
+        st.session_state["dispositivo"] = "Escritorio"
+except Exception:
     st.session_state["dispositivo"] = "Escritorio"
 
 def obtener_nombre_banco(alias, c_asoc=""):
@@ -40,188 +52,9 @@ def obtener_nombre_banco(alias, c_asoc=""):
         cleaned = cleaned.replace(word, "")
     cleaned = cleaned.strip()
     return cleaned if cleaned else alias
-
-st.set_page_config(
-    page_title="Taquilla POS",
-    page_icon="assets/pos_icon.png",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# Anti-cache meta tags, JS auto-clearing script y CSS para visibilidad de controles
-st.markdown("""
-    <head>
-        <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-        <meta http-equiv="Pragma" content="no-cache" />
-        <meta http-equiv="Expires" content="0" />
-    </head>
-    <script>
-    (function() {
-        var V = "2026.07.24-v3.2.0";
-        var cur = localStorage.getItem("taquilla_build_v3");
-        if (!cur) {
-            localStorage.setItem("taquilla_build_v3", V);
-        } else if (cur !== V) {
-            localStorage.clear();
-            sessionStorage.clear();
-            localStorage.setItem("taquilla_build_v3", V);
-            if ('caches' in window) { caches.keys().then(function(ks){ for(var i=0; i<ks.length; i++) caches.delete(ks[i]); }); }
-            if ('serviceWorker' in navigator) { navigator.serviceWorker.getRegistrations().then(function(rs){ for(var j=0; j<rs.length; j++) rs[j].unregister(); }); }
-            window.location.reload(true);
-        }
-    })();
-    </script>
-    <style>
-    /* Tarjeta Form Estándar */
-    [data-testid="stForm"] {
-        background-color: rgba(13, 27, 34, 0.75) !important;
-        backdrop-filter: blur(24px) !important;
-        -webkit-backdrop-filter: blur(24px) !important;
-        border: 1px solid rgba(255, 255, 255, 0.08) !important;
-        border-radius: 24px !important;
-        padding: 2.5rem 2rem !important;
-        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6) !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        margin: 0 !important;
-    }
-    [data-testid="stForm"] form {
-        background: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
-    }
-    [data-testid="stForm"] > div {
-        gap: 1.25rem !important;
-    }
-    [data-testid="stWidgetLabel"] p {
-        color: #94a3b8 !important;
-        font-weight: 600 !important;
-        font-size: 0.75rem !important;
-        letter-spacing: 0.05em !important;
-        text-transform: uppercase !important;
-        margin-bottom: 0.35rem !important;
-    }
-    div[data-baseweb="input"],
-    div[data-baseweb="input"] > div,
-    div[data-baseweb="input"] input {
-        background-color: #0d1b22 !important;
-        color: #f8fafc !important;
-        border-color: rgba(255, 255, 255, 0.08) !important;
-        border-radius: 10px !important;
-    }
-    div[data-baseweb="input"]:focus-within {
-        border-color: #00c853 !important;
-    }
-    input {
-        color: #f8fafc !important;
-        font-size: 0.95rem !important;
-    }
-    [data-testid="stFormSubmitButton"] button {
-        width: 100% !important;
-        background: linear-gradient(90deg, #00c853 0%, #00e676 100%) !important;
-        color: #ffffff !important;
-        border: none !important;
-        padding: 0.75rem 1.5rem !important;
-        border-radius: 12px !important;
-        font-size: 0.95rem !important;
-        font-weight: 600 !important;
-        box-shadow: 0 4px 12px rgba(0, 200, 83, 0.35) !important;
-        margin-top: 0.5rem !important;
-    }
-    [data-testid="collapsedControl"] {
-        display: flex !important;
-        visibility: visible !important;
-        z-index: 999999 !important;
-        position: fixed !important;
-        top: 10px !important;
-        left: 10px !important;
-        background-color: #0d1b22 !important;
-        color: #ffffff !important;
-        border: 1px solid rgba(255, 255, 255, 0.2) !important;
-        border-radius: 8px !important;
-        padding: 4px !important;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3) !important;
-    }
-    [data-testid="stHeader"] {
-        background-color: transparent !important;
-    }
-    [data-testid="stDecoration"] {
-        display: none !important;
-    }
-    [data-testid="stToolbar"] {
-        display: none !important;
-    }
-    .stAppDeployButton {
-        display: none !important;
-    }
-    #MainMenu {
-        visibility: hidden !important;
-    }
-    footer {
-        visibility: hidden !important;
-    }
-    </style>
-""", 
-unsafe_allow_html=True)
-
 
 if "tema_oscuro" not in st.session_state:
     st.session_state.tema_oscuro = True
-
-def render_encabezado_principal(texto):
-    is_dark = st.session_state.get("tema_oscuro", True)
-    color = "#ffffff" if is_dark else "#0f172a"
-    st.markdown(f"<h2 style='margin: 0 0 4px 0; font-size: 20px; font-weight: 700; color: {color};'>{texto}</h2>", unsafe_allow_html=True)
-
-import streamlit as st
-import pandas as pd
-import time
-import urllib.parse
-from utils import supabase
-from datetime import datetime, timedelta, timezone
-from modulo_pizarra import modulo_pizarra
-
-def obtener_hora_local():
-    """Retorna la fecha y hora actual ajustada a la zona horaria local (UTC-4)."""
-    return datetime.now(timezone(timedelta(hours=-4)))
-
-user_agent = st.context.headers.get("User-Agent", "").lower()
-if "ipad" in user_agent or ("android" in user_agent and "mobile" not in user_agent):
-    st.session_state["dispositivo"] = "Tablet"
-elif any(word in user_agent for word in ["iphone", "android", "blackberry", "opera mini"]):
-    st.session_state["dispositivo"] = "Teléfono"
-else:
-    st.session_state["dispositivo"] = "Escritorio"
-
-def obtener_nombre_banco(alias, c_asoc=""):
-    alias_upper = str(alias).upper().strip()
-    c_asoc_upper = str(c_asoc).upper().strip() if c_asoc else ""
-    
-    # 1. Si la cuenta asociada tiene formato BANCO | TITULAR, extraemos la primera parte
-    if c_asoc_upper and "|" in c_asoc_upper and "SIN CUENTA" not in c_asoc_upper:
-        return c_asoc.split("|")[0].strip().upper()
-        
-    # 2. Si no, buscamos un banco común en el alias o cuenta asociada
-    bancos_comunes = ["BANCOLOMBIA", "BANESCO", "BANCAMIGA", "CITI BANK", "MERCANTIL", "PROVINCIAL", "VENEZUELA", "BOD", "BNC", "ZELLE", "BINANCE", "PAYPAL"]
-    for b in bancos_comunes:
-        if b in alias_upper:
-            return b
-        if b in c_asoc_upper:
-            return b
-            
-    # 3. Limpieza de palabras clave comunes
-    cleaned = alias_upper
-    for word in ["POS", "BIOPAGO", "DISPOSITIVO", "GLO", "PUNTO DE VENTA", "PUNTO"]:
-        cleaned = cleaned.replace(word, "")
-    cleaned = cleaned.strip()
-    return cleaned if cleaned else alias
-
-st.set_page_config(
-    page_title="Taquilla POS",
-    page_icon="assets/pos_icon.png",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 
 # Anti-cache meta tags, JS auto-clearing script y CSS para visibilidad de controles
 st.markdown("""

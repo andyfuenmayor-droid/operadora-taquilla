@@ -916,11 +916,37 @@ def modulo_home(agencia_data):
     # Cargar métricas del periodo operativo actual desde el último cierre (gte fecha_operativa)
     df_v_hoy, df_g_hoy, df_p_hoy, df_pb_hoy, df_t_hoy = pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
+    f_desde_admin = str(ciclo_admin.get("desde"))
+    f_hasta_admin = str(ciclo_admin.get("hasta"))
+
     try:
-        df_v_hoy = cargar_datos_agencia_tabla("cda_reportes_diarios", ag_nombre, fecha_desde=str_operativa)
-        df_g_hoy = cargar_datos_agencia_tabla("cda_gastos_diarios", ag_nombre, fecha_desde=str_operativa)
-        df_p_hoy, df_pb_hoy = obtener_pagos_unificados(ag_nombre, fecha_desde=str_operativa, cajero_id=c_id_target, es_supervisor=es_sup_o_ag)
-        df_t_hoy = cargar_datos_agencia_tabla("cda_premios_tickets", ag_nombre, fecha_desde=str_operativa)
+        df_v_hoy = cargar_datos_agencia_tabla("cda_reportes_diarios", ag_nombre, fecha_desde=str_operativa, fecha_hasta=f_hasta_admin)
+        if df_v_hoy.empty or "monto_venta" not in df_v_hoy.columns or float(pd.to_numeric(df_v_hoy["monto_venta"], errors="coerce").fillna(0).sum()) == 0:
+            df_ofic = cargar_datos_agencia_tabla("carga_actual", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_admin)
+            if df_ofic.empty:
+                df_ofic = cargar_datos_agencia_tabla("carga_actual", ag_nombre)
+            if not df_ofic.empty:
+                df_ofic["monto_venta"] = pd.to_numeric(df_ofic.get("venta", 0), errors="coerce").fillna(0.0)
+                df_ofic["comision"] = pd.to_numeric(df_ofic.get("comision", 0), errors="coerce").fillna(0.0)
+                df_ofic["monto_premios"] = pd.to_numeric(df_ofic.get("premios", 0), errors="coerce").fillna(0.0)
+                df_ofic["neto"] = pd.to_numeric(df_ofic.get("neto", 0), errors="coerce").fillna(0.0)
+                df_v_hoy = df_ofic
+
+        df_g_hoy = cargar_datos_agencia_tabla("cda_gastos_diarios", ag_nombre, fecha_desde=str_operativa, fecha_hasta=f_hasta_admin)
+        if df_g_hoy.empty or "monto" not in df_g_hoy.columns or float(pd.to_numeric(df_g_hoy["monto"], errors="coerce").fillna(0).sum()) == 0:
+            df_g_ofic = cargar_datos_agencia_tabla("gastos", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_admin)
+            if not df_g_ofic.empty:
+                df_g_ofic["concepto"] = df_g_ofic.get("concepto", df_g_ofic.get("descripcion", "Gasto General"))
+                df_g_hoy = df_g_ofic
+
+        df_p_hoy, df_pb_hoy = obtener_pagos_unificados(ag_nombre, fecha_desde=str_operativa, fecha_hasta=f_hasta_admin, cajero_id=c_id_target, es_supervisor=es_sup_o_ag)
+        if df_p_hoy.empty:
+            df_p_sem = cargar_datos_agencia_tabla("pagos_semana", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_admin)
+            if not df_p_sem.empty:
+                df_p_sem["tipo_pago"] = df_p_sem.get("metodo", df_p_sem.get("tipo", "EFECTIVO"))
+                df_p_hoy = df_p_sem
+
+        df_t_hoy = cargar_datos_agencia_tabla("cda_premios_tickets", ag_nombre, fecha_desde=str_operativa, fecha_hasta=f_hasta_admin)
     except Exception:
         pass
 
@@ -1119,11 +1145,14 @@ def modulo_home(agencia_data):
     col_t1, col_t2 = st.columns([1, 1])
 
     with col_t1:
-        render_titulo_seccion(f"📋 Ventas ({fecha_operativa.strftime('%d/%m/%Y')} en adelante)")
+        render_titulo_seccion(f"📋 Ventas del Ciclo ({ciclo_rango_str})")
         if not df_v_hoy.empty:
-            cols_v_show = [c for c in ["sistema", "monto_venta", "comision", "monto_premios", "neto"] if c in df_v_hoy.columns]
+            cols_v_show = [c for c in ["sistema", "monto_venta", "venta", "comision", "monto_premios", "premios", "neto"] if c in df_v_hoy.columns]
             df_v_disp = df_v_hoy[cols_v_show].copy()
-            df_v_disp = df_v_disp.rename(columns={"monto_venta": "venta", "monto_premios": "premios"})
+            if "monto_venta" in df_v_disp.columns:
+                df_v_disp = df_v_disp.rename(columns={"monto_venta": "venta"})
+            if "monto_premios" in df_v_disp.columns:
+                df_v_disp = df_v_disp.rename(columns={"monto_premios": "premios"})
             st.dataframe(
                 df_v_disp,
                 column_config={
@@ -1136,10 +1165,10 @@ def modulo_home(agencia_data):
                 hide_index=True
             )
         else:
-            st.info("ℹ️ Sin registros de ventas cargados para esta fecha.")
+            st.info("ℹ️ Sin registros de ventas cargados para este ciclo.")
 
     with col_t2:
-        render_titulo_seccion(f"💸 Gastos y Pagos ({fecha_operativa.strftime('%d/%m/%Y')} en adelante)")
+        render_titulo_seccion(f"💸 Gastos y Pagos del Ciclo ({ciclo_rango_str})")
         if not df_g_hoy.empty or not df_p_hoy.empty:
             if not df_g_hoy.empty:
                 st.caption("💸 **Gastos Registrados:**")

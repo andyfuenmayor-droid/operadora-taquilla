@@ -691,7 +691,8 @@ def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha
                     "confirmado": True
                 })
 
-            if metodo_ps == "BANCO":
+            is_prem_ps = any(k in tipo_ps.upper() for k in ["PREMIO", "PÉRDIDA", "PERDIDA", "ABONO", "REPOSICION", "REPOSICIÓN"])
+            if metodo_ps == "BANCO" and not is_prem_ps:
                 ya_existe_pb = False
                 if not df_pb.empty and "monto" in df_pb.columns:
                     fechas_pb = df_pb["fecha"].astype(str).str.slice(0, 10)
@@ -721,11 +722,6 @@ def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha
             df_p = pd.concat([df_p, pd.DataFrame(nuevas_ps_p)], ignore_index=True)
         if nuevas_ps_pb:
             df_pb = pd.concat([df_pb, pd.DataFrame(nuevas_ps_pb)], ignore_index=True)
-
-    if df_pb.empty:
-        return df_p, df_pb
-
-    if df_p.empty:
         filas_banco = []
         for _, r in df_pb.iterrows():
             metodo = str(r.get("metodo_pago", "Pago Bancario")).strip()

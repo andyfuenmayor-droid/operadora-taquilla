@@ -1147,12 +1147,21 @@ def modulo_home(agencia_data):
     with col_t1:
         render_titulo_seccion(f"📋 Ventas del Ciclo ({ciclo_rango_str})")
         if not df_v_hoy.empty:
-            cols_v_show = [c for c in ["sistema", "monto_venta", "venta", "comision", "monto_premios", "premios", "neto"] if c in df_v_hoy.columns]
-            df_v_disp = df_v_hoy[cols_v_show].copy()
-            if "monto_venta" in df_v_disp.columns:
+            df_v_disp = df_v_hoy.copy()
+            if "monto_venta" in df_v_disp.columns and "venta" not in df_v_disp.columns:
                 df_v_disp = df_v_disp.rename(columns={"monto_venta": "venta"})
-            if "monto_premios" in df_v_disp.columns:
+            elif "monto_venta" in df_v_disp.columns and "venta" in df_v_disp.columns:
+                df_v_disp = df_v_disp.drop(columns=["monto_venta"])
+
+            if "monto_premios" in df_v_disp.columns and "premios" not in df_v_disp.columns:
                 df_v_disp = df_v_disp.rename(columns={"monto_premios": "premios"})
+            elif "monto_premios" in df_v_disp.columns and "premios" in df_v_disp.columns:
+                df_v_disp = df_v_disp.drop(columns=["monto_premios"])
+
+            desired_cols = ["sistema", "venta", "comision", "premios", "neto"]
+            cols_v_show = [c for c in desired_cols if c in df_v_disp.columns]
+            df_v_disp = df_v_disp.loc[:, ~df_v_disp.columns.duplicated()][cols_v_show]
+
             st.dataframe(
                 df_v_disp,
                 column_config={

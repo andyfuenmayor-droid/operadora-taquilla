@@ -688,9 +688,6 @@ def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha
                     "monto": monto_ps,
                     "moneda": r_ps.get("moneda", "BS"),
                     "referencia": ref_ps,
-                    "banco": r_ps.get("banco") or r_ps.get("datos_pagador") or ("BANCO" if metodo_ps == "BANCO" else "EFECTIVO"),
-                    "datos_pagador": r_ps.get("datos_pagador") or ref_ps,
-                    "pos_o_cuenta": r_ps.get("pos_o_cuenta") or ref_ps,
                     "user_id": r_ps.get("user_id"),
                     "confirmado": True
                 })

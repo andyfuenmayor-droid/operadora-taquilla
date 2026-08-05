@@ -821,6 +821,20 @@ def obtener_saldo_anterior(agencia_nombre, fecha_sel, cajero_id=None):
                 return sum(float(r["saldo_restante"]) for r in res_all.data)
     except Exception:
         pass
+
+    # 2. Si no existe registro en saldo_taquilla, buscar saldo_inicial o arrastre en la tabla agencias
+    try:
+        res_ag = supabase.table("agencias").select("*").eq("nombre_agencia", agencia_nombre).execute()
+        if res_ag.data:
+            ag_data = res_ag.data[0]
+            for col in ["saldo_inicial_bs", "saldo_inicial", "saldo_arrastre", "saldo_inicial_cop", "saldo_inicial_usd"]:
+                if col in ag_data and ag_data[col] is not None:
+                    val = float(ag_data[col])
+                    if abs(val) > 0.001:
+                        return val
+    except Exception:
+        pass
+
     return 0.0
 
 
@@ -876,18 +890,29 @@ def modulo_home(agencia_data):
 
     t_gastos = float(df_g_hoy["monto"].sum()) if not df_g_hoy.empty and "monto" in df_g_hoy.columns else 0.0
 
+    t_pago_efectivo = 0.0
+    t_pago_banco_diarios = 0.0
+    t_pago_premios = 0.0
+
     if not df_p_hoy.empty:
-        is_efectivo = df_p_hoy["tipo_pago"].astype(str).str.lower().str.contains("efectivo") if "tipo_pago" in df_p_hoy.columns else pd.Series([True]*len(df_p_hoy))
-        t_pago_efectivo = float(df_p_hoy[is_efectivo]["monto"].sum()) if not df_p_hoy.empty else 0.0
-        t_pago_banco_diarios = float(df_p_hoy[~is_efectivo]["monto"].sum()) if not df_p_hoy.empty else 0.0
+        tipos_str = df_p_hoy["tipo_pago"].astype(str).str.upper() if "tipo_pago" in df_p_hoy.columns else pd.Series([""]*len(df_p_hoy))
+        is_premio = tipos_str.str.contains("PREMIO|PÉRDIDA|PERDIDA|ABONO|REPOSICION|REPOSICIÓN", regex=True)
+        t_pago_premios = float(df_p_hoy[is_premio]["monto"].sum())
+        
+        is_efectivo = tipos_str.str.contains("EFECTIVO") & (~is_premio)
+        t_pago_efectivo = float(df_p_hoy[is_efectivo]["monto"].sum())
+        
+        is_banco = (~is_efectivo) & (~is_premio)
+        t_pago_banco_diarios = float(df_p_hoy[is_banco]["monto"].sum())
     else:
         t_pago_efectivo = 0.0
         t_pago_banco_diarios = 0.0
+        t_pago_premios = 0.0
 
     t_pago_banco_bancarios = float(df_pb_hoy["monto"].sum()) if not df_pb_hoy.empty and "monto" in df_pb_hoy.columns else 0.0
     t_pago_banco = max(t_pago_banco_diarios, t_pago_banco_bancarios)
 
-    saldo_neto_hoy = t_ventas - t_comis - t_premios - t_gastos - t_pago_efectivo - t_pago_banco
+    saldo_neto_hoy = t_ventas - t_comis - t_premios - t_gastos - t_pago_efectivo - t_pago_banco - t_pago_premios
     saldo_final_estimado = saldo_anterior + saldo_neto_hoy
 
     # BANNER PRINCIPAL DE BIENVENIDA
@@ -923,6 +948,7 @@ def modulo_home(agencia_data):
     render_tarjetas_metricas(t_ventas, t_comis, t_premios, t_gastos, t_pago_efectivo, saldo_neto_hoy, t_pago_banco=t_pago_banco, solo_operativo=True)
 
     # BALANCE DE SALDO ACUMULADO
+    cur_sf_color = '#34d399' if saldo_final_estimado >= 0 else '#fb7185'
     st.markdown(
         f"""
         <div style="background-color: rgba(13, 27, 34, 0.5); padding: 0.85rem 1.25rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); margin-top: 0.75rem; margin-bottom: 1.25rem; text-align: center; font-size: 0.85rem;">
@@ -935,8 +961,10 @@ def modulo_home(agencia_data):
             <span style="color: #94a3b8;">Pagos Bancos:</span> <b style="color: #ffffff;">${t_pago_banco:,.2f}</b>
             <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
             <span style="color: #94a3b8;">Pago Efectivo:</span> <b style="color: #ffffff;">${t_pago_efectivo:,.2f}</b>
+            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
+            <span style="color: #94a3b8;">Pago Pérdidas / Premios:</span> <b style="color: #ffffff;">${t_pago_premios:,.2f}</b>
             <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">=</span>
-            <span style="color: #94a3b8;">Saldo Final Estimado:</span> <b style="font-size: 1.1rem; color: #00c853;">${saldo_final_estimado:,.2f}</b>
+            <span style="color: #94a3b8;">Saldo Final Estimado:</span> <b style="font-size: 1.1rem; color: {cur_sf_color};">${saldo_final_estimado:,.2f}</b>
         </div>
         """,
         unsafe_allow_html=True

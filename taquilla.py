@@ -686,7 +686,11 @@ def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha
                     "nombre_agency": agencia_nombre,
                     "tipo_pago": tipo_final,
                     "monto": monto_ps,
-                    "moneda": r_ps.get("moneda", "COP"),
+                    "moneda": r_ps.get("moneda", "BS"),
+                    "referencia": ref_ps,
+                    "banco": r_ps.get("banco") or r_ps.get("datos_pagador") or ("BANCO" if metodo_ps == "BANCO" else "EFECTIVO"),
+                    "datos_pagador": r_ps.get("datos_pagador") or ref_ps,
+                    "pos_o_cuenta": r_ps.get("pos_o_cuenta") or ref_ps,
                     "user_id": r_ps.get("user_id"),
                     "confirmado": True
                 })
@@ -1312,8 +1316,8 @@ def modulo_home(agencia_data):
                     df_p_disp["agencia"] = df_p_disp["nombre_agency"]
                 elif "nombre_agency" in df_p_disp.columns:
                     df_p_disp["agencia"] = df_p_disp["agencia"].fillna(df_p_disp["nombre_agency"])
-                df_p_disp = df_p_disp.rename(columns={"tipo_pago": "pagos registrados"})
-                cols_p_show = [c for c in ["agencia", "cajero", "pagos registrados", "moneda", "monto", "Conf."] if c in df_p_disp.columns]
+                df_p_disp = df_p_disp.rename(columns={"tipo_pago": "pagos registrados", "referencia": "referencia / banco"})
+                cols_p_show = [c for c in ["agencia", "cajero", "pagos registrados", "referencia / banco", "banco", "moneda", "monto", "Conf."] if c in df_p_disp.columns]
                 st.dataframe(
                     df_p_disp[cols_p_show],
                     column_config={

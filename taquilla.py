@@ -3796,22 +3796,32 @@ else:
     if "opcion_actual" not in st.session_state:
         st.session_state["opcion_actual"] = "Inicio"
 
-    es_sup_role = (cajero.get("rol") == "supervisor")
+    es_sup_role = (str(cajero.get("rol", "")).lower() == "supervisor")
 
-    menu_items = [
-        ("🏠 Inicio", "Inicio"),
-        ("📌 Pizarra", "Pizarra"),
-        ("🎰 Carga de Ventas", "Carga de Ventas"),
-        ("🎟️ Tickets Premiados", "Tickets Premiados"),
-        ("💸 Gestión de Gastos", "Gestión de Gastos"),
-        ("💵 Pago Efectivo", "Gestión de Pagos"),
-        ("🏦 Gestión Bancaria", "Gestión Bancaria"),
-        ("📆 Reporte Diario", "Reporte Diario"),
-        ("📊 Reporte por Rango", "Reporte por Rango"),
-        ("🔒 Cierre Diario", "Cierre Diario")
-    ]
-    if st.session_state["opcion_actual"] not in [m[1] for m in menu_items]:
-        st.session_state["opcion_actual"] = "Inicio"
+    if es_sup_role:
+        menu_items = [
+            ("🏠 Inicio", "Inicio"),
+            ("📌 Pizarra", "Pizarra"),
+            ("📆 Reporte Diario", "Reporte Diario"),
+            ("📊 Reporte por Rango", "Reporte por Rango"),
+            ("🔒 Cierre Diario", "Cierre Diario")
+        ]
+        if st.session_state["opcion_actual"] not in [m[1] for m in menu_items]:
+            st.session_state["opcion_actual"] = "Inicio"
+    else:
+        menu_items = [
+            ("🏠 Inicio", "Inicio"),
+            ("🎰 Carga de Ventas", "Carga de Ventas"),
+            ("🎟️ Tickets Premiados", "Tickets Premiados"),
+            ("💸 Gestión de Gastos", "Gestión de Gastos"),
+            ("💵 Pago Efectivo", "Gestión de Pagos"),
+            ("🏦 Gestión Bancaria", "Gestión Bancaria"),
+            ("📆 Reporte Diario", "Reporte Diario"),
+            ("📊 Reporte por Rango", "Reporte por Rango"),
+            ("🔒 Cierre Diario", "Cierre Diario")
+        ]
+        if st.session_state["opcion_actual"] not in [m[1] for m in menu_items]:
+            st.session_state["opcion_actual"] = "Inicio"
 
     with st.sidebar:
         sidebar_info = f"""<div style="background-color: {card_bg}; border: 1px solid {card_border}; padding: 0.85rem 1rem; border-radius: 12px; margin-bottom: 0.5rem;">

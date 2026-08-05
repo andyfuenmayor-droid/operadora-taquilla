@@ -2512,6 +2512,7 @@ def modulo_cierre_diario(agencia_data):
     t_p_rep = float(df_v['monto_premios'].sum()) if not df_v.empty and 'monto_premios' in df_v.columns else 0.0
     t_p_tick = float(df_t['monto'].sum()) if not df_t.empty and 'monto' in df_t.columns else 0.0
     t_premios = max(t_p_rep, t_p_tick)
+    t_gastos = float(df_g['monto'].sum()) if not df_g.empty and 'monto' in df_g.columns else 0.0
 
     pagos_entregados = 0.0
     abonos_recibidos = 0.0

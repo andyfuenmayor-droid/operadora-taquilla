@@ -625,7 +625,7 @@ def sincronizar_confirmaciones_pagos(df_p, df_pb=None, ag_nombre=None):
 
     return df_p
 
-def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha_hasta=None, cajero_id=None):
+def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha_hasta=None, cajero_id=None, es_supervisor=False):
     """
     Retorna tuple: (df_p_total, df_pb)
     """

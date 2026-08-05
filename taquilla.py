@@ -1735,10 +1735,10 @@ def modulo_gestion_bancaria(agencia_data):
         # Campos de Pago (Monto primero, luego Concepto)
         col_v1, col_v2 = st.columns([2, 4])
         monto_pago = col_v1.number_input("Monto Recibido*", min_value=0.0, format="%.2f", key=f"reg_monto_pago_{st.session_state.bancaria_form_version}")
-        concepto = col_v2.selectbox("Concepto de Operación*", ["Compra de Tickets", "Recibos Punto Venta", "Pago a Comercializador"], key="reg_concepto_pago")
+        concepto = col_v2.selectbox("Concepto de Operación*", ["Compra de Tickets", "Pago de Premios", "Recibos Punto Venta", "Pago a Comercializador"], key="reg_concepto_pago")
 
         # Campos dinámicos según el concepto seleccionado
-        if concepto in ["Compra de Tickets", "Pago a Comercializador"]:
+        if concepto in ["Compra de Tickets", "Pago de Premios", "Pago a Comercializador"]:
             col_f1, col_f2 = st.columns([3, 3])
             referencia = col_f1.text_input("Número de Referencia / Comprobante*", placeholder="Ej: 987654 / Últimos 6 dígitos", key=f"reg_ref_pago_{st.session_state.bancaria_form_version}")
             datos_cliente = col_f2.text_input("Datos del Pagador / Titular", placeholder="Ej: V-14567890 / Pedro Pérez", key=f"reg_datos_cliente_{st.session_state.bancaria_form_version}")

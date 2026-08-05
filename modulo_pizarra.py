@@ -1062,6 +1062,8 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
                 sup_nom = str(r.get("supervisor_nombre") or "").strip()
                 com_sup = str(r.get("comentario_supervisor") or "").strip()
 
+                concepto_pago = "Pago de Premios" if "PREMIO" in tipo else (tipo if tipo else "Pago Efectivo")
+
                 registros.append({
                     "id": r.get("id"),
                     "tabla": "cda_pagos_diarios",
@@ -1071,7 +1073,7 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
                     "cajero_nombre": c_nombre,
                     "categoria": "Efectivo",
                     "metodo": tipo or "EFECTIVO",
-                    "concepto": "Pago Efectivo",
+                    "concepto": concepto_pago,
                     "referencia": "N/A",
                     "pagador": "N/A",
                     "dispositivo": "N/A",

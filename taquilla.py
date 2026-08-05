@@ -3152,19 +3152,43 @@ if not st.session_state.taquilla_autenticada:
                 with status_placeholder:
                     with st.spinner("Verificando usuario..."):
                         time.sleep(0.5)
-                        res_user = supabase.table("taquilla_usuarios").select("*").ilike("usuario", user_input).eq("clave", key_input).execute()
+                        u_clean = user_input.strip()
+                        p_clean = key_input.strip()
+                        res_user = supabase.table("taquilla_usuarios").select("*").ilike("usuario", u_clean).execute()
                         res_data = res_user.data or []
+
+                        matched_user = None
+                        for u_rec in res_data:
+                            if str(u_rec.get("clave", "")).strip() == p_clean:
+                                matched_user = u_rec
+                                break
                 
-                if res_data:
-                    user_data = res_data[0]
+                if matched_user:
+                    user_data = matched_user
                     res_agencia = supabase.table("agencias").select("*").execute()
                     df_todas = pd.DataFrame(res_agencia.data or [])
-                    raw_id = str(user_data["agencia_id"]).strip()
-                    match = df_todas[df_todas["id"].astype(str) == raw_id]
+                    raw_id = str(user_data.get("agencia_id", "")).strip()
+
+                    match = pd.DataFrame()
+                    if not df_todas.empty:
+                        if raw_id and raw_id.lower() != "none":
+                            match = df_todas[df_todas["id"].astype(str) == raw_id]
+                        if match.empty and "nombre_cajero" in user_data:
+                            caj_nom = str(user_data.get("nombre_cajero", "")).strip().upper()
+                            if caj_nom:
+                                match = df_todas[df_todas["nombre_agencia"].astype(str).str.upper().str.strip() == caj_nom]
+                        if match.empty and len(df_todas) == 1:
+                            match = df_todas.iloc[[0]]
+
                     if not match.empty:
                         st.session_state.taquilla_autenticada = True
                         st.session_state.agencia_actual = match.iloc[0].to_dict()
-                        st.session_state.cajero_actual = {"id": user_data["id"], "usuario": user_data["usuario"], "rol": user_data["rol"], "nombre": user_data.get("nombre_cajero", user_data["usuario"])}
+                        st.session_state.cajero_actual = {
+                            "id": user_data["id"], 
+                            "usuario": user_data["usuario"], 
+                            "rol": user_data.get("rol", "agencia"), 
+                            "nombre": user_data.get("nombre_cajero", user_data["usuario"])
+                        }
                         st.session_state["opcion_actual"] = "Inicio"
                         st.rerun()
                     else:

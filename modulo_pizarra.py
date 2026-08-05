@@ -103,26 +103,39 @@ def resolver_nombre_cajero(cid_or_user, pago_dict=None, mapa=None):
 
     return "Cajero"
 
-def _sincronizar_efectivo_supervisor_con_pagos(existe_supervisor=True):
+def _sincronizar_efectivo_supervisor_con_pagos(u_id=None, existe_supervisor=True):
     """Garantiza que todos los pagos en efectivo confirmados por el supervisor (o todos los de los cajeros si no hay supervisor)
     tengan su movimiento correspondiente registrado en cda_caja_efectivo_supervisor."""
     try:
+        q_pd = supabase.table("cda_pagos_diarios").select("*")
+        if u_id:
+            try:
+                q_pd = q_pd.eq("user_id", u_id)
+            except Exception:
+                pass
+
         if existe_supervisor:
-            res_pd = supabase.table("cda_pagos_diarios").select("*").eq("confirmado_supervisor", True).execute()
+            res_pd = q_pd.eq("confirmado_supervisor", True).execute()
         else:
-            res_pd = supabase.table("cda_pagos_diarios").select("*").execute()
+            res_pd = q_pd.execute()
 
         if not res_pd.data:
             return
 
-        res_movs = supabase.table("cda_caja_efectivo_supervisor").select("*").execute()
+        q_movs = supabase.table("cda_caja_efectivo_supervisor").select("*")
+        if u_id:
+            try:
+                q_movs = q_movs.eq("user_id", u_id)
+            except Exception:
+                pass
+        res_movs = q_movs.execute()
         pagos_registrados = set()
         if res_movs.data:
             for rm in res_movs.data:
                 if rm.get("pago_id") is not None:
                     pagos_registrados.add(str(rm["pago_id"]))
 
-        mapa_cajeros = obtener_mapa_cajeros()
+        mapa_cajeros = obtener_mapa_cajeros(u_id)
 
         for pago in res_pd.data:
             pid = pago.get("id")
@@ -136,7 +149,7 @@ def _sincronizar_efectivo_supervisor_con_pagos(existe_supervisor=True):
                 sup_nom = str(pago.get("supervisor_nombre") or c_nombre).strip()
                 if sup_nom in ["", "None", "Cajero", "SYSTEM"]:
                     sup_nom = c_nombre
-                u_id_val = str(pago.get("user_id") or "SYSTEM").strip()
+                u_id_val = str(pago.get("user_id") or u_id or "SYSTEM").strip()
                 monto_val = float(pago.get("monto") or 0.0)
                 moneda_val = normalizar_moneda(pago.get("moneda"))
 
@@ -586,7 +599,7 @@ def _renderizar_lista_transacciones(df_list, key_prefix="act", es_pizarra_superv
 
 def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True):
     """Muestra el desglose de efectivo por etapas (Pendiente Supervisor, Recibido Supervisor, Confirmado Admin) con liquidación y desglose por Agencia / Cajero."""
-    _sincronizar_efectivo_supervisor_con_pagos(existe_supervisor=existe_supervisor)
+    _sincronizar_efectivo_supervisor_con_pagos(u_id=u_id, existe_supervisor=existe_supervisor)
 
     titulo_caja = "📦 Control de Efectivo por Cajas: Cajero ➔ Supervisor ➔ Administrador" if existe_supervisor else "📦 Control de Efectivo de Cajeros"
     st.markdown(f"<h4 style='font-size: 17px; font-weight: 800; color: #38bdf8; margin-top: 10px;'>{titulo_caja}</h4>", unsafe_allow_html=True)
@@ -598,11 +611,17 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True):
 
     movs_lista = []
     pagos_ids_en_movs = set()
-    mapa_cajeros_movs = obtener_mapa_cajeros()
+    mapa_cajeros_movs = obtener_mapa_cajeros(u_id)
     mapa_pd = {}
 
     try:
-        res_pd_all = supabase.table("cda_pagos_diarios").select("*").execute()
+        q_pd = supabase.table("cda_pagos_diarios").select("*")
+        if u_id:
+            try:
+                q_pd = q_pd.eq("user_id", u_id)
+            except Exception:
+                pass
+        res_pd_all = q_pd.execute()
         if res_pd_all.data:
             for p in res_pd_all.data:
                 if p.get("id") is not None:
@@ -612,7 +631,13 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True):
 
     # Cargar movimientos de cda_caja_efectivo_supervisor
     try:
-        res_movs = supabase.table("cda_caja_efectivo_supervisor").select("*").execute()
+        q_m = supabase.table("cda_caja_efectivo_supervisor").select("*")
+        if u_id:
+            try:
+                q_m = q_m.eq("user_id", u_id)
+            except Exception:
+                pass
+        res_movs = q_m.execute()
         if res_movs.data:
             for rm in res_movs.data:
                 rm_copy = dict(rm)
@@ -762,7 +787,13 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True):
             # Cargar estado de confirmación de pagos de cda_pagos_diarios para el desglose por agencia
             df_pd_all = pd.DataFrame()
             try:
-                res_pd_all = supabase.table("cda_pagos_diarios").select("*").execute()
+                q_pd2 = supabase.table("cda_pagos_diarios").select("*")
+                if u_id:
+                    try:
+                        q_pd2 = q_pd2.eq("user_id", u_id)
+                    except Exception:
+                        pass
+                res_pd_all = q_pd2.execute()
                 if res_pd_all.data:
                     df_pd_all = pd.DataFrame(res_pd_all.data)
             except Exception:
@@ -891,19 +922,37 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
     df_pagos_diarios = pd.DataFrame()
 
     try:
-        res_pb = supabase.table("cda_pagos_bancarios").select("*").execute()
+        q_pb = supabase.table("cda_pagos_bancarios").select("*")
+        if u_id:
+            try:
+                q_pb = q_pb.eq("user_id", u_id)
+            except Exception:
+                pass
+        res_pb = q_pb.execute()
         df_bancarios = pd.DataFrame(res_pb.data or [])
     except Exception:
         pass
 
     try:
-        res_g = supabase.table("cda_gastos_diarios").select("*").execute()
+        q_g = supabase.table("cda_gastos_diarios").select("*")
+        if u_id:
+            try:
+                q_g = q_g.eq("user_id", u_id)
+            except Exception:
+                pass
+        res_g = q_g.execute()
         df_gastos = pd.DataFrame(res_g.data or [])
     except Exception:
         pass
 
     try:
-        res_pd = supabase.table("cda_pagos_diarios").select("*").execute()
+        q_pd = supabase.table("cda_pagos_diarios").select("*")
+        if u_id:
+            try:
+                q_pd = q_pd.eq("user_id", u_id)
+            except Exception:
+                pass
+        res_pd = q_pd.execute()
         df_pagos_diarios = pd.DataFrame(res_pd.data or [])
     except Exception:
         pass

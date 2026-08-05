@@ -1002,7 +1002,10 @@ def modulo_registro_taquilla(agencia_data):
         st.session_state["fecha_carga_actual"] = fecha_defecto
         st.session_state["last_carga_cajero"] = str(cajero_id)
 
-    col_f, _ = st.columns([2, 2])
+    monedas_lista = [m.strip().upper() for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip()]
+    moneda_def_ag = monedas_lista[0] if monedas_lista else "BS"
+
+    col_f, col_m = st.columns([2, 2])
     with col_f:
         fecha_seleccionada = st.date_input(
             "📅 Seleccione el día a cargar:",
@@ -1010,6 +1013,13 @@ def modulo_registro_taquilla(agencia_data):
             key="fecha_carga_input",
             on_change=lambda: setattr(st.session_state, 'fecha_carga_actual', st.session_state["fecha_carga_input"])
         )
+    with col_m:
+        if len(monedas_lista) > 1:
+            moneda_sel = st.selectbox("💰 Moneda para esta carga:", monedas_lista, key=f"sel_mon_carga_{agencia_data['nombre_agencia']}")
+        else:
+            moneda_sel = moneda_def_ag
+            st.markdown(f"<div style='margin-top: 24px; font-weight: 700; color: #38bdf8;'>💰 Moneda: {moneda_sel}</div>", unsafe_allow_html=True)
+
     fecha_carga_iso = str(fecha_seleccionada)
 
     cerrado = dia_esta_cerrado(agencia_data['nombre_agencia'], fecha_carga_iso, cajero_id=cajero_id if not es_supervisor else None)
@@ -1068,7 +1078,7 @@ def modulo_registro_taquilla(agencia_data):
                         "monto_premios": monto_premios_existente,
                         "comision": comision,
                         "neto": venta - comision - monto_premios_existente,
-                        "moneda": "COP",
+                        "moneda": moneda_sel,
                         "user_id": agencia_data['user_id'],
                         "cajero_id": cajero_id
                     }
@@ -2524,11 +2534,12 @@ def modulo_premios_tickets(agencia_data):
                                         "cajero_id": u_id_real,
                                     }).eq("id", d_row["id"]).execute()
                                 else:
+                                    moneda_prem_def = [m.strip().upper() for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip()][0] if agencia_data.get("monedas") else "BS"
                                     supabase.table("cda_reportes_diarios").insert({
                                         "nombre_agency": ag_nombre, "fecha": str(fecha_p),
                                         "sistema": sistema_p, "monto_venta": 0, "comision": 0,
                                         "monto_premios": monto_red, "neto": -monto_red,
-                                        "moneda": "COP", "user_id": agencia_data['user_id'],
+                                        "moneda": moneda_prem_def, "user_id": agencia_data['user_id'],
                                         "cajero_id": u_id_real,
                                     }).execute()
                                 ok_count += 1
@@ -2543,7 +2554,7 @@ def modulo_premios_tickets(agencia_data):
                             time.sleep(1); st.rerun()
                 else:
                     st.info("📋 Modo *todos* — se registrarán N tickets con identificador TODOS")
-                    monto_total = st.number_input("Monto Total COP", min_value=0.0, format="%.2f", key=f"monto_total_lote_{st.session_state.premios_form_version}")
+                    monto_total = st.number_input("Monto Total", min_value=0.0, format="%.2f", key=f"monto_total_lote_{st.session_state.premios_form_version}")
 
                     if st.button("💾 REGISTRAR LOTE", use_container_width=True, key="btn_lote_todos"):
                         if monto_total <= 0:
@@ -2580,11 +2591,12 @@ def modulo_premios_tickets(agencia_data):
                                         "cajero_id": u_id_real,
                                     }).eq("id", d_row["id"]).execute()
                                 else:
+                                    moneda_prem_def = [m.strip().upper() for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip()][0] if agencia_data.get("monedas") else "BS"
                                     supabase.table("cda_reportes_diarios").insert({
                                         "nombre_agency": ag_nombre, "fecha": str(fecha_p),
                                         "sistema": sistema_p, "monto_venta": 0, "comision": 0,
                                         "monto_premios": monto_total_red, "neto": -monto_total_red,
-                                        "moneda": "COP", "user_id": agencia_data['user_id'],
+                                        "moneda": moneda_prem_def, "user_id": agencia_data['user_id'],
                                         "cajero_id": u_id_real,
                                     }).execute()
                             except Exception:
@@ -2598,7 +2610,7 @@ def modulo_premios_tickets(agencia_data):
                                 time.sleep(1); st.rerun()
             else:
                 ticket = st.text_input("Número de Ticket", key=f"reg_ticket_num_{st.session_state.premios_form_version}").strip()
-                monto_p = st.number_input("Monto del Premio COP", min_value=0.0, format="%.2f", key=f"reg_ticket_monto_{st.session_state.premios_form_version}")
+                monto_p = st.number_input("Monto del Premio", min_value=0.0, format="%.2f", key=f"reg_ticket_monto_{st.session_state.premios_form_version}")
                 if st.button("💾 REGISTRAR TICKET PAGADO", use_container_width=True):
                     if not ticket or monto_p <= 0:
                         st.error("El número de ticket y el monto son obligatorios.")
@@ -2625,11 +2637,12 @@ def modulo_premios_tickets(agencia_data):
                                             "cajero_id": u_id_real,
                                         }).eq("id", d_row["id"]).execute()
                                     else:
+                                        moneda_prem_def = [m.strip().upper() for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip()][0] if agencia_data.get("monedas") else "BS"
                                         supabase.table("cda_reportes_diarios").insert({
                                             "nombre_agency": ag_nombre, "fecha": str(fecha_p),
                                             "sistema": sistema_p, "monto_venta": 0, "comision": 0,
                                             "monto_premios": monto_redondeado, "neto": -monto_redondeado,
-                                            "moneda": "COP", "user_id": agencia_data['user_id'],
+                                            "moneda": moneda_prem_def, "user_id": agencia_data['user_id'],
                                             "cajero_id": u_id_real,
                                         }).execute()
                                 except Exception:

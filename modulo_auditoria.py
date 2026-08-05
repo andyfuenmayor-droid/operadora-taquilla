@@ -38,6 +38,26 @@ def modulo_auditoria_hibrida():
         df_oficial_gastos = pd.DataFrame(supabase.table("gastos").select("*").eq("user_id", u_id).gte("fecha", f_desde_str).lte("fecha", f_hasta_str).execute().data or [])
         df_oficial_pagos = pd.DataFrame(supabase.table("pagos_semana").select("*").eq("user_id", u_id).gte("fecha", f"{f_desde_str}T00:00:00").execute().data or [])
 
+        # Normalizar moneda de reportes de taquilla si la agencia solo opera en una moneda (ej: BS)
+        mapa_moneda_unica_ag = {}
+        if not df_agencias.empty and "monedas" in df_agencias.columns:
+            for _, r_ag in df_agencias.iterrows():
+                ag_n = str(r_ag["nombre_agencia"]).strip().upper()
+                mons = [m.strip().upper() for m in str(r_ag.get("monedas", "")).split(",") if m.strip()]
+                if len(mons) == 1:
+                    mapa_moneda_unica_ag[ag_n] = mons[0]
+
+        if not df_taq_periodo.empty:
+            col_ag_ref = "agencia" if "agencia" in df_taq_periodo.columns else ("nombre_agency" if "nombre_agency" in df_taq_periodo.columns else None)
+            def fix_moneda_taq(row):
+                m_actual = str(row.get("moneda") or "").strip().upper()
+                ag_n = str(row.get(col_ag_ref) or "").strip().upper() if col_ag_ref else ""
+                if ag_n in mapa_moneda_unica_ag and (not m_actual or (m_actual == "COP" and mapa_moneda_unica_ag[ag_n] != "COP")):
+                    return mapa_moneda_unica_ag[ag_n]
+                return m_actual if m_actual else mapa_moneda_unica_ag.get(ag_n, "BS")
+
+            df_taq_periodo["moneda"] = df_taq_periodo.apply(fix_moneda_taq, axis=1)
+
         for df in [df_oficial, df_taq_periodo, df_gastos_periodo, df_pagos_periodo, df_oficial_gastos, df_oficial_pagos]:
             if not df.empty:
                 df.columns = [c.lower().strip() for c in df.columns]

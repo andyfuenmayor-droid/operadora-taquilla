@@ -704,16 +704,30 @@ def obtener_ultimo_dia_cerrado(agencia_nombre, cajero_id=None):
         pass
     return None
 
-def obtener_fecha_inicial_operativa(agencia_nombre, cajero_id=None):
+def obtener_fecha_inicial_operativa(agencia_nombre, cajero_id=None, u_id=None):
     """
     Retorna la fecha desde la cual se deben cargar los datos del periodo operativo.
-    Si hay un último día cerrado, retorna ultimo_dia_cerrado + 1 día.
-    Si no hay cierres, busca la fecha más antigua con registros (ventas, gastos, pagos o tickets) sin cerrar.
-    Si no hay ningún registro, retorna la fecha de hoy.
+    Si u_id se especifica (o para rol agencia/admin), consulta la fecha_desde del ciclo activo del admin en config_sistema.
+    Si hay un último día cerrado posterior, retorna ultimo_dia_cerrado + 1 día.
     """
+    f_desde_admin = None
+    if u_id:
+        try:
+            ciclo = obtener_periodo_trabajo(u_id)
+            if ciclo and ciclo.get("desde"):
+                f_desde_admin = pd.to_datetime(ciclo["desde"]).date()
+        except Exception:
+            pass
+
     ult_cierre = obtener_ultimo_dia_cerrado(agencia_nombre, cajero_id=cajero_id)
     if ult_cierre:
-        return ult_cierre + timedelta(days=1)
+        f_cierre_next = ult_cierre + timedelta(days=1)
+        if f_desde_admin:
+            return max(f_cierre_next, f_desde_admin)
+        return f_cierre_next
+
+    if f_desde_admin:
+        return f_desde_admin
     
     fechas_encontradas = []
     for tabla in ["cda_reportes_diarios", "cda_gastos_diarios", "cda_pagos_diarios", "cda_premios_tickets", "pagos_semana"]:
@@ -876,6 +890,9 @@ def obtener_saldo_anterior(agencia_nombre, fecha_sel, cajero_id=None, moneda="BS
 
 def modulo_home(agencia_data):
     ag_nombre = agencia_data['nombre_agencia']
+    u_id_admin = agencia_data.get('user_id')
+    ciclo_admin = obtener_periodo_trabajo(u_id_admin)
+
     cajero_info = st.session_state.get("cajero_actual", {})
     nombre_user = (cajero_info.get("nombre") or cajero_info.get("usuario") or "USUARIO").upper()
     rol_user = str(cajero_info.get("rol") or "cajero").lower()
@@ -890,7 +907,7 @@ def modulo_home(agencia_data):
     c_id_target = None if es_sup_o_ag else cajero_id
 
     ult_cierre = obtener_ultimo_dia_cerrado(ag_nombre, cajero_id=c_id_target)
-    fecha_operativa = obtener_fecha_inicial_operativa(ag_nombre, cajero_id=c_id_target)
+    fecha_operativa = obtener_fecha_inicial_operativa(ag_nombre, cajero_id=c_id_target, u_id=u_id_admin)
     str_operativa = str(fecha_operativa)
 
     saldo_anterior = obtener_saldo_anterior(ag_nombre, fecha_operativa, cajero_id=c_id_target)
@@ -957,6 +974,9 @@ def modulo_home(agencia_data):
     # BANNER PRINCIPAL DE BIENVENIDA
     badge_estado = '<span style="background-color: rgba(0, 200, 83, 0.2); color: #00c853; font-weight: 700; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; border: 1px solid rgba(0, 200, 83, 0.4);">🟢 DÍA OPERATIVO ABIERTO</span>' if not dia_cerrado_hoy else '<span style="background-color: rgba(244, 63, 94, 0.2); color: #f43f5e; font-weight: 700; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; border: 1px solid rgba(244, 63, 94, 0.4);">🔒 DÍA CERRADO</span>'
 
+    ciclo_rango_str = f"{ciclo_admin.get('desde')} al {ciclo_admin.get('hasta')}"
+    sem_no_str = ciclo_admin.get('semana', '')
+
     st.markdown(
         f"""
         <div style="background: linear-gradient(135deg, rgba(11, 19, 37, 0.95) 0%, rgba(13, 27, 42, 0.95) 100%); border: 1px solid rgba(255, 255, 255, 0.08); padding: 1.25rem 1.5rem; border-radius: 16px; margin-bottom: 1.25rem; box-shadow: 0 8px 24px rgba(0,0,0,0.25);">
@@ -972,7 +992,7 @@ def modulo_home(agencia_data):
                 <div style="text-align: right;">
                     {badge_estado}
                     <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.35rem;">
-                        📅 Día Operativo: <b>{fecha_operativa.strftime('%d/%m/%Y')}</b> | Último Cierre: <b>{ult_cierre if ult_cierre else 'Sin registro'}</b>
+                        📅 Día Operativo: <b>{fecha_operativa.strftime('%d/%m/%Y')}</b> | Ciclo Admin (Sem. {sem_no_str}): <b>{ciclo_rango_str}</b>
                     </div>
                 </div>
             </div>
@@ -983,7 +1003,7 @@ def modulo_home(agencia_data):
 
     # METRICAS PRINCIPALES ACUMULADAS
     saldo_operativo = t_ventas - t_comis - t_premios
-    render_titulo_seccion(f"📊 Resumen Operativo ({fecha_operativa.strftime('%d/%m/%Y')} en adelante)")
+    render_titulo_seccion(f"📊 Resumen Operativo (Ciclo Admin: {ciclo_rango_str})")
     render_tarjetas_metricas(t_ventas, t_comis, t_premios, t_gastos, t_pago_efectivo, saldo_neto_hoy, t_pago_banco=t_pago_banco, solo_operativo=True)
 
     # BALANCE DE SALDO ACUMULADO

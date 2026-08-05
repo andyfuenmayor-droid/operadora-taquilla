@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import time
 import urllib.parse
-from utils import supabase
+from utils import supabase, obtener_periodo_trabajo
 
 from datetime import datetime, timedelta, timezone
 from modulo_pizarra import modulo_pizarra

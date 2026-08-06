@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import time
 import urllib.parse
-from utils import supabase, obtener_periodo_trabajo, obtener_whatsapp_agencia_local
+from utils import supabase, obtener_periodo_trabajo, obtener_whatsapp_agencia_local, obtener_pagos_locales_agencia, obtener_gastos_locales_agencia
 
 from datetime import datetime, timedelta, timezone
 from modulo_pizarra import modulo_pizarra
@@ -952,6 +952,18 @@ def modulo_home(agencia_data):
             df_pb_tmp = df_pb_hoy.copy()
             df_pb_tmp["tipo_pago"] = df_pb_tmp.get("metodo_pago", df_pb_tmp.get("concepto", "PAGO BANCO"))
             df_p_hoy = df_pb_tmp
+
+        loc_pagos = obtener_pagos_locales_agencia(u_id_admin, ag_nombre)
+        if loc_pagos:
+            df_p_loc = pd.DataFrame(loc_pagos)
+            if "tipo_pago" not in df_p_loc.columns:
+                df_p_loc["tipo_pago"] = df_p_loc.get("metodo", df_p_loc.get("tipo", "EFECTIVO"))
+            df_p_hoy = pd.concat([df_p_hoy, df_p_loc], ignore_index=True) if not df_p_hoy.empty else df_p_loc
+
+        loc_gastos = obtener_gastos_locales_agencia(u_id_admin, ag_nombre)
+        if loc_gastos:
+            df_g_loc = pd.DataFrame(loc_gastos)
+            df_g_hoy = pd.concat([df_g_hoy, df_g_loc], ignore_index=True) if not df_g_hoy.empty else df_g_loc
 
         df_t_hoy = cargar_datos_agencia_tabla("cda_premios_tickets", ag_nombre, fecha_desde=str_operativa, fecha_hasta=f_hasta_admin)
     except Exception:

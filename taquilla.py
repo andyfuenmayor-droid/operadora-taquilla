@@ -982,79 +982,6 @@ def modulo_home(agencia_data):
     if not todas_monedas:
         todas_monedas = ["BS"]
 
-    if len(todas_monedas) > 1:
-        st.markdown(
-            """
-            <div style="background-color: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 8px 14px; border-radius: 10px; margin-bottom: 0.8rem;">
-                <span style="font-size: 0.82rem; font-weight: 700; color: #69f0ae;">💱 SELECCIONE MONEDA A CONSULTAR:</span>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-        opciones_m = [f"💱 {m}" for m in todas_monedas]
-        sel_m_ui = st.radio("Moneda de Consulta:", opciones_m, horizontal=True, key="filtro_moneda_home")
-        sel_moneda = sel_m_ui.replace("💱 ", "").strip()
-    else:
-        sel_moneda = todas_monedas[0]
-
-    # Filtrar dataframes por la moneda seleccionada exclusivamente
-    if not df_v_hoy.empty and "moneda" in df_v_hoy.columns:
-        df_v_hoy = df_v_hoy[df_v_hoy["moneda"].astype(str).str.strip().str.upper() == sel_moneda]
-    if not df_g_hoy.empty and "moneda" in df_g_hoy.columns:
-        df_g_hoy = df_g_hoy[df_g_hoy["moneda"].astype(str).str.strip().str.upper() == sel_moneda]
-    if not df_p_hoy.empty and "moneda" in df_p_hoy.columns:
-        df_p_hoy = df_p_hoy[df_p_hoy["moneda"].astype(str).str.strip().str.upper() == sel_moneda]
-    if not df_pb_hoy.empty and "moneda" in df_pb_hoy.columns:
-        df_pb_hoy = df_pb_hoy[df_pb_hoy["moneda"].astype(str).str.strip().str.upper() == sel_moneda]
-    if not df_t_hoy.empty and "moneda" in df_t_hoy.columns:
-        df_t_hoy = df_t_hoy[df_t_hoy["moneda"].astype(str).str.strip().str.upper() == sel_moneda]
-
-    # Obtener el saldo anterior (arrastre) específico para ESTA moneda
-    saldo_anterior = obtener_saldo_anterior(ag_nombre, fecha_operativa, cajero_id=c_id_target, moneda=sel_moneda)
-
-    if not es_sup_o_ag and cajero_id:
-        df_v_hoy = filtrar_df_por_cajero(df_v_hoy, cajero_id)
-        df_g_hoy = filtrar_df_por_cajero(df_g_hoy, cajero_id)
-        df_p_hoy = filtrar_df_por_cajero(df_p_hoy, cajero_id)
-        df_pb_hoy = filtrar_df_por_cajero(df_pb_hoy, cajero_id)
-        df_t_hoy = filtrar_df_por_cajero(df_t_hoy, cajero_id)
-
-    t_ventas = float(df_v_hoy["monto_venta"].sum()) if not df_v_hoy.empty and "monto_venta" in df_v_hoy.columns else 0.0
-    t_comis = float(df_v_hoy["comision"].sum()) if not df_v_hoy.empty and "comision" in df_v_hoy.columns else 0.0
-
-    t_p_rep = float(df_v_hoy["monto_premios"].sum()) if not df_v_hoy.empty and "monto_premios" in df_v_hoy.columns else 0.0
-    t_p_tick = float(df_t_hoy["monto"].sum()) if not df_t_hoy.empty and "monto" in df_t_hoy.columns else 0.0
-    t_premios = max(t_p_rep, t_p_tick)
-
-    t_gastos = float(df_g_hoy["monto"].sum()) if not df_g_hoy.empty and "monto" in df_g_hoy.columns else 0.0
-
-    t_pago_efectivo = 0.0
-    t_pago_banco_diarios = 0.0
-    t_pago_premios = 0.0
-
-    if not df_p_hoy.empty:
-        tipos_str = df_p_hoy["tipo_pago"].astype(str).str.upper() if "tipo_pago" in df_p_hoy.columns else pd.Series([""]*len(df_p_hoy))
-        is_premio = tipos_str.str.contains("PREMIO|PÉRDIDA|PERDIDA|ABONO|REPOSICION|REPOSICIÓN", regex=True)
-        t_pago_premios = float(df_p_hoy[is_premio]["monto"].sum())
-        
-        is_efectivo = tipos_str.str.contains("EFECTIVO") & (~is_premio)
-        t_pago_efectivo = float(df_p_hoy[is_efectivo]["monto"].sum())
-        
-        is_banco = (~is_efectivo) & (~is_premio)
-        t_pago_banco_diarios = float(df_p_hoy[is_banco]["monto"].sum())
-    else:
-        t_pago_efectivo = 0.0
-        t_pago_banco_diarios = 0.0
-        t_pago_premios = 0.0
-
-    t_pago_banco_bancarios = float(df_pb_hoy["monto"].sum()) if not df_pb_hoy.empty and "monto" in df_pb_hoy.columns else 0.0
-    t_pago_banco = max(t_pago_banco_diarios, t_pago_banco_bancarios)
-
-    saldo_neto_hoy = t_ventas - t_comis - t_premios - t_gastos - t_pago_efectivo - t_pago_banco + t_pago_premios
-    saldo_final_estimado = saldo_anterior + saldo_neto_hoy
-
-    sym_curr = "Bs." if sel_moneda == "BS" else ("$" if sel_moneda == "USD" else "COP$")
-
     # BANNER PRINCIPAL DE BIENVENIDA
     badge_estado = '<span style="background-color: rgba(0, 200, 83, 0.2); color: #00c853; font-weight: 700; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; border: 1px solid rgba(0, 200, 83, 0.4);">🟢 DÍA OPERATIVO ABIERTO</span>' if not dia_cerrado_hoy else '<span style="background-color: rgba(244, 63, 94, 0.2); color: #f43f5e; font-weight: 700; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; border: 1px solid rgba(244, 63, 94, 0.4);">🔒 DÍA CERRADO</span>'
 
@@ -1090,63 +1017,178 @@ def modulo_home(agencia_data):
         unsafe_allow_html=True
     )
 
-    # METRICAS PRINCIPALES ACUMULADAS
-    saldo_operativo = t_ventas - t_comis - t_premios
-    render_titulo_seccion(f"📊 Resumen Operativo ({sel_moneda}) - Ciclo Admin: {ciclo_rango_str}")
-    render_tarjetas_metricas(t_ventas, t_comis, t_premios, t_gastos, t_pago_efectivo, saldo_neto_hoy, t_pago_banco=t_pago_banco, solo_operativo=True)
-
-    # BALANCE DE SALDO ACUMULADO
-    cur_sf_color = '#34d399' if saldo_final_estimado >= 0 else '#fb7185'
-    st.markdown(
-        f"""
-        <div style="background-color: rgba(13, 27, 34, 0.5); padding: 0.85rem 1.25rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); margin-top: 0.75rem; margin-bottom: 1.25rem; text-align: center; font-size: 0.85rem;">
-            <span style="color: #94a3b8;">Saldo Anterior Acumulado ({sel_moneda}):</span> <b style="color: #ffffff;">{sym_curr} {saldo_anterior:,.2f}</b>
-            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">+</span>
-            <span style="color: #94a3b8;">Resultado Hoy / Periodo:</span> <b style="color: {'#34d399' if saldo_operativo >= 0 else '#fb7185'};">{sym_curr} {saldo_operativo:,.2f}</b>
-            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
-            <span style="color: #94a3b8;">Gastos:</span> <b style="color: #ffffff;">{sym_curr} {t_gastos:,.2f}</b>
-            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
-            <span style="color: #94a3b8;">Pagos Bancos:</span> <b style="color: #ffffff;">{sym_curr} {t_pago_banco:,.2f}</b>
-            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
-            <span style="color: #94a3b8;">Pago Efectivo:</span> <b style="color: #ffffff;">{sym_curr} {t_pago_efectivo:,.2f}</b>
-            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">+</span>
-            <span style="color: #94a3b8;">Pago Pérdidas / Premios:</span> <b style="color: #34d399;">{sym_curr} {t_pago_premios:,.2f}</b>
-            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">=</span>
-            <span style="color: #94a3b8;">Saldo Final Estimado ({sel_moneda}):</span> <b style="font-size: 1.1rem; color: {cur_sf_color};">{sym_curr} {saldo_final_estimado:,.2f}</b>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
+    # CREACIÓN DE ÁREAS INDEPENDIENTES POR MONEDA (UNA POR CADA MONEDA)
     if len(todas_monedas) > 1:
-        with st.expander("🔍 Ver Desglose y Arrastre por Monedas de la Agencia", expanded=True):
-            cols_m = st.columns(len(todas_monedas))
-            for idx_m, m_code in enumerate(todas_monedas):
-                with cols_m[idx_m % len(cols_m)]:
-                    df_v_m = df_v_raw[df_v_raw["moneda"].astype(str).str.strip().str.upper() == m_code] if not df_v_raw.empty and "moneda" in df_v_raw.columns else pd.DataFrame()
-                    v_m = float(df_v_m["monto_venta"].sum()) if not df_v_m.empty and "monto_venta" in df_v_m.columns else 0.0
-                    c_m = float(df_v_m["comision"].sum()) if not df_v_m.empty and "comision" in df_v_m.columns else 0.0
-                    p_m = float(df_v_m["monto_premios"].sum()) if not df_v_m.empty and "monto_premios" in df_v_m.columns else 0.0
-                    s_op_m = v_m - c_m - p_m
-                    
-                    s_ant_m = obtener_saldo_anterior(ag_nombre, fecha_operativa, cajero_id=c_id_target, moneda=m_code)
-                    s_fin_m = s_ant_m + s_op_m
-                    
-                    sym_m = "Bs." if m_code == "BS" else ("$" if m_code == "USD" else "COP$")
-                    st.markdown(
-                        f"""
-                        <div style="background-color: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 12px; border-radius: 12px; text-align: center;">
-                            <div style="font-weight: 800; font-size: 0.95rem; color: #69f0ae; margin-bottom: 6px;">💱 {m_code}</div>
-                            <div style="font-size: 0.8rem; color: #94a3b8;">Saldo Arrastre: <b style="color:#ffffff;">{sym_m} {s_ant_m:,.2f}</b></div>
-                            <div style="font-size: 0.8rem; color: #94a3b8;">Ventas: <b style="color:#ffffff;">{sym_m} {v_m:,.2f}</b></div>
-                            <div style="font-size: 0.8rem; color: #94a3b8;">Comisión: <b style="color:#ffffff;">{sym_m} {c_m:,.2f}</b></div>
-                            <div style="font-size: 0.8rem; color: #94a3b8;">Premios: <b style="color:#ffffff;">{sym_m} {p_m:,.2f}</b></div>
-                            <div style="font-size: 0.8rem; color: #94a3b8;">Resultado Periodo: <b style="color:{'#34d399' if s_op_m >= 0 else '#fb7185'};">{sym_m} {s_op_m:,.2f}</b></div>
-                            <div style="font-size: 0.9rem; font-weight: 800; color: {'#34d399' if s_fin_m >= 0 else '#fb7185'}; margin-top: 6px; border-top: 1px dashed rgba(255,255,255,0.15); padding-top: 6px;">Saldo Final Estimado: {sym_m} {s_fin_m:,.2f}</div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
+        tabs_m = st.tabs([f"💱 ÁREA OPERATIVA: {m}" for m in todas_monedas])
+    else:
+        tabs_m = [st.container()]
+
+    for idx_m, m_code in enumerate(todas_monedas):
+        with tabs_m[idx_m]:
+            sym_curr = "Bs." if m_code == "BS" else ("$" if m_code == "USD" else "COP$")
+            
+            # Filtrar dataframes exclusivamente para la moneda m_code
+            df_v_m = df_v_raw[df_v_raw["moneda"].astype(str).str.strip().str.upper() == m_code] if not df_v_raw.empty and "moneda" in df_v_raw.columns else pd.DataFrame()
+            df_g_m = df_g_raw[df_g_raw["moneda"].astype(str).str.strip().str.upper() == m_code] if not df_g_raw.empty and "moneda" in df_g_raw.columns else pd.DataFrame()
+            df_p_m = df_p_raw[df_p_raw["moneda"].astype(str).str.strip().str.upper() == m_code] if not df_p_raw.empty and "moneda" in df_p_raw.columns else pd.DataFrame()
+            df_pb_m = df_pb_raw[df_pb_raw["moneda"].astype(str).str.strip().str.upper() == m_code] if not df_pb_raw.empty and "moneda" in df_pb_raw.columns else pd.DataFrame()
+            df_t_m = df_t_raw[df_t_raw["moneda"].astype(str).str.strip().str.upper() == m_code] if not df_t_raw.empty and "moneda" in df_t_raw.columns else pd.DataFrame()
+
+            if not es_sup_o_ag and cajero_id:
+                df_v_m = filtrar_df_por_cajero(df_v_m, cajero_id)
+                df_g_m = filtrar_df_por_cajero(df_g_m, cajero_id)
+                df_p_m = filtrar_df_por_cajero(df_p_m, cajero_id)
+                df_pb_m = filtrar_df_por_cajero(df_pb_m, cajero_id)
+                df_t_m = filtrar_df_por_cajero(df_t_m, cajero_id)
+
+            t_v_m = float(df_v_m["monto_venta"].sum()) if not df_v_m.empty and "monto_venta" in df_v_m.columns else 0.0
+            t_c_m = float(df_v_m["comision"].sum()) if not df_v_m.empty and "comision" in df_v_m.columns else 0.0
+
+            p_rep_m = float(df_v_m["monto_premios"].sum()) if not df_v_m.empty and "monto_premios" in df_v_m.columns else 0.0
+            p_tick_m = float(df_t_m["monto"].sum()) if not df_t_m.empty and "monto" in df_t_m.columns else 0.0
+            t_p_m = max(p_rep_m, p_tick_m)
+
+            t_g_m = float(df_g_m["monto"].sum()) if not df_g_m.empty and "monto" in df_g_m.columns else 0.0
+
+            t_pago_efectivo_m = 0.0
+            t_pago_banco_diarios_m = 0.0
+            t_pago_premios_m = 0.0
+
+            if not df_p_m.empty:
+                tipos_str_m = df_p_m["tipo_pago"].astype(str).str.upper() if "tipo_pago" in df_p_m.columns else pd.Series([""]*len(df_p_m))
+                is_premio_m = tipos_str_m.str.contains("PREMIO|PÉRDIDA|PERDIDA|ABONO|REPOSICION|REPOSICIÓN", regex=True)
+                t_pago_premios_m = float(df_p_m[is_premio_m]["monto"].sum())
+                
+                is_efectivo_m = tipos_str_m.str.contains("EFECTIVO") & (~is_premio_m)
+                t_pago_efectivo_m = float(df_p_m[is_efectivo_m]["monto"].sum())
+                
+                is_banco_m = (~is_efectivo_m) & (~is_premio_m)
+                t_pago_banco_diarios_m = float(df_p_m[is_banco_m]["monto"].sum())
+            else:
+                t_pago_efectivo_m = 0.0
+                t_pago_banco_diarios_m = 0.0
+                t_pago_premios_m = 0.0
+
+            t_pago_banco_bancarios_m = float(df_pb_m["monto"].sum()) if not df_pb_m.empty and "monto" in df_pb_m.columns else 0.0
+            t_pago_banco_m = max(t_pago_banco_diarios_m, t_pago_banco_bancarios_m)
+
+            saldo_op_m = t_v_m - t_c_m - t_p_m
+            saldo_neto_m = saldo_op_m - t_g_m - t_pago_efectivo_m - t_pago_banco_m + t_pago_premios_m
+            saldo_ant_m = obtener_saldo_anterior(ag_nombre, fecha_operativa, cajero_id=c_id_target, moneda=m_code)
+            saldo_fin_m = saldo_ant_m + saldo_neto_m
+
+            # 1. RESUMEN OPERATIVO DE LA MONEDA
+            render_titulo_seccion(f"📊 Resumen Operativo ({m_code}) - Ciclo Admin: {ciclo_rango_str}")
+            render_tarjetas_metricas(t_v_m, t_c_m, t_p_m, t_g_m, t_pago_efectivo_m, saldo_neto_m, t_pago_banco=t_pago_banco_m, solo_operativo=True)
+
+            # 2. BALANCE DE SALDO ACUMULADO DE LA MONEDA CON SU ARRASTRE
+            cur_sf_color_m = '#34d399' if saldo_fin_m >= 0 else '#fb7185'
+            st.markdown(
+                f"""
+                <div style="background-color: rgba(13, 27, 34, 0.5); padding: 0.85rem 1.25rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); margin-top: 0.75rem; margin-bottom: 1.25rem; text-align: center; font-size: 0.85rem;">
+                    <span style="color: #94a3b8;">Saldo Anterior Acumulado ({m_code}):</span> <b style="color: #ffffff;">{sym_curr} {saldo_ant_m:,.2f}</b>
+                    <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">+</span>
+                    <span style="color: #94a3b8;">Resultado Hoy / Periodo:</span> <b style="color: {'#34d399' if saldo_op_m >= 0 else '#fb7185'};">{sym_curr} {saldo_op_m:,.2f}</b>
+                    <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
+                    <span style="color: #94a3b8;">Gastos:</span> <b style="color: #ffffff;">{sym_curr} {t_g_m:,.2f}</b>
+                    <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
+                    <span style="color: #94a3b8;">Pagos Bancos:</span> <b style="color: #ffffff;">{sym_curr} {t_pago_banco_m:,.2f}</b>
+                    <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
+                    <span style="color: #94a3b8;">Pago Efectivo:</span> <b style="color: #ffffff;">{sym_curr} {t_pago_efectivo_m:,.2f}</b>
+                    <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">+</span>
+                    <span style="color: #94a3b8;">Pago Pérdidas / Premios:</span> <b style="color: #34d399;">{sym_curr} {t_pago_premios_m:,.2f}</b>
+                    <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">=</span>
+                    <span style="color: #94a3b8;">Saldo Final Estimado ({m_code}):</span> <b style="font-size: 1.1rem; color: {cur_sf_color_m};">{sym_curr} {saldo_fin_m:,.2f}</b>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+            # 3. TABLAS DE ACTIVIDAD DE LA MONEDA
+            col_t1, col_t2 = st.columns([1, 1])
+            with col_t1:
+                render_titulo_seccion(f"📋 Ventas del Ciclo - {m_code} ({ciclo_rango_str})")
+                if not df_v_m.empty:
+                    df_v_disp = df_v_m.copy()
+                    if "monto_venta" in df_v_disp.columns and "venta" not in df_v_disp.columns:
+                        df_v_disp = df_v_disp.rename(columns={"monto_venta": "venta"})
+                    elif "monto_venta" in df_v_disp.columns and "venta" in df_v_disp.columns:
+                        df_v_disp = df_v_disp.drop(columns=["monto_venta"])
+
+                    if "monto_premios" in df_v_disp.columns and "premios" not in df_v_disp.columns:
+                        df_v_disp = df_v_disp.rename(columns={"monto_premios": "premios"})
+                    elif "monto_premios" in df_v_disp.columns and "premios" in df_v_disp.columns:
+                        df_v_disp = df_v_disp.drop(columns=["monto_premios"])
+
+                    desired_cols = ["sistema", "moneda", "venta", "comision", "premios", "neto"]
+                    cols_v_show = [c for c in desired_cols if c in df_v_disp.columns]
+                    df_v_disp = df_v_disp.loc[:, ~df_v_disp.columns.duplicated()][cols_v_show]
+
+                    st.dataframe(
+                        df_v_disp,
+                        column_config={
+                            "sistema": "Sistema",
+                            "moneda": "Moneda",
+                            "venta": st.column_config.NumberColumn("Venta", format="$%,.2f"),
+                            "comision": st.column_config.NumberColumn("Comisión", format="$%,.2f"),
+                            "premios": st.column_config.NumberColumn("Premios", format="$%,.2f"),
+                            "neto": st.column_config.NumberColumn("Neto", format="$%,.2f"),
+                        },
+                        use_container_width=True,
+                        hide_index=True
                     )
+                else:
+                    st.info(f"ℹ️ Sin registros de ventas cargados en {m_code} para este ciclo.")
+
+            with col_t2:
+                render_titulo_seccion(f"💸 Gastos y Pagos del Ciclo - {m_code} ({ciclo_rango_str})")
+                df_p_all_m = pd.DataFrame()
+                if not df_p_m.empty:
+                    df_p_all_m = df_p_m.copy()
+                if not df_pb_m.empty:
+                    df_pb_fmt_m = df_pb_m.copy()
+                    if "tipo_pago" not in df_pb_fmt_m.columns:
+                        df_pb_fmt_m["tipo_pago"] = df_pb_fmt_m.get("metodo_pago", df_pb_fmt_m.get("concepto", "PAGO BANCO"))
+                    df_p_all_m = pd.concat([df_p_all_m, df_pb_fmt_m], ignore_index=True) if not df_p_all_m.empty else df_pb_fmt_m
+
+                if not df_g_m.empty or not df_p_all_m.empty:
+                    if not df_g_m.empty:
+                        st.caption(f"💸 **Gastos Registrados ({m_code}):**")
+                        df_g_disp = enriquecer_columna_cajero(df_g_m)
+                        if "confirmado" in df_g_disp.columns:
+                            df_g_disp["Conf."] = df_g_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
+                        if "agencia" not in df_g_disp.columns and "nombre_agency" in df_g_disp.columns:
+                            df_g_disp["agencia"] = df_g_disp["nombre_agency"]
+                        elif "nombre_agency" in df_g_disp.columns:
+                            df_g_disp["agencia"] = df_g_disp["agencia"].fillna(df_g_disp["nombre_agency"])
+                        cols_g_show = [c for c in ["agencia", "cajero", "concepto", "moneda", "monto", "Conf."] if c in df_g_disp.columns]
+                        st.dataframe(
+                            df_g_disp[cols_g_show],
+                            column_config={"monto": st.column_config.NumberColumn("monto", format="$%,.2f")},
+                            use_container_width=True,
+                            hide_index=True
+                        )
+                    if not df_p_all_m.empty:
+                        st.caption(f"💰 **Pagos Registrados ({m_code}):**")
+                        df_p_disp = sincronizar_confirmaciones_pagos(df_p_all_m, df_pb_m, ag_nombre)
+                        df_p_disp = enriquecer_columna_cajero(df_p_disp)
+                        if "confirmado" in df_p_disp.columns:
+                            df_p_disp["Conf."] = df_p_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
+                        if "agencia" not in df_p_disp.columns and "nombre_agency" in df_p_disp.columns:
+                            df_p_disp["agencia"] = df_p_disp["nombre_agency"]
+                        elif "nombre_agency" in df_p_disp.columns:
+                            df_p_disp["agencia"] = df_p_disp["agencia"].fillna(df_p_disp["nombre_agency"])
+                        if "tipo_pago" in df_p_disp.columns:
+                            df_p_disp = df_p_disp.rename(columns={"tipo_pago": "pagos registrados", "referencia": "referencia / banco"})
+                        cols_p_show = [c for c in ["agencia", "cajero", "pagos registrados", "referencia / banco", "banco", "moneda", "monto", "Conf."] if c in df_p_disp.columns]
+                        st.dataframe(
+                            df_p_disp[cols_p_show],
+                            column_config={"monto": st.column_config.NumberColumn("monto", format="$%,.2f")},
+                            use_container_width=True,
+                            hide_index=True
+                        )
+                else:
+                    st.info(f"ℹ️ Sin gastos ni pagos registrados en {m_code} para esta fecha.")
 
     if es_supervisor:
         try:

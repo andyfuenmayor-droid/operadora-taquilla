@@ -975,6 +975,38 @@ def modulo_home(agencia_data):
     df_pb_raw = df_pb_hoy.copy()
     df_t_raw = df_t_hoy.copy()
 
+    # Multimoneda: Identificar monedas asociadas a la agencia y sus registros
+    monedas_conf = [m.strip().upper() for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip()]
+    monedas_data = df_v_raw["moneda"].astype(str).str.strip().str.upper().unique().tolist() if not df_v_raw.empty and "moneda" in df_v_raw.columns else []
+    todas_monedas = [m for m in sorted(list(set(monedas_conf + monedas_data))) if m and m.lower() not in ["none", "nan", ""]]
+
+    sel_moneda_filtro = "TODAS"
+    if len(todas_monedas) > 1:
+        st.markdown(
+            """
+            <div style="background-color: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 8px 14px; border-radius: 10px; margin-bottom: 0.8rem;">
+                <span style="font-size: 0.82rem; font-weight: 700; color: #69f0ae;">💱 MULTIMONEDA DETECTADA:</span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        opciones_m = ["🌐 VISTA UNIFICADA / TODAS"] + [f"💱 {m}" for m in todas_monedas]
+        sel_m_ui = st.radio("Filtrar por Moneda:", opciones_m, horizontal=True, key="filtro_moneda_home")
+        if "🌐" not in sel_m_ui:
+            sel_moneda_filtro = sel_m_ui.replace("💱 ", "").strip()
+
+    if sel_moneda_filtro != "TODAS":
+        if not df_v_hoy.empty and "moneda" in df_v_hoy.columns:
+            df_v_hoy = df_v_hoy[df_v_hoy["moneda"].astype(str).str.strip().str.upper() == sel_moneda_filtro]
+        if not df_g_hoy.empty and "moneda" in df_g_hoy.columns:
+            df_g_hoy = df_g_hoy[df_g_hoy["moneda"].astype(str).str.strip().str.upper() == sel_moneda_filtro]
+        if not df_p_hoy.empty and "moneda" in df_p_hoy.columns:
+            df_p_hoy = df_p_hoy[df_p_hoy["moneda"].astype(str).str.strip().str.upper() == sel_moneda_filtro]
+        if not df_pb_hoy.empty and "moneda" in df_pb_hoy.columns:
+            df_pb_hoy = df_pb_hoy[df_pb_hoy["moneda"].astype(str).str.strip().str.upper() == sel_moneda_filtro]
+        if not df_t_hoy.empty and "moneda" in df_t_hoy.columns:
+            df_t_hoy = df_t_hoy[df_t_hoy["moneda"].astype(str).str.strip().str.upper() == sel_moneda_filtro]
+
     if not es_sup_o_ag and cajero_id:
         df_v_hoy = filtrar_df_por_cajero(df_v_hoy, cajero_id)
         df_g_hoy = filtrar_df_por_cajero(df_g_hoy, cajero_id)
@@ -1079,6 +1111,31 @@ def modulo_home(agencia_data):
         unsafe_allow_html=True
     )
 
+    if len(todas_monedas) > 1:
+        with st.expander("🔍 Ver Desglose por Moneda Independiente (BS, USD, COP)", expanded=(sel_moneda_filtro == "TODAS")):
+            cols_m = st.columns(len(todas_monedas))
+            for idx_m, m_code in enumerate(todas_monedas):
+                with cols_m[idx_m % len(cols_m)]:
+                    df_v_m = df_v_raw[df_v_raw["moneda"].astype(str).str.strip().str.upper() == m_code] if not df_v_raw.empty and "moneda" in df_v_raw.columns else pd.DataFrame()
+                    v_m = float(df_v_m["monto_venta"].sum()) if not df_v_m.empty and "monto_venta" in df_v_m.columns else 0.0
+                    c_m = float(df_v_m["comision"].sum()) if not df_v_m.empty and "comision" in df_v_m.columns else 0.0
+                    p_m = float(df_v_m["monto_premios"].sum()) if not df_v_m.empty and "monto_premios" in df_v_m.columns else 0.0
+                    s_m = v_m - c_m - p_m
+                    
+                    sym_m = "Bs." if m_code == "BS" else ("$" if m_code == "USD" else "COP$")
+                    st.markdown(
+                        f"""
+                        <div style="background-color: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); padding: 10px; border-radius: 10px; text-align: center;">
+                            <div style="font-weight: 700; font-size: 0.88rem; color: #69f0ae; margin-bottom: 4px;">💱 {m_code}</div>
+                            <div style="font-size: 0.8rem; color: #94a3b8;">Ventas: <b style="color:#ffffff;">{sym_m} {v_m:,.2f}</b></div>
+                            <div style="font-size: 0.8rem; color: #94a3b8;">Comisión: <b style="color:#ffffff;">{sym_m} {c_m:,.2f}</b></div>
+                            <div style="font-size: 0.8rem; color: #94a3b8;">Premios: <b style="color:#ffffff;">{sym_m} {p_m:,.2f}</b></div>
+                            <div style="font-size: 0.88rem; font-weight: 700; color: {'#34d399' if s_m >= 0 else '#fb7185'}; margin-top: 4px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 4px;">Saldo: {sym_m} {s_m:,.2f}</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+
     if es_supervisor:
         try:
             res_u = supabase.table("taquilla_usuarios").select("id, usuario, nombre_cajero, rol").execute()
@@ -1182,17 +1239,19 @@ def modulo_home(agencia_data):
             elif "monto_premios" in df_v_disp.columns and "premios" in df_v_disp.columns:
                 df_v_disp = df_v_disp.drop(columns=["monto_premios"])
 
-            desired_cols = ["sistema", "venta", "comision", "premios", "neto"]
+            desired_cols = ["sistema", "moneda", "venta", "comision", "premios", "neto"]
             cols_v_show = [c for c in desired_cols if c in df_v_disp.columns]
             df_v_disp = df_v_disp.loc[:, ~df_v_disp.columns.duplicated()][cols_v_show]
 
             st.dataframe(
                 df_v_disp,
                 column_config={
-                    "venta": st.column_config.NumberColumn("venta", format="$%,.2f"),
-                    "comision": st.column_config.NumberColumn("comision", format="$%,.2f"),
-                    "premios": st.column_config.NumberColumn("premios", format="$%,.2f"),
-                    "neto": st.column_config.NumberColumn("neto", format="$%,.2f"),
+                    "sistema": "Sistema",
+                    "moneda": "Moneda",
+                    "venta": st.column_config.NumberColumn("Venta", format="$%,.2f"),
+                    "comision": st.column_config.NumberColumn("Comisión", format="$%,.2f"),
+                    "premios": st.column_config.NumberColumn("Premios", format="$%,.2f"),
+                    "neto": st.column_config.NumberColumn("Neto", format="$%,.2f"),
                 },
                 use_container_width=True,
                 hide_index=True

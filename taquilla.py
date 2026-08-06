@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import time
 import urllib.parse
-from utils import supabase, obtener_periodo_trabajo
+from utils import supabase, obtener_periodo_trabajo, obtener_whatsapp_agencia_local
 
 from datetime import datetime, timedelta, timezone
 from modulo_pizarra import modulo_pizarra
@@ -1010,6 +1010,11 @@ def modulo_home(agencia_data):
     ciclo_rango_str = f"{ciclo_admin.get('desde')} al {ciclo_admin.get('hasta')}"
     sem_no_str = ciclo_admin.get('semana', '')
 
+    wa_home = str(agencia_data.get("telefono_whatsapp", agencia_data.get("telefono", ""))).strip()
+    if not wa_home or wa_home.lower() in ["none", "nan"]:
+        wa_home = obtener_whatsapp_agencia_local(u_id_admin, ag_nombre)
+    wa_home_str = f" &bull; 📱 WhatsApp: <b style='color: #25D366;'>{wa_home}</b>" if wa_home and wa_home.lower() != "none" else ""
+
     st.markdown(
         f"""
         <div style="background: linear-gradient(135deg, rgba(11, 19, 37, 0.95) 0%, rgba(13, 27, 42, 0.95) 100%); border: 1px solid rgba(255, 255, 255, 0.08); padding: 1.25rem 1.5rem; border-radius: 16px; margin-bottom: 1.25rem; box-shadow: 0 8px 24px rgba(0,0,0,0.25);">
@@ -1019,7 +1024,7 @@ def modulo_home(agencia_data):
                         👋 ¡Bienvenido, {nombre_user}!
                     </h2>
                     <p style="margin: 0.25rem 0 0 0; font-size: 0.88rem; color: #94a3b8;">
-                        Panel Principal &bull; 🏢 <b style="color: #f8fafc;">{ag_nombre}</b> &bull; 👤 Rol: <b style="color: #69f0ae;">{rol_user}</b>
+                        Panel Principal &bull; 🏢 <b style="color: #f8fafc;">{ag_nombre}</b> &bull; 👤 Rol: <b style="color: #69f0ae;">{rol_user}</b>{wa_home_str}
                     </p>
                 </div>
                 <div style="text-align: right;">
@@ -4206,6 +4211,25 @@ else:
         val_periodo_sb = f"📅 {ultimo_cierre.strftime('%d/%m/%Y')}" if ultimo_cierre else "📅 Sin cierres"
         val_color_sb = '#34d399' if ultimo_cierre else '#fb7185'
 
+    wa_num_raw = str(ag.get("telefono_whatsapp", ag.get("telefono", ""))).strip()
+    if not wa_num_raw or wa_num_raw.lower() in ["none", "nan"]:
+        wa_num_raw = obtener_whatsapp_agencia_local(u_id_admin_sb, ag.get("nombre_agencia", ""))
+
+    wa_display_html = ""
+    if wa_num_raw and wa_num_raw.lower() != "none":
+        clean_num = ''.join(c for c in wa_num_raw if c.isdigit())
+        if len(clean_num) == 10 and clean_num.startswith("0"):
+            clean_num = "58" + clean_num[1:]
+        elif len(clean_num) == 11 and clean_num.startswith("58"):
+            pass
+        wa_link = f"https://wa.me/{clean_num}" if clean_num else "#"
+        wa_display_html = f"""
+<div style="font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.4rem; margin-bottom: 0.1rem;">Contacto WhatsApp</div>
+<div style="font-size: 0.85rem; font-weight: 600; color: #25D366; font-family: inherit;">
+    📱 <a href="{wa_link}" target="_blank" style="color: #25D366; text-decoration: none; font-weight: 700;">{wa_num_raw}</a>
+</div>
+"""
+
     with st.sidebar:
         sidebar_info = f"""<div style="background-color: {card_bg}; border: 1px solid {card_border}; padding: 0.85rem 1rem; border-radius: 12px; margin-bottom: 0.5rem;">
 <div style="font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.1rem;">Terminal</div>
@@ -4216,6 +4240,7 @@ else:
 <div style="display: inline-block; background-color: {badge_bg}; border: 1px solid {badge_border}; color: {badge_text}; font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.4rem; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">{cajero['rol'].upper()}</div>
 <div style="font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.1rem;">{label_periodo_sb}</div>
 <div style="font-size: 0.85rem; font-weight: 500; color: {val_color_sb}; font-family: inherit;">{val_periodo_sb}</div>
+{wa_display_html}
 </div>"""
         st.markdown(sidebar_info, unsafe_allow_html=True)
 

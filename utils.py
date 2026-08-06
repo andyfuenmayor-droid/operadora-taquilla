@@ -79,4 +79,17 @@ def obtener_periodo_trabajo(u_id):
         st.error(f"DEBUG ERROR Periodo: {e}")
     return default
 
+def obtener_whatsapp_agencia_local(u_id: str, agencia_nombre: str) -> str:
+    cms_path = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "operadora-cms", "data", "agencias_whatsapp.json"))
+    if os.path.exists(cms_path):
+        try:
+            import json
+            with open(cms_path, "r", encoding="utf-8") as f:
+                store = json.load(f)
+                key = f"{str(u_id).strip()}_{str(agencia_nombre).strip().upper()}"
+                return store.get(key, "")
+        except Exception:
+            pass
+    return ""
+
 

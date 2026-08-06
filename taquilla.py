@@ -2290,6 +2290,18 @@ def modulo_reporte_rango(agencia_data):
     render_encabezado_principal("📊 Reporte")
     render_subtitulo_terminal(agencia_data['nombre_agencia'])
     u_id = agencia_data['user_id']
+    ciclo_admin = obtener_periodo_trabajo(u_id)
+    hoy = datetime.now().date()
+    default_desde = hoy
+    default_hasta = hoy
+    try:
+        if ciclo_admin and ciclo_admin.get("desde"):
+            default_desde = pd.to_datetime(ciclo_admin["desde"]).date()
+        if ciclo_admin and ciclo_admin.get("hasta"):
+            default_hasta = pd.to_datetime(ciclo_admin["hasta"]).date()
+    except Exception:
+        pass
+
     cajero_info = st.session_state.get("cajero_actual", {})
     rol_usuario = str(cajero_info.get("rol", "cajero")).lower()
     cajero_id = cajero_info.get("id")
@@ -2309,9 +2321,8 @@ def modulo_reporte_rango(agencia_data):
             cajeros_list = []
 
         c1, c2, c3 = st.columns([2, 2, 3])
-        hoy = datetime.now().date()
-        d = c1.date_input("📅 Desde", value=hoy)
-        h = c2.date_input("📅 Hasta", value=hoy)
+        d = c1.date_input("📅 Desde", value=default_desde, key="rango_fecha_desde")
+        h = c2.date_input("📅 Hasta", value=default_hasta, key="rango_fecha_hasta")
 
         opts_sup = ["👥 TODOS LOS CAJEROS"] + [f"👤 {map_cajeros[str(c['id'])]}" for c in cajeros_list]
         sel_sup_label = c3.selectbox("👤 Filtrar por Cajero:", opts_sup, key="rango_sel_cajero_sup")
@@ -2319,10 +2330,9 @@ def modulo_reporte_rango(agencia_data):
             cname = sel_sup_label.replace("👤 ", "")
             cajero_filtro_target = next((str(c["id"]) for c in cajeros_list if (c.get("nombre_cajero") or c.get("usuario")) == cname), None)
     else:
-        hoy = datetime.now().date()
         c1, c2 = st.columns(2)
-        d = c1.date_input("📅 Desde", value=hoy)
-        h = c2.date_input("📅 Hasta", value=hoy)
+        d = c1.date_input("📅 Desde", value=default_desde, key="rango_fecha_desde")
+        h = c2.date_input("📅 Hasta", value=default_hasta, key="rango_fecha_hasta")
 
     if d > h:
         st.error("La fecha 'Desde' no puede ser mayor que 'Hasta'.")

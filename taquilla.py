@@ -189,41 +189,44 @@ def render_subtitulo_terminal(nombre_agencia):
 def render_titulo_seccion(texto):
     st.markdown(f"<div style='font-size: 14px; font-weight: 700; color: #38bdf8; margin: 12px 0 8px 0;'>{texto}</div>", unsafe_allow_html=True)
 
-def render_tarjetas_metricas(t_venta, t_comis, t_premios, t_gastos, t_pagos, t_saldo, t_pago_banco=None, solo_operativo=False):
+def render_tarjetas_metricas(t_venta, t_comis, t_premios, t_gastos, t_pagos, t_saldo, t_pago_banco=None, solo_operativo=False, moneda="BS"):
     is_dark = st.session_state.get("tema_oscuro", True)
     bg_color = "rgba(30, 41, 59, 0.6)" if is_dark else "#f8fafc"
     border_color = "rgba(255, 255, 255, 0.08)" if is_dark else "#e2e8f0"
     title_color = "#94a3b8" if is_dark else "#64748b"
     val_color = "#f8fafc" if is_dark else "#0f172a"
 
+    m_upper = str(moneda).strip().upper()
+    sym = "Bs. " if m_upper == "BS" else ("$" if m_upper == "USD" else "COP$ ")
+
     if solo_operativo:
         saldo_op = t_venta - t_comis - t_premios
         items = [
-            ("Ventas", f"${t_venta:,.2f}"),
-            ("Comision", f"${t_comis:,.2f}"),
-            ("Premios", f"${t_premios:,.2f}"),
-            ("Saldo", f"${saldo_op:,.2f}"),
+            ("Ventas", f"{sym}{t_venta:,.2f}"),
+            ("Comision", f"{sym}{t_comis:,.2f}"),
+            ("Premios", f"{sym}{t_premios:,.2f}"),
+            ("Saldo", f"{sym}{saldo_op:,.2f}"),
         ]
         cols = st.columns(4)
     elif t_pago_banco is not None:
         items = [
-            ("Ventas", f"${t_venta:,.2f}"),
-            ("Comision", f"${t_comis:,.2f}"),
-            ("Premios", f"${t_premios:,.2f}"),
-            ("Gastos", f"${t_gastos:,.2f}"),
-            ("Pago Efectivo", f"${t_pagos:,.2f}"),
-            ("Pagos Bancos", f"${t_pago_banco:,.2f}"),
-            ("Saldo", f"${t_saldo:,.2f}"),
+            ("Ventas", f"{sym}{t_venta:,.2f}"),
+            ("Comision", f"{sym}{t_comis:,.2f}"),
+            ("Premios", f"{sym}{t_premios:,.2f}"),
+            ("Gastos", f"{sym}{t_gastos:,.2f}"),
+            ("Pago Efectivo", f"{sym}{t_pagos:,.2f}"),
+            ("Pagos Bancos", f"{sym}{t_pago_banco:,.2f}"),
+            ("Saldo", f"{sym}{t_saldo:,.2f}"),
         ]
         cols = st.columns(7)
     else:
         items = [
-            ("Ventas", f"${t_venta:,.2f}"),
-            ("Comision", f"${t_comis:,.2f}"),
-            ("Premios", f"${t_premios:,.2f}"),
-            ("Gastos", f"${t_gastos:,.2f}"),
-            ("Pagos", f"${t_pagos:,.2f}"),
-            ("Saldo", f"${t_saldo:,.2f}"),
+            ("Ventas", f"{sym}{t_venta:,.2f}"),
+            ("Comision", f"{sym}{t_comis:,.2f}"),
+            ("Premios", f"{sym}{t_premios:,.2f}"),
+            ("Gastos", f"{sym}{t_gastos:,.2f}"),
+            ("Pagos", f"{sym}{t_pagos:,.2f}"),
+            ("Saldo", f"{sym}{t_saldo:,.2f}"),
         ]
         cols = st.columns(6)
 
@@ -1079,7 +1082,7 @@ def modulo_home(agencia_data):
 
             # 1. RESUMEN OPERATIVO DE LA MONEDA
             render_titulo_seccion(f"📊 Resumen Operativo ({m_code}) - Ciclo Admin: {ciclo_rango_str}")
-            render_tarjetas_metricas(t_v_m, t_c_m, t_p_m, t_g_m, t_pago_efectivo_m, saldo_neto_m, t_pago_banco=t_pago_banco_m, solo_operativo=True)
+            render_tarjetas_metricas(t_v_m, t_c_m, t_p_m, t_g_m, t_pago_efectivo_m, saldo_neto_m, t_pago_banco=t_pago_banco_m, solo_operativo=True, moneda=m_code)
 
             # 2. BALANCE DE SALDO ACUMULADO DE LA MONEDA CON SU ARRASTRE
             cur_sf_color_m = '#34d399' if saldo_fin_m >= 0 else '#fb7185'

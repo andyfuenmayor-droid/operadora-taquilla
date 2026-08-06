@@ -1552,7 +1552,11 @@ def modulo_pagos(agencia_data):
             fecha_pg = c1.date_input("Fecha", value=fecha_filtro)
             moneda_pg = c2.selectbox("Moneda", ["COP", "USD", "BS"], index=0)
             monto_pg = c3.number_input("Monto", min_value=0.0, format="%.2f")
-            tipo_pg = c4.selectbox("Tipo Pago", ["Efectivo (Entregado a Admin)", "Pago de Premios / Abono de Pérdida", "Abono / Reposición de Caja"])
+            if es_agencia:
+                opts_tipo_pg = ["Pago a Comercializador"]
+            else:
+                opts_tipo_pg = ["Efectivo (Entregado a Admin)", "Pago de Premios / Abono de Pérdida", "Abono / Reposición de Caja", "Pago a Comercializador"]
+            tipo_pg = c4.selectbox("Tipo Pago / Concepto", opts_tipo_pg)
             if st.form_submit_button("💾 GUARDAR PAGO", use_container_width=True):
                 if monto_pg <= 0:
                     st.error("Ingrese un monto válido mayor a cero.")
@@ -1974,7 +1978,12 @@ def modulo_gestion_bancaria(agencia_data):
         # Campos de Pago (Monto primero, luego Concepto)
         col_v1, col_v2 = st.columns([2, 4])
         monto_pago = col_v1.number_input("Monto Recibido*", min_value=0.0, format="%.2f", key=f"reg_monto_pago_{st.session_state.bancaria_form_version}")
-        concepto = col_v2.selectbox("Concepto de Operación*", ["Compra de Tickets", "Pago de Premios", "Recibos Punto Venta", "Pago a Comercializador"], key="reg_concepto_pago")
+        rol_actual_b = str(st.session_state.get("cajero_actual", {}).get("rol", "")).lower()
+        if rol_actual_b == "agencia":
+            opts_concepto = ["Pago a Comercializador"]
+        else:
+            opts_concepto = ["Compra de Tickets", "Pago de Premios", "Recibos Punto Venta", "Pago a Comercializador"]
+        concepto = col_v2.selectbox("Concepto de Operación*", opts_concepto, key="reg_concepto_pago")
 
         # Campos dinámicos según el concepto seleccionado
         if concepto in ["Compra de Tickets", "Pago de Premios", "Pago a Comercializador"]:

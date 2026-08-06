@@ -2391,33 +2391,60 @@ def modulo_reporte_rango(agencia_data):
             df_v_m = df_v[df_v["moneda"].astype(str).str.strip().str.upper() == m_code] if not df_v.empty and "moneda" in df_v.columns else (df_v if len(todas_monedas) == 1 else pd.DataFrame())
             df_g_m = df_g[df_g["moneda"].astype(str).str.strip().str.upper() == m_code] if not df_g.empty and "moneda" in df_g.columns else (df_g if len(todas_monedas) == 1 else pd.DataFrame())
             df_p_m = df_p[df_p["moneda"].astype(str).str.strip().str.upper() == m_code] if not df_p.empty and "moneda" in df_p.columns else (df_p if len(todas_monedas) == 1 else pd.DataFrame())
+            df_pb_m = df_pb[df_pb["moneda"].astype(str).str.strip().str.upper() == m_code] if not df_pb.empty and "moneda" in df_pb.columns else (df_pb if len(todas_monedas) == 1 else pd.DataFrame())
 
             render_titulo_seccion(f"📈 Resumen General ({m_code})")
             tv = float(df_v_m['monto_venta'].sum()) if not df_v_m.empty and 'monto_venta' in df_v_m.columns else 0.0
             tc = float(df_v_m['comision'].sum()) if not df_v_m.empty and 'comision' in df_v_m.columns else 0.0
             tp = float(df_v_m['monto_premios'].sum()) if not df_v_m.empty and 'monto_premios' in df_v_m.columns else 0.0
             tg = float(df_g_m['monto'].sum()) if not df_g_m.empty and 'monto' in df_g_m.columns else 0.0
-            tpg = float(df_p_m['monto'].sum()) if not df_p_m.empty and 'monto' in df_p_m.columns else 0.0
-            saldo_calculado = tv - tc - tp - tg - tpg
+
+            t_pago_efectivo_m = 0.0
+            t_pago_banco_diarios_m = 0.0
+            t_pago_premios_m = 0.0
+
+            if not df_p_m.empty:
+                tipos_str_m = df_p_m["tipo_pago"].astype(str).str.upper() if "tipo_pago" in df_p_m.columns else pd.Series([""]*len(df_p_m))
+                is_premio_m = tipos_str_m.str.contains("PREMIO|PÉRDIDA|PERDIDA|ABONO|REPOSICION|REPOSICIÓN", regex=True)
+                t_pago_premios_m = float(df_p_m[is_premio_m]["monto"].sum())
+                
+                is_efectivo_m = tipos_str_m.str.contains("EFECTIVO") & (~is_premio_m)
+                t_pago_efectivo_m = float(df_p_m[is_efectivo_m]["monto"].sum())
+                
+                is_banco_m = (~is_efectivo_m) & (~is_premio_m)
+                t_pago_banco_diarios_m = float(df_p_m[is_banco_m]["monto"].sum())
+            else:
+                t_pago_efectivo_m = 0.0
+                t_pago_banco_diarios_m = 0.0
+                t_pago_premios_m = 0.0
+
+            t_pago_banco_bancarios_m = float(df_pb_m["monto"].sum()) if not df_pb_m.empty and "monto" in df_pb_m.columns else 0.0
+            t_pago_banco_m = max(t_pago_banco_diarios_m, t_pago_banco_bancarios_m)
+
+            saldo_op_m = tv - tc - tp
+            saldo_neto_m = saldo_op_m - tg - t_pago_efectivo_m - t_pago_banco_m + t_pago_premios_m
 
             nom = agencia_data['nombre_agencia']
             saldo_ant = obtener_saldo_anterior(nom, d, cajero_id=c_target_id, moneda=m_code)
-            t_saldo_final = saldo_ant + saldo_calculado
+            t_saldo_final = saldo_ant + saldo_neto_m
 
-            saldo_operativo = tv - tc - tp
-            render_tarjetas_metricas(tv, tc, tp, tg, tpg, saldo_calculado, solo_operativo=True, moneda=m_code)
+            render_tarjetas_metricas(tv, tc, tp, tg, t_pago_efectivo_m, saldo_neto_m, t_pago_banco=t_pago_banco_m, solo_operativo=True, moneda=m_code)
 
             cur_sf_color_m = '#34d399' if t_saldo_final >= 0 else '#fb7185'
             st.markdown(
                 f"""
-                <div style="background-color: rgba(13, 27, 34, 0.4); padding: 0.85rem 1rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); margin-top: 1rem; text-align: center; font-size: 0.85rem;">
-                    <span style="color: #94a3b8;">Saldo Anterior al {d} ({m_code}):</span> <b style="color: #ffffff;">{sym_curr} {saldo_ant:,.2f}</b>
+                <div style="background-color: rgba(13, 27, 34, 0.5); padding: 0.85rem 1.25rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); margin-top: 0.75rem; margin-bottom: 1.25rem; text-align: center; font-size: 0.85rem;">
+                    <span style="color: #94a3b8;">Saldo Anterior ({m_code}):</span> <b style="color: #ffffff;">{sym_curr} {saldo_ant:,.2f}</b>
                     <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">+</span>
-                    <span style="color: #94a3b8;">Resultado del Período:</span> <b style="color: {'#34d399' if saldo_operativo >= 0 else '#fb7185'};">{sym_curr} {saldo_operativo:,.2f}</b>
+                    <span style="color: #94a3b8;">Resultado Hoy / Periodo:</span> <b style="color: {'#34d399' if saldo_op_m >= 0 else '#fb7185'};">{sym_curr} {saldo_op_m:,.2f}</b>
                     <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
                     <span style="color: #94a3b8;">Gastos:</span> <b style="color: #ffffff;">{sym_curr} {tg:,.2f}</b>
                     <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
-                    <span style="color: #94a3b8;">Pagos:</span> <b style="color: #ffffff;">{sym_curr} {tpg:,.2f}</b>
+                    <span style="color: #94a3b8;">Pagos Bancos:</span> <b style="color: #ffffff;">{sym_curr} {t_pago_banco_m:,.2f}</b>
+                    <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
+                    <span style="color: #94a3b8;">Pago Efectivo:</span> <b style="color: #ffffff;">{sym_curr} {t_pago_efectivo_m:,.2f}</b>
+                    <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">+</span>
+                    <span style="color: #94a3b8;">Pago Pérdidas / Premios:</span> <b style="color: #34d399;">{sym_curr} {t_pago_premios_m:,.2f}</b>
                     <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">=</span>
                     <span style="color: #94a3b8;">Saldo Actual ({m_code}):</span> <b style="font-size: 1.1rem; color: {cur_sf_color_m};">{sym_curr} {t_saldo_final:,.2f}</b>
                 </div>

@@ -2472,102 +2472,84 @@ def modulo_reporte_rango(agencia_data):
             else:
                 st.info(f"Sin ventas registradas en {m_code}.")
 
-    if not df_g.empty:
-        with st.expander("💸 Gastos"):
-            df_g_disp = enriquecer_columna_cajero(df_g)
-            if "confirmado" in df_g_disp.columns:
-                df_g_disp["Conf."] = df_g_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
-            if "agencia" not in df_g_disp.columns and "nombre_agency" in df_g_disp.columns:
-                df_g_disp["agencia"] = df_g_disp["nombre_agency"]
-            elif "nombre_agency" in df_g_disp.columns:
-                df_g_disp["agencia"] = df_g_disp["agencia"].fillna(df_g_disp["nombre_agency"])
-            cols_g = ["agencia", "cajero", "concepto", "moneda", "monto", "Conf.", "fecha"]
-            cols_existentes = [c for c in cols_g if c in df_g_disp.columns]
-            st.dataframe(
-                df_g_disp[cols_existentes],
-                column_config={
-                    "monto": st.column_config.NumberColumn("monto", format="$%,.2f")
-                },
-                use_container_width=True,
-                hide_index=True
-            )
-    if not df_p.empty:
-        with st.expander("💰 Pagos"):
-            df_p_disp = sincronizar_confirmaciones_pagos(df_p, df_pb, agencia_data['nombre_agencia'])
-            df_p_disp = enriquecer_columna_cajero(df_p_disp)
-            if "confirmado" in df_p_disp.columns:
-                df_p_disp["Conf."] = df_p_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
-            if "agencia" not in df_p_disp.columns and "nombre_agency" in df_p_disp.columns:
-                df_p_disp["agencia"] = df_p_disp["nombre_agency"]
-            elif "nombre_agency" in df_p_disp.columns:
-                df_p_disp["agencia"] = df_p_disp["agencia"].fillna(df_p_disp["nombre_agency"])
-            df_p_disp = df_p_disp.rename(columns={"tipo_pago": "pagos registrados"})
-            cols_p = ["agencia", "cajero", "pagos registrados", "moneda", "monto", "Conf.", "fecha"]
-            cols_existentes_p = [c for c in cols_p if c in df_p_disp.columns]
-            st.dataframe(
-                df_p_disp[cols_existentes_p],
-                column_config={
-                    "monto": st.column_config.NumberColumn("monto", format="$%,.2f")
-                },
-                use_container_width=True,
-                hide_index=True
-            )
-    if not df_t.empty:
-        with st.expander("🎟️ Tickets Premios"):
-            df_t_disp = enriquecer_columna_cajero(df_t)
-            if "agencia" not in df_t_disp.columns and "nombre_agency" in df_t_disp.columns:
-                df_t_disp["agencia"] = df_t_disp["nombre_agency"]
-            elif "nombre_agency" in df_t_disp.columns:
-                df_t_disp["agencia"] = df_t_disp["agencia"].fillna(df_t_disp["nombre_agency"])
-            df_t_disp = df_t_disp.rename(columns={"numero_ticket": "numero ticket", "numero_tickets": "numero ticket"})
-            cols_t = ["id", "agencia", "cajero", "sistema", "numero ticket", "monto", "estado", "fecha"]
-            cols_t_show = [c for c in cols_t if c in df_t_disp.columns]
-            st.dataframe(
-                df_t_disp[cols_t_show],
-                column_config={
-                    "monto": st.column_config.NumberColumn("monto", format="$%,.2f")
-                },
-                use_container_width=True,
-                hide_index=True
-            )
+            if not df_g_m.empty:
+                with st.expander(f"💸 Gastos ({m_code})"):
+                    df_g_disp = enriquecer_columna_cajero(df_g_m)
+                    if "confirmado" in df_g_disp.columns:
+                        df_g_disp["Conf."] = df_g_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
+                    if "agencia" not in df_g_disp.columns and "nombre_agency" in df_g_disp.columns:
+                        df_g_disp["agencia"] = df_g_disp["nombre_agency"]
+                    elif "nombre_agency" in df_g_disp.columns:
+                        df_g_disp["agencia"] = df_g_disp["agencia"].fillna(df_g_disp["nombre_agency"])
+                    cols_g = ["agencia", "cajero", "concepto", "moneda", "monto", "Conf.", "fecha"]
+                    cols_existentes = [c for c in cols_g if c in df_g_disp.columns]
+                    st.dataframe(
+                        df_g_disp[cols_existentes],
+                        column_config={"monto": st.column_config.NumberColumn("monto", format="$%,.2f")},
+                        use_container_width=True,
+                        hide_index=True
+                    )
+            if not df_p_m.empty:
+                with st.expander(f"💰 Pagos ({m_code})"):
+                    df_p_disp = sincronizar_confirmaciones_pagos(df_p_m, df_pb_m, agencia_data['nombre_agencia'])
+                    df_p_disp = enriquecer_columna_cajero(df_p_disp)
+                    if "confirmado" in df_p_disp.columns:
+                        df_p_disp["Conf."] = df_p_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
+                    if "agencia" not in df_p_disp.columns and "nombre_agency" in df_p_disp.columns:
+                        df_p_disp["agencia"] = df_p_disp["nombre_agency"]
+                    elif "nombre_agency" in df_p_disp.columns:
+                        df_p_disp["agencia"] = df_p_disp["agencia"].fillna(df_p_disp["nombre_agency"])
+                    df_p_disp = df_p_disp.rename(columns={"tipo_pago": "pagos registrados"})
+                    cols_p = ["agencia", "cajero", "pagos registrados", "moneda", "monto", "Conf.", "fecha"]
+                    cols_existentes_p = [c for c in cols_p if c in df_p_disp.columns]
+                    st.dataframe(
+                        df_p_disp[cols_existentes_p],
+                        column_config={"monto": st.column_config.NumberColumn("monto", format="$%,.2f")},
+                        use_container_width=True,
+                        hide_index=True
+                    )
 
-    # WhatsApp
-    def txt_rango():
-        nom = agencia_data['nombre_agencia']
-        lines = []
-        lines.append("=" * 36)
-        lines.append(f"  Reporte: {d} al {h}")
-        lines.append(f"  {nom}")
-        lines.append("=" * 36)
-        if not df_v.empty:
-            for fe in sorted(df_v["fecha"].unique()):
-                lines.append(f"  --- {fe} ---")
-                df_dia = df_v[df_v["fecha"] == fe]
-                for _, r in df_dia.iterrows():
-                    lines.append(f"  {r['sistema']}")
-                    lines.append(f"    Venta:    {float(r['monto_venta']):>12,.2f}")
-                    lines.append(f"    Comision: {float(r['comision']):>12,.2f}")
-                    lines.append(f"    Premios:  {float(r['monto_premios']):>12,.2f}")
+            def txt_rango_m():
+                nom = agencia_data['nombre_agencia']
+                lines = []
+                lines.append("=" * 36)
+                lines.append(f"  Reporte ({m_code}): {d} al {h}")
+                lines.append(f"  {nom}")
+                lines.append("=" * 36)
+                if not df_v_m.empty:
+                    for fe in sorted(df_v_m["fecha"].unique()):
+                        lines.append(f"  --- {fe} ---")
+                        df_dia = df_v_m[df_v_m["fecha"] == fe]
+                        for _, r in df_dia.iterrows():
+                            v_val = float(r.get('monto_venta', r.get('venta', 0)))
+                            c_val = float(r.get('comision', 0))
+                            p_val = float(r.get('monto_premios', r.get('premios', 0)))
+                            lines.append(f"  {r.get('sistema', '')}")
+                            lines.append(f"    Venta:    {sym_curr} {v_val:>10,.2f}")
+                            lines.append(f"    Comisión: {sym_curr} {c_val:>10,.2f}")
+                            lines.append(f"    Premios:  {sym_curr} {p_val:>10,.2f}")
+                        lines.append("-" * 36)
+                lines.append("=" * 36)
+                lines.append(f"  TOTAL VENTAS:    {sym_curr} {tv:>10,.2f}")
+                lines.append(f"  TOTAL COMISION:  {sym_curr} {tc:>10,.2f}")
+                lines.append(f"  TOTAL PREMIOS:   {sym_curr} {tp:>10,.2f}")
+                lines.append(f"  TOTAL GASTOS:    {sym_curr} {tg:>10,.2f}")
+                lines.append(f"  PAGO EFECTIVO:   {sym_curr} {t_pago_efectivo_m:>10,.2f}")
+                lines.append(f"  PAGOS BANCOS:    {sym_curr} {t_pago_banco_m:>10,.2f}")
+                lines.append(f"  PAGO PREMIOS:    {sym_curr} {t_pago_premios_m:>10,.2f}")
                 lines.append("-" * 36)
-        lines.append("=" * 36)
-        lines.append(f"  TOTAL VENTAS:    ${tv:>10,.2f}")
-        lines.append(f"  TOTAL COMISION:  ${tc:>10,.2f}")
-        lines.append(f"  TOTAL PREMIOS:   ${tp:>10,.2f}")
-        lines.append(f"  TOTAL GASTOS:    ${tg:>10,.2f}")
-        lines.append(f"  TOTAL PAGOS:     ${tpg:>10,.2f}")
-        lines.append("-" * 36)
-        lines.append(f"  SALDO PERIODO:   ${saldo_calculado:>10,.2f}")
-        lines.append(f"  SALDO ANTERIOR:  ${saldo_ant:>10,.2f}")
-        lines.append(f"  SALDO FINAL:     ${t_saldo_final:>10,.2f}")
-        lines.append("=" * 36)
-        lines.append("  Generado: " + obtener_hora_local().strftime("%Y-%m-%d %H:%M"))
-        lines.append("=" * 36)
-        return "\n".join(lines)
+                lines.append(f"  SALDO PERIODO:   {sym_curr} {saldo_op_m:>10,.2f}")
+                lines.append(f"  SALDO ANTERIOR:  {sym_curr} {saldo_ant:>10,.2f}")
+                lines.append(f"  SALDO ACTUAL:    {sym_curr} {t_saldo_final:>10,.2f}")
+                lines.append("=" * 36)
+                lines.append("  Generado: " + obtener_hora_local().strftime("%Y-%m-%d %H:%M"))
+                lines.append("=" * 36)
+                return "\n".join(lines)
 
-    txt_r = txt_rango()
-    st.text_area("📄 Vista previa", txt_r, height=200)
-    wa_url = f"https://wa.me/?text={urllib.parse.quote(txt_r)}"
-    st.link_button("📲 Compartir por WhatsApp", url=wa_url, use_container_width=True)
+            txt_r = txt_rango_m()
+            st.text_area(f"📄 Vista previa Reporte ({m_code})", txt_r, height=220, key=f"preview_reporte_{m_code}")
+            wa_url = f"https://wa.me/?text={urllib.parse.quote(txt_r)}"
+            st.link_button(f"📲 Compartir por WhatsApp ({m_code})", url=wa_url, use_container_width=True, key=f"wa_reporte_{m_code}")
 
 
 def modulo_cierre_diario(agencia_data):

@@ -1089,7 +1089,7 @@ def modulo_home(agencia_data):
             st.markdown(
                 f"""
                 <div style="background-color: rgba(13, 27, 34, 0.5); padding: 0.85rem 1.25rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); margin-top: 0.75rem; margin-bottom: 1.25rem; text-align: center; font-size: 0.85rem;">
-                    <span style="color: #94a3b8;">Saldo Anterior Acumulado ({m_code}):</span> <b style="color: #ffffff;">{sym_curr} {saldo_ant_m:,.2f}</b>
+                    <span style="color: #94a3b8;">Saldo Anterior ({m_code}):</span> <b style="color: #ffffff;">{sym_curr} {saldo_ant_m:,.2f}</b>
                     <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">+</span>
                     <span style="color: #94a3b8;">Resultado Hoy / Periodo:</span> <b style="color: {'#34d399' if saldo_op_m >= 0 else '#fb7185'};">{sym_curr} {saldo_op_m:,.2f}</b>
                     <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
@@ -1101,7 +1101,7 @@ def modulo_home(agencia_data):
                     <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">+</span>
                     <span style="color: #94a3b8;">Pago Pérdidas / Premios:</span> <b style="color: #34d399;">{sym_curr} {t_pago_premios_m:,.2f}</b>
                     <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">=</span>
-                    <span style="color: #94a3b8;">Saldo Final Estimado ({m_code}):</span> <b style="font-size: 1.1rem; color: {cur_sf_color_m};">{sym_curr} {saldo_fin_m:,.2f}</b>
+                    <span style="color: #94a3b8;">Saldo Actual ({m_code}):</span> <b style="font-size: 1.1rem; color: {cur_sf_color_m};">{sym_curr} {saldo_fin_m:,.2f}</b>
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -1252,7 +1252,7 @@ def modulo_home(agencia_data):
                             <div style="display: flex; justify-content: space-between;"><span>Pago Efectivo:</span> <b>${pg_efectivo_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between;"><span>Pagos Bancos / Puntos:</span> <b>${pg_banco_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 4px; margin-top: 4px;"><span>Resultado Día:</span> <b style="color: {'#34d399' if s_dia_item >= 0 else '#ef4444'};">${s_dia_item:,.2f}</b></div>
-                            <div style="display: flex; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 4px; margin-top: 4px;"><span>Saldo Final:</span> <b style="color: #00c853; font-size: 0.88rem;">${s_final_item:,.2f}</b></div>
+                            <div style="display: flex; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 4px; margin-top: 4px;"><span>Saldo Actual:</span> <b style="color: #00c853; font-size: 0.88rem;">${s_final_item:,.2f}</b></div>
                         </div>
                         """,
                         unsafe_allow_html=True
@@ -2381,7 +2381,7 @@ def modulo_reporte_rango(agencia_data):
             <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
             <span style="color: #94a3b8;">Pagos:</span> <b style="color: #ffffff;">${tpg:,.2f}</b>
             <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">=</span>
-            <span style="color: #94a3b8;">Saldo Final:</span> <b style="font-size: 1.1rem; color: #00c853;">${t_saldo_final:,.2f}</b>
+            <span style="color: #94a3b8;">Saldo Actual:</span> <b style="font-size: 1.1rem; color: #00c853;">${t_saldo_final:,.2f}</b>
         </div>
         """,
         unsafe_allow_html=True
@@ -2633,7 +2633,7 @@ def modulo_cierre_diario(agencia_data):
             <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
             <span style="color: #94a3b8;">Pagos:</span> <b style="color: #ffffff;">${t_pagos:,.2f}</b>
             <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">=</span>
-            <span style="color: #94a3b8;">Saldo Final:</span> <b style="font-size: 1.1rem; color: #00c853;">${t_saldo_final:,.2f}</b>
+            <span style="color: #94a3b8;">Saldo Actual:</span> <b style="font-size: 1.1rem; color: #00c853;">${t_saldo_final:,.2f}</b>
         </div>
         """,
         unsafe_allow_html=True
@@ -2735,7 +2735,7 @@ def modulo_cierre_diario(agencia_data):
                             <div style="display: flex; justify-content: space-between;"><span>Pago Efectivo:</span> <b>${pg_efectivo_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between;"><span>Pagos Bancos / Puntos:</span> <b>${pg_banco_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 4px; margin-top: 4px;"><span>Resultado Día:</span> <b style="color: {'#34d399' if s_dia_item >= 0 else '#ef4444'};">${s_dia_item:,.2f}</b></div>
-                            <div style="display: flex; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 4px; margin-top: 4px;"><span>Saldo Final:</span> <b style="color: #00c853; font-size: 0.88rem;">${s_final_item:,.2f}</b></div>
+                            <div style="display: flex; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 4px; margin-top: 4px;"><span>Saldo Actual:</span> <b style="color: #00c853; font-size: 0.88rem;">${s_final_item:,.2f}</b></div>
                         </div>
                         """,
                         unsafe_allow_html=True
@@ -3197,7 +3197,7 @@ def modulo_reporte_diario(agencia_data):
             <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
             <span style="color: #94a3b8;">Pagos:</span> <b style="color: #ffffff;">${t_pagos:,.2f}</b>
             <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">=</span>
-            <span style="color: #94a3b8;">Saldo Final:</span> <b style="font-size: 1.1rem; color: #00c853;">${t_saldo_final:,.2f}</b>
+            <span style="color: #94a3b8;">Saldo Actual:</span> <b style="font-size: 1.1rem; color: #00c853;">${t_saldo_final:,.2f}</b>
         </div>
         """,
         unsafe_allow_html=True

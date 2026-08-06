@@ -2287,7 +2287,7 @@ def modulo_gestion_bancaria(agencia_data):
 
 
 def modulo_reporte_rango(agencia_data):
-    render_encabezado_principal("📊 Reporte por Rango de Fechas")
+    render_encabezado_principal("📊 Reporte")
     render_subtitulo_terminal(agencia_data['nombre_agencia'])
     u_id = agencia_data['user_id']
     cajero_info = st.session_state.get("cajero_actual", {})
@@ -2332,8 +2332,26 @@ def modulo_reporte_rango(agencia_data):
 
     try:
         df_v = cargar_datos_agencia_tabla("cda_reportes_diarios", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
+        if df_v.empty or "monto_venta" not in df_v.columns or float(pd.to_numeric(df_v["monto_venta"], errors="coerce").fillna(0).sum()) == 0:
+            df_ofic = cargar_datos_agencia_tabla("carga_actual", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
+            if df_ofic.empty:
+                df_ofic = cargar_datos_agencia_tabla("carga_actual", agencia_data['nombre_agencia'])
+            if not df_ofic.empty:
+                df_ofic["monto_venta"] = pd.to_numeric(df_ofic.get("venta", 0), errors="coerce").fillna(0.0)
+                df_ofic["comision"] = pd.to_numeric(df_ofic.get("comision", 0), errors="coerce").fillna(0.0)
+                df_ofic["monto_premios"] = pd.to_numeric(df_ofic.get("premios", 0), errors="coerce").fillna(0.0)
+                df_ofic["neto"] = pd.to_numeric(df_ofic.get("neto", 0), errors="coerce").fillna(0.0)
+                df_v = df_ofic
+
         df_g = cargar_datos_agencia_tabla("cda_gastos_diarios", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
+        if df_g.empty or "monto" not in df_g.columns or float(pd.to_numeric(df_g["monto"], errors="coerce").fillna(0).sum()) == 0:
+            df_g_ofic = cargar_datos_agencia_tabla("gastos", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
+            if not df_g_ofic.empty:
+                df_g_ofic["concepto"] = df_g_ofic.get("concepto", df_g_ofic.get("descripcion", "Gasto General"))
+                df_g = df_g_ofic
+
         df_t = cargar_datos_agencia_tabla("cda_premios_tickets", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
+
         if not df_v.empty and 'fecha' in df_v.columns: df_v['fecha'] = pd.to_datetime(df_v['fecha']).dt.date
         if not df_g.empty and 'fecha' in df_g.columns: df_g['fecha'] = pd.to_datetime(df_g['fecha']).dt.date
         if not df_t.empty and 'fecha' in df_t.columns: df_t['fecha'] = pd.to_datetime(df_t['fecha']).dt.date
@@ -2354,58 +2372,78 @@ def modulo_reporte_rango(agencia_data):
     except Exception as e:
         st.error(f"Error: {e}"); return
 
-    render_titulo_seccion("📈 Resumen General")
-    tv = float(df_v['monto_venta'].sum()) if not df_v.empty else 0
-    tc = float(df_v['comision'].sum()) if not df_v.empty else 0
-    tp = float(df_v['monto_premios'].sum()) if not df_v.empty else 0
-    tg = float(df_g['monto'].sum()) if not df_g.empty else 0
-    tpg = float(df_p['monto'].sum()) if not df_p.empty else 0
-    saldo_calculado = tv - tc - tp - tg - tpg
+    # Multimoneda en Reporte
+    monedas_conf = [m.strip().upper() for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip()]
+    monedas_data = df_v["moneda"].astype(str).str.strip().str.upper().unique().tolist() if not df_v.empty and "moneda" in df_v.columns else []
+    todas_monedas = [m for m in sorted(list(set(monedas_conf + monedas_data))) if m and m.lower() not in ["none", "nan", ""]]
+    if not todas_monedas:
+        todas_monedas = ["BS"]
 
-    # Calcular Saldo Anterior y Saldo Final
-    nom = agencia_data['nombre_agencia']
-    saldo_ant = obtener_saldo_anterior(nom, d, cajero_id=c_target_id)
-    t_saldo_final = saldo_ant + saldo_calculado
-
-    saldo_operativo = tv - tc - tp
-    render_tarjetas_metricas(tv, tc, tp, tg, tpg, saldo_calculado, solo_operativo=True)
-
-    st.markdown(
-        f"""
-        <div style="background-color: rgba(13, 27, 34, 0.4); padding: 0.85rem 1rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); margin-top: 1rem; text-align: center; font-size: 0.85rem;">
-            <span style="color: #94a3b8;">Saldo Anterior al {d}:</span> <b style="color: #ffffff;">${saldo_ant:,.2f}</b>
-            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">+</span>
-            <span style="color: #94a3b8;">Resultado del Período:</span> <b style="color: {'#34d399' if saldo_operativo >= 0 else '#fb7185'};">${saldo_operativo:,.2f}</b>
-            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
-            <span style="color: #94a3b8;">Gastos:</span> <b style="color: #ffffff;">${tg:,.2f}</b>
-            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
-            <span style="color: #94a3b8;">Pagos:</span> <b style="color: #ffffff;">${tpg:,.2f}</b>
-            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">=</span>
-            <span style="color: #94a3b8;">Saldo Actual:</span> <b style="font-size: 1.1rem; color: #00c853;">${t_saldo_final:,.2f}</b>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-    st.divider()
-
-    render_titulo_seccion("📋 Detalle por Día")
-    if not df_v.empty:
-        cols = ["fecha", "sistema", "monto_venta", "comision", "monto_premios"]
-        cols = [c for c in cols if c in df_v.columns]
-        df_v_disp = df_v[cols].sort_values(["fecha", "sistema"]).copy()
-        df_v_disp = df_v_disp.rename(columns={"monto_venta": "venta", "monto_premios": "premios"})
-        st.dataframe(
-            df_v_disp,
-            column_config={
-                "venta": st.column_config.NumberColumn("venta", format="$%,.2f"),
-                "comision": st.column_config.NumberColumn("comision", format="$%,.2f"),
-                "premios": st.column_config.NumberColumn("premios", format="$%,.2f"),
-            },
-            use_container_width=True,
-            hide_index=True
-        )
+    if len(todas_monedas) > 1:
+        tabs_m = st.tabs([f"💱 REPORTES {m}" for m in todas_monedas])
     else:
-        st.info("Sin ventas registradas.")
+        tabs_m = [st.container()]
+
+    for idx_m, m_code in enumerate(todas_monedas):
+        with tabs_m[idx_m]:
+            sym_curr = "Bs." if m_code == "BS" else ("$" if m_code == "USD" else "COP$")
+            
+            df_v_m = df_v[df_v["moneda"].astype(str).str.strip().str.upper() == m_code] if not df_v.empty and "moneda" in df_v.columns else (df_v if len(todas_monedas) == 1 else pd.DataFrame())
+            df_g_m = df_g[df_g["moneda"].astype(str).str.strip().str.upper() == m_code] if not df_g.empty and "moneda" in df_g.columns else (df_g if len(todas_monedas) == 1 else pd.DataFrame())
+            df_p_m = df_p[df_p["moneda"].astype(str).str.strip().str.upper() == m_code] if not df_p.empty and "moneda" in df_p.columns else (df_p if len(todas_monedas) == 1 else pd.DataFrame())
+
+            render_titulo_seccion(f"📈 Resumen General ({m_code})")
+            tv = float(df_v_m['monto_venta'].sum()) if not df_v_m.empty and 'monto_venta' in df_v_m.columns else 0.0
+            tc = float(df_v_m['comision'].sum()) if not df_v_m.empty and 'comision' in df_v_m.columns else 0.0
+            tp = float(df_v_m['monto_premios'].sum()) if not df_v_m.empty and 'monto_premios' in df_v_m.columns else 0.0
+            tg = float(df_g_m['monto'].sum()) if not df_g_m.empty and 'monto' in df_g_m.columns else 0.0
+            tpg = float(df_p_m['monto'].sum()) if not df_p_m.empty and 'monto' in df_p_m.columns else 0.0
+            saldo_calculado = tv - tc - tp - tg - tpg
+
+            nom = agencia_data['nombre_agencia']
+            saldo_ant = obtener_saldo_anterior(nom, d, cajero_id=c_target_id, moneda=m_code)
+            t_saldo_final = saldo_ant + saldo_calculado
+
+            saldo_operativo = tv - tc - tp
+            render_tarjetas_metricas(tv, tc, tp, tg, tpg, saldo_calculado, solo_operativo=True, moneda=m_code)
+
+            cur_sf_color_m = '#34d399' if t_saldo_final >= 0 else '#fb7185'
+            st.markdown(
+                f"""
+                <div style="background-color: rgba(13, 27, 34, 0.4); padding: 0.85rem 1rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); margin-top: 1rem; text-align: center; font-size: 0.85rem;">
+                    <span style="color: #94a3b8;">Saldo Anterior al {d} ({m_code}):</span> <b style="color: #ffffff;">{sym_curr} {saldo_ant:,.2f}</b>
+                    <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">+</span>
+                    <span style="color: #94a3b8;">Resultado del Período:</span> <b style="color: {'#34d399' if saldo_operativo >= 0 else '#fb7185'};">{sym_curr} {saldo_operativo:,.2f}</b>
+                    <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
+                    <span style="color: #94a3b8;">Gastos:</span> <b style="color: #ffffff;">{sym_curr} {tg:,.2f}</b>
+                    <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
+                    <span style="color: #94a3b8;">Pagos:</span> <b style="color: #ffffff;">{sym_curr} {tpg:,.2f}</b>
+                    <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">=</span>
+                    <span style="color: #94a3b8;">Saldo Actual ({m_code}):</span> <b style="font-size: 1.1rem; color: {cur_sf_color_m};">{sym_curr} {t_saldo_final:,.2f}</b>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            st.divider()
+
+            render_titulo_seccion(f"📋 Detalle por Día ({m_code})")
+            if not df_v_m.empty:
+                cols = ["fecha", "sistema", "moneda", "monto_venta", "comision", "monto_premios"]
+                cols = [c for c in cols if c in df_v_m.columns]
+                df_v_disp = df_v_m[cols].sort_values(["fecha", "sistema"]).copy()
+                df_v_disp = df_v_disp.rename(columns={"monto_venta": "venta", "monto_premios": "premios"})
+                st.dataframe(
+                    df_v_disp,
+                    column_config={
+                        "venta": st.column_config.NumberColumn("Venta", format="$%,.2f"),
+                        "comision": st.column_config.NumberColumn("Comisión", format="$%,.2f"),
+                        "premios": st.column_config.NumberColumn("Premios", format="$%,.2f"),
+                    },
+                    use_container_width=True,
+                    hide_index=True
+                )
+            else:
+                st.info(f"Sin ventas registradas en {m_code}.")
 
     if not df_g.empty:
         with st.expander("💸 Gastos"):
@@ -4292,28 +4330,25 @@ else:
         menu_items = [
             ("🏠 Inicio", "Inicio"),
             ("📌 Pizarra", "Pizarra"),
-            ("📆 Reporte Diario", "Reporte Diario"),
-            ("📊 Reporte por Rango", "Reporte por Rango"),
+            ("📊 Reporte", "Reporte por Rango"),
             ("🔒 Cierre Diario", "Cierre Diario")
         ]
     elif rol_lower == "agencia":
         menu_items = [
             ("🏠 Inicio", "Inicio"),
+            ("📊 Reporte", "Reporte por Rango"),
             ("💵 Pago Efectivo", "Gestión de Pagos"),
-            ("🏦 Gestión Bancaria", "Gestión Bancaria"),
-            ("📆 Reporte Diario", "Reporte Diario"),
-            ("📊 Reporte por Rango", "Reporte por Rango")
+            ("🏦 Gestión Bancaria", "Gestión Bancaria")
         ]
     else:
         menu_items = [
             ("🏠 Inicio", "Inicio"),
+            ("📊 Reporte", "Reporte por Rango"),
             ("🎰 Carga de Ventas", "Carga de Ventas"),
             ("🎟️ Tickets Premiados", "Tickets Premiados"),
             ("💸 Gestión de Gastos", "Gestión de Gastos"),
             ("💵 Pago Efectivo", "Gestión de Pagos"),
             ("🏦 Gestión Bancaria", "Gestión Bancaria"),
-            ("📆 Reporte Diario", "Reporte Diario"),
-            ("📊 Reporte por Rango", "Reporte por Rango"),
             ("🔒 Cierre Diario", "Cierre Diario")
         ]
         if st.session_state["opcion_actual"] not in [m[1] for m in menu_items]:

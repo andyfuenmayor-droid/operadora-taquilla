@@ -1589,13 +1589,6 @@ def modulo_gestion_bancaria(agencia_data):
     if "bancaria_form_version" not in st.session_state:
         st.session_state["bancaria_form_version"] = 0
 
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "🏦 Cuentas Bancarias", 
-        "📟 Dispositivos de Pago (POS / Biopago)", 
-        "💸 Registrar Pago", 
-        "📊 Historial y Resumen"
-    ])
-
     # ---------------------------------------------------------
     # 1. OBTENER CUENTAS ASIGNADAS Y DISPOSITIVOS DE PAGO DESDE SUPABASE
     # ---------------------------------------------------------
@@ -1776,93 +1769,107 @@ def modulo_gestion_bancaria(agencia_data):
             df_dispositivos["id"] = pd.to_numeric(df_dispositivos["id"], errors="coerce")
             df_dispositivos = df_dispositivos.sort_values("id")
 
+    # Construcción dinámica de pestañas según disponibilidad de cuentas y dispositivos
+    tabs_config = []
+    if not df_cuentas.empty:
+        tabs_config.append(("cuentas", "🏦 Cuentas Bancarias"))
+    if not df_dispositivos.empty:
+        tabs_config.append(("dispositivos", "📟 Dispositivos de Pago (POS / Biopago)"))
+    tabs_config.append(("registrar", "💸 Registrar Pago"))
+    tabs_config.append(("historial", "📊 Historial y Resumen"))
+
+    tab_objects = st.tabs([t[1] for t in tabs_config])
+    tabs_map = {t[0]: tab_objects[i] for i, t in enumerate(tabs_config)}
+
     # ==================== TAB 1: CUENTAS BANCARIAS ====================
-    with tab1:
-        st.subheader("🏦 Cuentas Bancarias Asignadas")
-        st.caption("Consulta de cuentas bancarias registradas por el administrador y asignadas a esta taquilla.")
-        
-        total_cuentas = len(df_cuentas) if not df_cuentas.empty else 0
-        cuentas_activas = len(df_cuentas[df_cuentas['estatus'].astype(str).str.upper() == 'ACTIVA']) if (not df_cuentas.empty and 'estatus' in df_cuentas.columns) else total_cuentas
-        monedas_sop = len(df_cuentas['moneda'].unique()) if (not df_cuentas.empty and 'moneda' in df_cuentas.columns) else 0
+    if "cuentas" in tabs_map:
+        with tabs_map["cuentas"]:
+            st.subheader("🏦 Cuentas Bancarias Asignadas")
+            st.caption("Consulta de cuentas bancarias registradas por el administrador y asignadas a esta taquilla.")
+            
+            total_cuentas = len(df_cuentas) if not df_cuentas.empty else 0
+            cuentas_activas = len(df_cuentas[df_cuentas['estatus'].astype(str).str.upper() == 'ACTIVA']) if (not df_cuentas.empty and 'estatus' in df_cuentas.columns) else total_cuentas
+            monedas_sop = len(df_cuentas['moneda'].unique()) if (not df_cuentas.empty and 'moneda' in df_cuentas.columns) else 0
 
-        col_m1, col_m2, col_m3 = st.columns(3)
-        with col_m1:
-            st.metric("Total Cuentas Asignadas", total_cuentas)
-        with col_m2:
-            st.metric("Cuentas Activas", cuentas_activas)
-        with col_m3:
-            st.metric("Monedas Soportadas", monedas_sop)
+            col_m1, col_m2, col_m3 = st.columns(3)
+            with col_m1:
+                st.metric("Total Cuentas Asignadas", total_cuentas)
+            with col_m2:
+                st.metric("Cuentas Activas", cuentas_activas)
+            with col_m3:
+                st.metric("Monedas Soportadas", monedas_sop)
 
-        st.markdown("---")
-        st.markdown("##### 📜 Cuentas Bancarias Registradas")
+            st.markdown("---")
+            st.markdown("##### 📜 Cuentas Bancarias Registradas")
 
-        if not df_cuentas.empty:
-            columnas_mostrar_c = ["id", "banco", "titular", "numero_cuenta", "moneda", "tipo_cuenta", "agencia_asignada", "saldo_inicial", "estatus"]
-            cols_existentes_c = [c for c in columnas_mostrar_c if c in df_cuentas.columns]
+            if not df_cuentas.empty:
+                columnas_mostrar_c = ["id", "banco", "titular", "numero_cuenta", "moneda", "tipo_cuenta", "agencia_asignada", "saldo_inicial", "estatus"]
+                cols_existentes_c = [c for c in columnas_mostrar_c if c in df_cuentas.columns]
 
-            st.dataframe(
-                df_cuentas[cols_existentes_c],
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "id": st.column_config.NumberColumn("Nº", format="%d"),
-                    "banco": "Banco / Entidad",
-                    "titular": "Titular",
-                    "numero_cuenta": "N° Cuenta / Tel / Email",
-                    "moneda": "Moneda",
-                    "tipo_cuenta": "Tipo",
-                    "agencia_asignada": "Agencia Asignada",
-                    "saldo_inicial": st.column_config.NumberColumn("Saldo Inicial", format="%.2f"),
-                    "estatus": "Estatus"
-                }
-            )
-        else:
-            st.info("ℹ️ No hay cuentas bancarias asignadas a esta taquilla por la administración.")
+                st.dataframe(
+                    df_cuentas[cols_existentes_c],
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "id": st.column_config.NumberColumn("Nº", format="%d"),
+                        "banco": "Banco / Entidad",
+                        "titular": "Titular",
+                        "numero_cuenta": "N° Cuenta / Tel / Email",
+                        "moneda": "Moneda",
+                        "tipo_cuenta": "Tipo",
+                        "agencia_asignada": "Agencia Asignada",
+                        "saldo_inicial": st.column_config.NumberColumn("Saldo Inicial", format="%.2f"),
+                        "estatus": "Estatus"
+                    }
+                )
+            else:
+                st.info("ℹ️ No hay cuentas bancarias asignadas a esta taquilla por la administración.")
 
     # ==================== TAB 2: DISPOSITIVOS DE PAGO (POS / BIOPAGO) ====================
-    with tab2:
-        st.subheader("📟 Dispositivos de Pago Asignados (POS / Biopago)")
-        st.caption("Puntos de Venta (POS) y dispositivos de cobro asignados a esta taquilla por la administración.")
+    if "dispositivos" in tabs_map:
+        with tabs_map["dispositivos"]:
+            st.subheader("📟 Dispositivos de Pago Asignados (POS / Biopago)")
+            st.caption("Puntos de Venta (POS) y dispositivos de cobro asignados a esta taquilla por la administración.")
 
-        total_disp = len(df_dispositivos) if not df_dispositivos.empty else 0
-        disp_activos = len(df_dispositivos[df_dispositivos['estatus'].astype(str).str.upper().isin(['ACTIVO', 'ACTIVA'])]) if (not df_dispositivos.empty and 'estatus' in df_dispositivos.columns) else total_disp
+            total_disp = len(df_dispositivos) if not df_dispositivos.empty else 0
+            disp_activos = len(df_dispositivos[df_dispositivos['estatus'].astype(str).str.upper().isin(['ACTIVO', 'ACTIVA'])]) if (not df_dispositivos.empty and 'estatus' in df_dispositivos.columns) else total_disp
 
-        col_d1, col_d2, col_d3 = st.columns(3)
-        with col_d1:
-            st.metric("Total Dispositivos", total_disp)
-        with col_d2:
-            st.metric("Dispositivos Activos", disp_activos)
-        with col_d3:
-            st.metric("Tipos Soportados", "POS / Biopago / QR / Datáfono")
+            col_d1, col_d2, col_d3 = st.columns(3)
+            with col_d1:
+                st.metric("Total Dispositivos", total_disp)
+            with col_d2:
+                st.metric("Dispositivos Activos", disp_activos)
+            with col_d3:
+                st.metric("Tipos Soportados", "POS / Biopago / QR / Datáfono")
 
-        st.markdown("---")
-        st.markdown("##### 📜 Dispositivos de Pago Registrados")
+            st.markdown("---")
+            st.markdown("##### 📜 Dispositivos de Pago Registrados")
 
-        if not df_dispositivos.empty:
-            columnas_mostrar_d = ["id", "alias_nombre", "tipo_dispositivo", "serial_tid", "cuenta_asociada", "agencia_asignada", "moneda", "estatus", "notas"]
-            cols_existentes_d = [c for c in columnas_mostrar_d if c in df_dispositivos.columns]
+            if not df_dispositivos.empty:
+                columnas_mostrar_d = ["id", "alias_nombre", "tipo_dispositivo", "serial_tid", "cuenta_asociada", "agencia_asignada", "moneda", "estatus", "notas"]
+                cols_existentes_d = [c for c in columnas_mostrar_d if c in df_dispositivos.columns]
 
-            st.dataframe(
-                df_dispositivos[cols_existentes_d],
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "id": st.column_config.NumberColumn("Nº", format="%d"),
-                    "alias_nombre": "Alias / Nombre",
-                    "tipo_dispositivo": "Tipo Dispositivo",
-                    "serial_tid": "Serial / TID",
-                    "cuenta_asociada": "Cuenta Asociada",
-                    "agencia_asignada": "Agencia Asignada",
-                    "moneda": "Moneda",
-                    "estatus": "Estatus",
-                    "notas": "Notas"
-                }
-            )
-        else:
-            st.info("ℹ️ No hay dispositivos de pago (POS / Biopago) asignados a esta taquilla.")
+                st.dataframe(
+                    df_dispositivos[cols_existentes_d],
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "id": st.column_config.NumberColumn("Nº", format="%d"),
+                        "alias_nombre": "Alias / Nombre",
+                        "tipo_dispositivo": "Tipo Dispositivo",
+                        "serial_tid": "Serial / TID",
+                        "cuenta_asociada": "Cuenta Asociada",
+                        "agencia_asignada": "Agencia Asignada",
+                        "moneda": "Moneda",
+                        "estatus": "Estatus",
+                        "notas": "Notas"
+                    }
+                )
+            else:
+                st.info("ℹ️ No hay dispositivos de pago (POS / Biopago) asignados a esta taquilla.")
 
     # ==================== TAB 3: REGISTRAR PAGO ====================
-    with tab3:
+    with tabs_map["registrar"]:
         render_titulo_seccion("💸 Registrar Pago Recibido")
 
         fecha_hoy = datetime.now().date()
@@ -2046,7 +2053,7 @@ def modulo_gestion_bancaria(agencia_data):
                     st.error(f"Error al guardar transacción: {e}")
 
     # ==================== TAB 4: HISTORIAL Y RESUMEN ====================
-    with tab4:
+    with tabs_map["historial"]:
         render_titulo_seccion("📊 Historial de Transacciones Bancarias")
 
         c_f1, _ = st.columns([2, 2])

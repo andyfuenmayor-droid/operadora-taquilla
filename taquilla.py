@@ -1436,7 +1436,7 @@ def modulo_registro_taquilla(agencia_data):
 
 
 def modulo_gastos(agencia_data):
-    render_encabezado_principal("💸 Gestión de Gastos")
+    render_encabezado_principal("💸 Gastos Agencias")
     u_id = agencia_data['user_id']
     ag_nombre = agencia_data['nombre_agencia']
     cajero_info = st.session_state.get("cajero_actual", {})
@@ -1449,6 +1449,14 @@ def modulo_gastos(agencia_data):
     map_cajeros = {}
     cajero_filtro_target = None
 
+    ciclo_admin = obtener_periodo_trabajo(u_id)
+    fecha_ciclo_hasta = None
+    if ciclo_admin and ciclo_admin.get("hasta"):
+        try:
+            fecha_ciclo_hasta = pd.to_datetime(ciclo_admin["hasta"]).date()
+        except Exception:
+            pass
+
     if es_supervisor:
         try:
             res_u = supabase.table("taquilla_usuarios").select("id, usuario, nombre_cajero, rol").execute()
@@ -1460,7 +1468,7 @@ def modulo_gastos(agencia_data):
         col_f1, col_f2 = st.columns([2, 2])
         with col_f1:
             ult_fecha = obtener_ultimo_dia_cerrado(ag_nombre, cajero_id=None)
-            fecha_defecto = ult_fecha if ult_fecha else datetime.now().date()
+            fecha_defecto = fecha_ciclo_hasta if fecha_ciclo_hasta else (ult_fecha if ult_fecha else datetime.now().date())
             if "fecha_gasto_filtro" not in st.session_state or st.session_state.get("last_gasto_cajero") != str(cajero_id):
                 st.session_state["fecha_gasto_filtro"] = fecha_defecto
                 st.session_state["last_gasto_cajero"] = str(cajero_id)
@@ -1479,7 +1487,7 @@ def modulo_gastos(agencia_data):
     else:
         c_id_ref = None if es_agencia else cajero_id
         ult_fecha = obtener_ultimo_dia_cerrado(ag_nombre, cajero_id=c_id_ref)
-        fecha_defecto = ult_fecha if ult_fecha else datetime.now().date()
+        fecha_defecto = fecha_ciclo_hasta if fecha_ciclo_hasta else (ult_fecha if ult_fecha else datetime.now().date())
         if "fecha_gasto_filtro" not in st.session_state or st.session_state.get("last_gasto_cajero") != str(cajero_id):
             st.session_state["fecha_gasto_filtro"] = fecha_defecto
             st.session_state["last_gasto_cajero"] = str(cajero_id)
@@ -4315,7 +4323,7 @@ else:
             ("📊 Reporte", "Reporte por Rango"),
             ("🎰 Carga de Ventas", "Carga de Ventas"),
             ("🎟️ Tickets Premiados", "Tickets Premiados"),
-            ("💸 Gestión de Gastos", "Gestión de Gastos"),
+            ("💸 Gastos Agencias", "Gestión de Gastos"),
             ("💵 Pago Efectivo", "Gestión de Pagos"),
             ("🏦 Gestión Bancaria", "Gestión Bancaria"),
             ("🔒 Cierre Diario", "Cierre Diario")

@@ -816,10 +816,11 @@ def _check_cajero_id_cols():
     return st.session_state["cajero_id_in_gastos"] and st.session_state["cajero_id_in_pagos"] and st.session_state["cajero_id_in_bancarios"]
 
 def obtener_saldo_anterior(agencia_nombre, fecha_sel, cajero_id=None, moneda="BS"):
-    """Retorna el saldo restante del último día cerrado anterior a fecha_sel o el saldo inicial/arrastre de la agencia."""
+    """Retorna el saldo restante del último día cerrado anterior a fecha_sel o el saldo inicial de la moneda en agencias."""
     ag_str = str(agencia_nombre).strip()
+    m_code = str(moneda).strip().lower()
     
-    # 1. Buscar saldo específico por cajero en saldo_taquilla si aplica
+    # 1. Buscar saldo específico por cajero en saldo_taquilla para la moneda requerida
     if cajero_id is not None:
         try:
             c_str = str(cajero_id).strip()
@@ -827,6 +828,7 @@ def obtener_saldo_anterior(agencia_nombre, fecha_sel, cajero_id=None, moneda="BS
                 res_c = supabase.table("saldo_taquilla")\
                     .select("saldo_restante")\
                     .ilike("nombre_agency", ag_str)\
+                    .ilike("moneda", m_code)\
                     .eq("cajero_id", c_str)\
                     .lt("fecha", str(fecha_sel))\
                     .order("fecha", desc=True)\
@@ -838,6 +840,7 @@ def obtener_saldo_anterior(agencia_nombre, fecha_sel, cajero_id=None, moneda="BS
                     res_u = supabase.table("saldo_taquilla")\
                         .select("saldo_restante")\
                         .ilike("nombre_agency", ag_str)\
+                        .ilike("moneda", m_code)\
                         .eq("user_id", c_str)\
                         .lt("fecha", str(fecha_sel))\
                         .order("fecha", desc=True)\
@@ -850,11 +853,12 @@ def obtener_saldo_anterior(agencia_nombre, fecha_sel, cajero_id=None, moneda="BS
         except Exception:
             pass
 
-    # 2. Buscar saldo general de agencia en saldo_taquilla para la última fecha cerrada
+    # 2. Buscar saldo general de agencia en saldo_taquilla para la última fecha cerrada y moneda requerida
     try:
         res_date = supabase.table("saldo_taquilla")\
             .select("fecha")\
             .ilike("nombre_agency", ag_str)\
+            .ilike("moneda", m_code)\
             .lt("fecha", str(fecha_sel))\
             .order("fecha", desc=True)\
             .limit(1)\
@@ -864,6 +868,7 @@ def obtener_saldo_anterior(agencia_nombre, fecha_sel, cajero_id=None, moneda="BS
             res_all = supabase.table("saldo_taquilla")\
                 .select("saldo_restante")\
                 .ilike("nombre_agency", ag_str)\
+                .ilike("moneda", m_code)\
                 .eq("fecha", latest_date)\
                 .execute()
             if res_all.data:
@@ -871,7 +876,7 @@ def obtener_saldo_anterior(agencia_nombre, fecha_sel, cajero_id=None, moneda="BS
     except Exception:
         pass
 
-    # 3. Si no existe registro previo en saldo_taquilla, buscar saldo_inicial en la tabla agencias
+    # 3. Buscar el saldo inicial correspondiente a la moneda específica en la tabla agencias
     try:
         res_ag = supabase.table("agencias").select("*").ilike("nombre_agencia", ag_str).execute()
         if not res_ag.data:
@@ -883,16 +888,19 @@ def obtener_saldo_anterior(agencia_nombre, fecha_sel, cajero_id=None, moneda="BS
             m_ag = df_ag_tmp[df_ag_tmp["nombre_agencia"].astype(str).str.strip().str.upper() == ag_str.upper()]
             if not m_ag.empty:
                 r_ag = m_ag.iloc[0]
-                m_code = str(moneda).strip().lower()
-                prioridades = [f"saldo_inicial_{m_code}", "saldo_inicial_bs", "saldo_inicial", "saldo_arrastre", "saldo_inicial_cop", "saldo_inicial_usd"]
-                for col in prioridades:
-                    if col in r_ag and pd.notna(r_ag[col]):
-                        try:
-                            val = float(r_ag[col])
-                            if abs(val) > 0.0001:
-                                return val
-                        except Exception:
-                            pass
+                col_target = f"saldo_inicial_{m_code}"
+                if col_target in r_ag and pd.notna(r_ag[col_target]):
+                    try:
+                        return float(r_ag[col_target])
+                    except Exception:
+                        pass
+                if m_code == "bs":
+                    for col_alt in ["saldo_inicial_bs", "saldo_inicial", "saldo_arrastre"]:
+                        if col_alt in r_ag and pd.notna(r_ag[col_alt]):
+                            try:
+                                return float(r_ag[col_alt])
+                            except Exception:
+                                pass
     except Exception:
         pass
 

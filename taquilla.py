@@ -2149,21 +2149,6 @@ def modulo_gestion_bancaria(agencia_data):
                         data_bancaria["cajero_id"] = cajero_id_b
                     supabase.table("cda_pagos_bancarios").insert(data_bancaria).execute()
 
-                    # 2. Registrar en cda_pagos_diarios para mantener unificados los reportes diarios
-                    pago_diario_data = {
-                        "fecha": str(fecha_pago),
-                        "agencia": ag_nombre,
-                        "nombre_agency": ag_nombre,
-                        "tipo_pago": f"{metodo_pago} (Ref: {referencia.strip().upper()})",
-                        "monto": round(float(monto_pago), 2),
-                        "moneda": moneda_pago,
-                        "user_id": u_id,
-                        "confirmado": False
-                    }
-                    if st.session_state.get("cajero_id_in_pagos", False):
-                        pago_diario_data["cajero_id"] = cajero_id_b
-                    supabase.table("cda_pagos_diarios").insert(pago_diario_data).execute()
-
                     st.success(f"✅ Pago por {metodo_pago} (Ref: {referencia}) registrado exitosamente!")
                     # Limpiar campos de entrada incrementando la versión del formulario
                     st.session_state["bancaria_form_version"] += 1

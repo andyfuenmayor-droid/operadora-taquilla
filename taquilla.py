@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import time
+import os
 import urllib.parse
 from utils import supabase, obtener_periodo_trabajo, obtener_whatsapp_agencia_local, obtener_pagos_locales_agencia, obtener_gastos_locales_agencia
 

@@ -1216,7 +1216,7 @@ def modulo_home(agencia_data):
                             df_g_disp["agencia"] = df_g_disp["nombre_agency"]
                         elif "nombre_agency" in df_g_disp.columns:
                             df_g_disp["agencia"] = df_g_disp["agencia"].fillna(df_g_disp["nombre_agency"])
-                        cols_g_show = [c for c in ["agencia", "cajero", "concepto", "moneda", "monto", "Conf."] if c in df_g_disp.columns]
+                        cols_g_show = [c for c in ["fecha", "agencia", "cajero", "concepto", "moneda", "monto", "Conf."] if c in df_g_disp.columns]
                         st.dataframe(
                             df_g_disp[cols_g_show],
                             column_config={"monto": st.column_config.NumberColumn("monto", format="$%,.2f")},
@@ -1234,7 +1234,7 @@ def modulo_home(agencia_data):
                             df_p_disp["agencia"] = df_p_disp["agencia"].fillna(df_p_disp["nombre_agency"])
                         if "tipo_pago" in df_p_disp.columns:
                             df_p_disp = df_p_disp.rename(columns={"tipo_pago": "pagos registrados", "referencia": "referencia / banco"})
-                        cols_p_show = [c for c in ["agencia", "cajero", "pagos registrados", "referencia / banco", "banco", "moneda", "monto", "Conf."] if c in df_p_disp.columns]
+                        cols_p_show = [c for c in ["fecha", "agencia", "cajero", "pagos registrados", "referencia / banco", "banco", "moneda", "monto", "Conf."] if c in df_p_disp.columns]
                         st.dataframe(
                             df_p_disp[cols_p_show],
                             column_config={"monto": st.column_config.NumberColumn("monto", format="$%,.2f")},
@@ -1530,7 +1530,7 @@ def modulo_gastos(agencia_data):
             df_g_disp["agencia"] = df_g_disp["nombre_agency"]
         elif "nombre_agency" in df_g_disp.columns:
             df_g_disp["agencia"] = df_g_disp["agencia"].fillna(df_g_disp["nombre_agency"])
-        cols_g = ["agencia", "cajero", "concepto", "moneda", "monto", "Conf."]
+        cols_g = ["fecha", "agencia", "cajero", "concepto", "moneda", "monto", "Conf."]
         cols_existentes = [c for c in cols_g if c in df_g_disp.columns]
         st.dataframe(
             df_g_disp[cols_existentes],
@@ -1652,7 +1652,7 @@ def modulo_pagos(agencia_data):
         elif "nombre_agency" in df_p_disp.columns:
             df_p_disp["agencia"] = df_p_disp["agencia"].fillna(df_p_disp["nombre_agency"])
         df_p_disp = df_p_disp.rename(columns={"tipo_pago": "pagos registrados"})
-        cols_p = ["agencia", "cajero", "pagos registrados", "moneda", "monto", "Conf."]
+        cols_p = ["fecha", "agencia", "cajero", "pagos registrados", "moneda", "monto", "Conf."]
         cols_p = [c for c in cols_p if c in df_p_disp.columns]
         st.dataframe(
             df_p_disp[cols_p],

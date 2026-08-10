@@ -4351,6 +4351,46 @@ else:
                 st.rerun()
 
         st.divider()
+        user_rol = str(cajero.get('rol', 'cajero')).lower()
+        with st.popover(f"📖 Guía de Uso ({user_rol.upper()})", use_container_width=True):
+            st.markdown(f"### 📖 Guía Operativa — Rol {user_rol.upper()}")
+            
+            if user_rol == "agencia":
+                st.markdown("""
+                **🏢 Manual de Operación para Agencias:**
+                1. **Monitoreo del Ciclo Activo:** Consulta tus ventas brutas, comisiones negociadas, premios y saldo neto por cada moneda (BS, USD, COP).
+                2. **Libro de Cobranzas:** Revisa el estado de cuenta semanal, saldo inicial, abonado y balance pendiente.
+                3. **Auditoría de Pagos y Gastos:** Verifica los abonos y gastos registrados por tus terminales.
+                """)
+            elif user_rol == "supervisor":
+                st.markdown("""
+                **🛡️ Manual de Operación para Supervisores:**
+                1. **Gestión de Cierres:** Revisa el balance individual de cada cajero terminal en tiempo real.
+                2. **Recepción de Efectivo (Cajero ➔ Supervisor):** Haz clic en `🤝 Confirmar (Supervisor)` al recibir el dinero físico del cajero.
+                3. **Caja Chica Acumulada:** Usa `💸 Entregar al Administrador` para liquidar los fondos recaudados hacia la Administración.
+                """)
+            else:
+                st.markdown("""
+                **👤 Manual de Operación para Cajeros:**
+                1. **Carga de Ventas Diarias:** Selecciona el sistema (ej. BETM3), la moneda y registra tu venta bruta y premios pagados.
+                2. **Registro de Gastos:** Ingresa gastos de papelería, combustible, sueldos o servicios.
+                3. **Rendición de Efectivo:** Entrega el efectivo cobrado a tu supervisor para que confirme la recepción `🤝`.
+                4. **Solicitud de Cierre:** Solicita el cierre de turno al finalizar la jornada.
+                """)
+
+            pdf_path = os.path.join(os.path.dirname(__file__), "Guia_de_Uso_Taquilla_Movil.pdf")
+            if os.path.exists(pdf_path):
+                with open(pdf_path, "rb") as f_pdf:
+                    st.download_button(
+                        label="📥 Descargar Guía Oficial (PDF)",
+                        data=f_pdf.read(),
+                        file_name=f"Guia_de_Uso_Taquilla_Movil_{user_rol.upper()}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+            
+            st.info("💡 Tip: Puedes subir este documento PDF a **NotebookLM (Google)** para generar audios explicativos (Podcast) o hacer preguntas automáticas.")
+
         if st.button("🚪 Cerrar Sesión", use_container_width=True, key="btn_logout_sidebar"):
             st.session_state.taquilla_autenticada = False
             st.session_state["opcion_actual"] = "Inicio"

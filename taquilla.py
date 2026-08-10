@@ -1018,7 +1018,7 @@ def modulo_home(agencia_data):
                 <div style="text-align: right;">
                     {badge_estado}
                     <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.35rem;">
-                        📅 Día Operativo: <b>{fecha_operativa.strftime('%d/%m/%Y')}</b> | Ciclo Admin (Sem. {sem_no_str}): <b>{ciclo_rango_str}</b>
+                        📅 Día Operativo: <b>{str_operativa}</b> | Ciclo Admin (Sem. {sem_no_str}): {ciclo_rango_str}
                     </div>
                 </div>
             </div>
@@ -1026,6 +1026,43 @@ def modulo_home(agencia_data):
         """,
         unsafe_allow_html=True
     )
+
+    # GUÍA AUTOMÁTICA ASIGNADA POR ROL AL ENTRAR
+    with st.expander(f"📖 Ver Guía Operativa Oficial — Rol {rol_user.upper()}", expanded=False):
+        pdf_file_role = f"Guia_de_Uso_{rol_user.upper()}.pdf"
+        pdf_p_home = os.path.join(os.path.dirname(__file__), pdf_file_role)
+        if not os.path.exists(pdf_p_home):
+            pdf_p_home = os.path.join(os.path.dirname(__file__), "Guia_de_Uso_Taquilla_Movil.pdf")
+            
+        st.markdown(f"##### 🎯 Manual de Instrucciones Asignado para el Rol: **{rol_user.upper()}**")
+        if rol_user == "agencia":
+            st.markdown("""
+            - **Monitoreo de Ciclo:** Revisa tus ventas brutas, comisiones negociadas y saldo neto en `🏠 Inicio`.
+            - **Libro de Cobranza:** Consulta saldos anteriores y balances finales en `📊 Reporte`.
+            - **Registrar Abonos:** Registra tus pagos en efectivo en `💵 Pago Efectivo` o transferencias en `🏦 Gestión Bancaria`.
+            """)
+        elif rol_user == "supervisor":
+            st.markdown("""
+            - **Arqueo por Cajero:** Monitorea el balance de cada terminal en `⚙️ Gestión de Cierre por Cajero`.
+            - **Recaudar Efectivo (Cajero ➔ Supervisor):** Presiona `🤝 Confirmar (Supervisor)` en `📌 Pizarra`.
+            - **Entregar a Admin:** Usa `💸 Entregar al Administrador` para rendir la caja chica.
+            """)
+        else:
+            st.markdown("""
+            - **Registrar Ventas:** Ingrese ventas en `🎰 Carga de Ventas` y premios pagados.
+            - **Registrar Gastos:** Reporte gastos de turno en `💸 Gestión de Gastos`.
+            - **Rendir Turno:** Entregue su efectivo al supervisor y solicite el cierre en `🔒 Cierre Diario`.
+            """)
+            
+        if os.path.exists(pdf_p_home):
+            with open(pdf_p_home, "rb") as f_pdf_h:
+                st.download_button(
+                    label=f"📥 Descargar PDF Oficial de Operaciones ({rol_user.upper()})",
+                    data=f_pdf_h.read(),
+                    file_name=pdf_file_role,
+                    mime="application/pdf",
+                    use_container_width=True
+                )
 
     # CREACIÓN DE ÁREAS INDEPENDIENTES POR MONEDA (UNA POR CADA MONEDA)
     if len(todas_monedas) > 1:
@@ -4379,13 +4416,17 @@ else:
                 4. **Solicitud de Cierre:** Solicita el cierre de turno al finalizar la jornada.
                 """)
 
-            pdf_path = os.path.join(os.path.dirname(__file__), "Guia_de_Uso_Taquilla_Movil.pdf")
+            pdf_filename = f"Guia_de_Uso_{user_rol.upper()}.pdf"
+            pdf_path = os.path.join(os.path.dirname(__file__), pdf_filename)
+            if not os.path.exists(pdf_path):
+                pdf_path = os.path.join(os.path.dirname(__file__), "Guia_de_Uso_Taquilla_Movil.pdf")
+
             if os.path.exists(pdf_path):
                 with open(pdf_path, "rb") as f_pdf:
                     st.download_button(
-                        label="📥 Descargar Guía Oficial (PDF)",
+                        label=f"📥 Descargar Guía Exclusiva {user_rol.upper()} (PDF)",
                         data=f_pdf.read(),
-                        file_name=f"Guia_de_Uso_Taquilla_Movil_{user_rol.upper()}.pdf",
+                        file_name=pdf_filename,
                         mime="application/pdf",
                         use_container_width=True
                     )

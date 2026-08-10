@@ -421,14 +421,20 @@ def enriquecer_columna_cajero(df):
         for c in ["cajero", "nombre_cajero"]:
             val = str(row.get(c, "")).strip() if pd.notna(row.get(c)) else ""
             if val and val.lower() not in ["none", "nan", ""]:
+                if len(val) == 36 and "-" in val:
+                    if val in mapa_cajeros:
+                        return mapa_cajeros[val]
+                    return "AGENCIA"
                 return val
         for c in ["cajero_id", "user_id", "usuario"]:
             val = str(row.get(c, "")).strip() if pd.notna(row.get(c)) else ""
             if val in mapa_cajeros:
                 return mapa_cajeros[val]
             elif val and val.lower() not in ["none", "nan", ""]:
+                if len(val) == 36 and "-" in val:
+                    return "AGENCIA"
                 return val
-        return "-"
+        return "AGENCIA"
 
     df["cajero"] = df.apply(resolver_cajero, axis=1)
     return df
@@ -1172,7 +1178,6 @@ def modulo_home(agencia_data):
                             hide_index=True
                         )
                     if not df_p_all_m.empty:
-                        st.caption(f"💰 **Pagos Registrados ({m_code}):**")
                         df_p_disp = sincronizar_confirmaciones_pagos(df_p_all_m, df_pb_m, ag_nombre)
                         df_p_disp = enriquecer_columna_cajero(df_p_disp)
                         if "confirmado" in df_p_disp.columns:

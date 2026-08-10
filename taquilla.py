@@ -3443,34 +3443,34 @@ if not st.session_state.taquilla_autenticada:
                         matched_user = None
                         matched_agency = None
 
-                        # 1. Search in taquilla_usuarios
+                        # 1. Search in agencias table for Agency access (Rol Agencia)
                         try:
-                            res_user = supabase.table("taquilla_usuarios").select("*").ilike("usuario", u_clean).execute()
-                            res_data = res_user.data or []
-                            for u_rec in res_data:
-                                if str(u_rec.get("clave", "")).strip() == p_clean:
-                                    matched_user = u_rec
+                            res_ag_user = supabase.table("agencias").select("*").ilike("usuario_taquilla", u_clean).execute()
+                            ag_data = res_ag_user.data or []
+                            for ag_rec in ag_data:
+                                if str(ag_rec.get("clave_taquilla", "")).strip() == p_clean:
+                                    matched_agency = ag_rec
+                                    matched_user = {
+                                        "id": f"ag_{ag_rec['id']}",
+                                        "usuario": str(ag_rec.get("usuario_taquilla", u_clean)).strip(),
+                                        "clave": p_clean,
+                                        "agencia_id": ag_rec["id"],
+                                        "nombre_cajero": ag_rec.get("nombre_agencia", u_clean),
+                                        "rol": "agencia",
+                                        "activo": True
+                                    }
                                     break
                         except Exception:
                             pass
 
-                        # 2. Search in agencias table if not found in taquilla_usuarios
+                        # 2. Search in taquilla_usuarios for Cajero/Supervisor access if not matched as Agency
                         if not matched_user:
                             try:
-                                res_ag_user = supabase.table("agencias").select("*").ilike("usuario_taquilla", u_clean).execute()
-                                ag_data = res_ag_user.data or []
-                                for ag_rec in ag_data:
-                                    if str(ag_rec.get("clave_taquilla", "")).strip() == p_clean:
-                                        matched_agency = ag_rec
-                                        matched_user = {
-                                            "id": f"ag_{ag_rec['id']}",
-                                            "usuario": str(ag_rec.get("usuario_taquilla", u_clean)).strip(),
-                                            "clave": p_clean,
-                                            "agencia_id": ag_rec["id"],
-                                            "nombre_cajero": ag_rec.get("nombre_agencia", u_clean),
-                                            "rol": "agencia",
-                                            "activo": True
-                                        }
+                                res_user = supabase.table("taquilla_usuarios").select("*").ilike("usuario", u_clean).execute()
+                                res_data = res_user.data or []
+                                for u_rec in res_data:
+                                    if str(u_rec.get("clave", "")).strip() == p_clean:
+                                        matched_user = u_rec
                                         break
                             except Exception:
                                 pass

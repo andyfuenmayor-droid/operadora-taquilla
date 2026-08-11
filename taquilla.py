@@ -1709,6 +1709,16 @@ def modulo_gestion_bancaria(agencia_data):
     if "bancaria_form_version" not in st.session_state:
         st.session_state["bancaria_form_version"] = 0
 
+    cajero_info_b = st.session_state.get("cajero_actual", {})
+    rol_usuario_b = str(cajero_info_b.get("rol", "cajero")).lower()
+    cajero_id_b = cajero_info_b.get("id")
+    es_supervisor_b = (rol_usuario_b == 'supervisor')
+    es_agencia_b = (rol_usuario_b == 'agencia')
+
+    c_id_ref = None if (es_agencia_b or es_supervisor_b) else cajero_id_b
+    ult_fecha = obtener_ultimo_dia_cerrado(ag_nombre, cajero_id=c_id_ref)
+    fecha_defecto = ult_fecha if ult_fecha else datetime.now().date()
+
     # ---------------------------------------------------------
     # 1. OBTENER CUENTAS ASIGNADAS Y DISPOSITIVOS DE PAGO DESDE SUPABASE
     # ---------------------------------------------------------
@@ -1992,11 +2002,6 @@ def modulo_gestion_bancaria(agencia_data):
     with tabs_map["registrar"]:
         render_titulo_seccion("💸 Registrar Pago Recibido")
 
-        fecha_hoy = datetime.now().date()
-        cerrado = dia_esta_cerrado(ag_nombre, fecha_hoy)
-        if cerrado:
-            st.warning(f"🔒 El día {fecha_hoy} está cerrado. Los registros se guardarán con la fecha actual.")
-
         metodos_bancarios_opciones = [
             "Punto de Venta", 
             "BioPago", 
@@ -2082,8 +2087,12 @@ def modulo_gestion_bancaria(agencia_data):
             mapa_destinos[lbl_def] = {"moneda": "USD", "metodo": "Punto de Venta"}
 
         col_top1, col_top2 = st.columns([2, 4])
-        fecha_pago = col_top1.date_input("Fecha de Operación", value=fecha_hoy, key="reg_fecha_pago")
+        fecha_pago = col_top1.date_input("Fecha de Operación", value=fecha_defecto, key="reg_fecha_pago")
         pos_o_cuenta = col_top2.selectbox("Seleccione Dispositivo / Cuenta de Pago Asignado*", lista_opciones_destino, key="reg_destino_unificado")
+
+        cerrado = dia_esta_cerrado(ag_nombre, fecha_pago, cajero_id=c_id_ref)
+        if cerrado:
+            st.info(f"🔒 El día {fecha_pago} está cerrado para este usuario. No se pueden registrar nuevos pagos.")
 
         # Auto-detectar la moneda y el método según la cuenta/dispositivo seleccionado (sin permitir cambio manual)
         meta_sel = mapa_destinos.get(pos_o_cuenta, {"moneda": "USD", "metodo": "Punto de Venta"})
@@ -2122,8 +2131,10 @@ def modulo_gestion_bancaria(agencia_data):
             datos_cliente = ""
 
         # Botón de envío
-        if st.button("💾 REGISTRAR PAGO BANCARIO", use_container_width=True, type="primary"):
-            if monto_pago <= 0:
+        if st.button("💾 REGISTRAR PAGO BANCARIO", use_container_width=True, type="primary", disabled=cerrado):
+            if cerrado:
+                st.error(f"🔒 El día {fecha_pago} está cerrado para este usuario. No se pueden registrar nuevos pagos.")
+            elif monto_pago <= 0:
                 st.error("Ingrese un monto válido mayor a cero.")
             elif not referencia.strip():
                 st.error("Debe proporcionar un número de referencia o comprobante.")
@@ -2162,7 +2173,7 @@ def modulo_gestion_bancaria(agencia_data):
         render_titulo_seccion("📊 Historial de Transacciones Bancarias")
 
         c_f1, _ = st.columns([2, 2])
-        fecha_hist = c_f1.date_input("📅 Filtrar por Fecha:", value=datetime.now().date(), key="fecha_hist_bancaria")
+        fecha_hist = c_f1.date_input("📅 Filtrar por Fecha:", value=fecha_defecto, key="fecha_hist_bancaria")
 
         cajero_info_b = st.session_state.get("cajero_actual", {})
         rol_usuario_b = str(cajero_info_b.get("rol", "cajero")).lower()

@@ -1096,133 +1096,64 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
 
     df_activo = df_raw[(df_raw["confirmado"] == False) | (df_raw["fecha_str"] >= ciclo_desde_str)].copy()
 
-    # ORGANIZACIÓN EN PESTAÑAS
-    tab_names = [
-        "📌 Pizarra Ciclo Activo", 
-        "💵 Pizarra Efectivo, Gastos y POS (Cajero ↔ Supervisor) & Caja" if existe_sup else "💵 Pizarra Efectivo (Cajero) & Caja Chica"
-    ]
-    tab_pizarra, tab_efectivo_sup = st.tabs(tab_names)
-
     # -------------------------------------------------------------
-    # PESTAÑA 1: 📌 PIZARRA CICLO ACTIVO (ADMINISTRADOR / GENERAL)
+    # PIZARRA DE CONFIRMACIONES UNIFICADA (PAGOS BANCARIOS, EFECTIVO Y GASTOS)
     # -------------------------------------------------------------
-    with tab_pizarra:
-        f_hasta_default = max(hoy, ciclo_hasta_dt)
-        col_chk, col_f1, col_f2, col_btn = st.columns([2, 2, 2, 2])
-        with col_chk:
-            usar_fechas = st.checkbox("📅 Filtrar por Fechas", value=True, key="pizarra_use_dates_act")
-        with col_f1:
-            f_desde = st.date_input("📅 Fecha Desde:", value=ciclo_desde_dt, key="pizarra_f_desde_act", disabled=not usar_fechas)
-        with col_f2:
-            f_hasta = st.date_input("📅 Fecha Hasta:", value=f_hasta_default, key="pizarra_f_hasta_act", disabled=not usar_fechas)
-        with col_btn:
-            st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-            if st.button("📌 Cargar Ciclo Actual", key="btn_reload_ciclo_act", use_container_width=True, help=f"Cargar desde el último cierre: {ciclo_desde_dt} al {f_hasta_default}"):
-                st.session_state["pizarra_use_dates_act"] = True
-                st.session_state["pizarra_f_desde_act"] = ciclo_desde_dt
-                st.session_state["pizarra_f_hasta_act"] = f_hasta_default
-                st.rerun()
+    f_hasta_default = max(hoy, ciclo_hasta_dt)
+    col_chk, col_f1, col_f2, col_btn = st.columns([2, 2, 2, 2])
+    with col_chk:
+        usar_fechas = st.checkbox("📅 Filtrar por Fechas", value=True, key="pizarra_use_dates_act")
+    with col_f1:
+        f_desde = st.date_input("📅 Fecha Desde:", value=ciclo_desde_dt, key="pizarra_f_desde_act", disabled=not usar_fechas)
+    with col_f2:
+        f_hasta = st.date_input("📅 Fecha Hasta:", value=f_hasta_default, key="pizarra_f_hasta_act", disabled=not usar_fechas)
+    with col_btn:
+        st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+        if st.button("📌 Cargar Ciclo Actual", key="btn_reload_ciclo_act", use_container_width=True, help=f"Cargar desde el último cierre: {ciclo_desde_dt} al {f_hasta_default}"):
+            st.session_state["pizarra_use_dates_act"] = True
+            st.session_state["pizarra_f_desde_act"] = ciclo_desde_dt
+            st.session_state["pizarra_f_hasta_act"] = f_hasta_default
+            st.rerun()
 
-        f_desde_str, f_hasta_str = str(f_desde), str(f_hasta)
+    f_desde_str, f_hasta_str = str(f_desde), str(f_hasta)
 
-        col_sel1, col_sel2, col_sel3, col_sel4 = st.columns([2, 2, 2, 2])
-        sel_agencia = col_sel1.selectbox("🏢 Agencia:", lista_agencias, key="pizarra_agencia_sel_act")
-        sel_cajero = col_sel2.selectbox("👤 Cajero:", lista_cajeros, key="pizarra_cajero_sel_act")
-        sel_categoria = col_sel3.selectbox("💳 Categoría:", ["Todas", "Transferencia / Zelle / Pago Móvil", "Punto de Venta (Punde)", "Gastos", "Efectivo"], key="pizarra_cat_sel_act")
-        sel_estado = col_sel4.selectbox("🚦 Estado:", ["⏳ Pendientes", "✅ Confirmados", "Todos"], key="pizarra_est_sel_act")
+    col_sel1, col_sel2, col_sel3, col_sel4 = st.columns([2, 2, 2, 2])
+    sel_agencia = col_sel1.selectbox("🏢 Agencia:", lista_agencias, key="pizarra_agencia_sel_act")
+    sel_cajero = col_sel2.selectbox("👤 Cajero:", lista_cajeros, key="pizarra_cajero_sel_act")
+    sel_categoria = col_sel3.selectbox("💳 Categoría:", ["Todas", "Transferencia / Zelle / Pago Móvil", "Punto de Venta (Punde)", "Gastos", "Efectivo"], key="pizarra_cat_sel_act")
+    sel_estado = col_sel4.selectbox("🚦 Estado:", ["⏳ Pendientes", "✅ Confirmados", "Todos"], key="pizarra_est_sel_act")
 
-        df_act_work = df_activo.copy()
+    df_act_work = df_activo.copy()
 
-        if usar_fechas and not df_act_work.empty:
-            df_act_work = df_act_work[(df_act_work["fecha_str"] >= f_desde_str) & (df_act_work["fecha_str"] <= f_hasta_str)]
+    if usar_fechas and not df_act_work.empty:
+        df_act_work = df_act_work[(df_act_work["fecha_str"] >= f_desde_str) & (df_act_work["fecha_str"] <= f_hasta_str)]
 
-        if sel_agencia != "Todas" and not df_act_work.empty:
-            df_act_work = df_act_work[df_act_work["agencia"] == sel_agencia]
+    if sel_agencia != "Todas" and not df_act_work.empty:
+        df_act_work = df_act_work[df_act_work["agencia"] == sel_agencia]
 
-        if sel_cajero != "Todos" and not df_act_work.empty:
-            df_act_work = df_act_work[df_act_work["cajero_nombre"] == sel_cajero]
+    if sel_cajero != "Todos" and not df_act_work.empty:
+        df_act_work = df_act_work[df_act_work["cajero_nombre"] == sel_cajero]
 
-        if sel_categoria != "Todas" and not df_act_work.empty:
-            df_act_work = df_act_work[df_act_work["categoria"] == sel_categoria]
+    if sel_categoria != "Todas" and not df_act_work.empty:
+        df_act_work = df_act_work[df_act_work["categoria"] == sel_categoria]
 
-        df_act_metricas = df_act_work.copy()
-
-        if sel_estado == "⏳ Pendientes" and not df_act_work.empty:
-            if existe_sup:
-                # Pago Móvil y Transferencias pasan directo a la Pizarra del Admin sin requerir recibido previo de supervisor.
-                # Gastos, Punto de Venta y Efectivo requieren recibido por supervisor (confirmado_supervisor == True) para pasar al Admin.
-                is_direct_admin = (df_act_work["categoria"] == "Transferencia / Zelle / Pago Móvil") | df_act_work["metodo"].astype(str).str.upper().str.contains("TRANSFERENCIA|ZELLE|PAGO MÓVIL|PAGOMOVIL", regex=True)
-                is_sup_ready = df_act_work["confirmado_supervisor"] == True
-                df_act_work = df_act_work[(df_act_work["confirmado"] == False) & (is_direct_admin | is_sup_ready)]
-            else:
-                # Si no hay supervisor, todo pasa directo a la Pizarra de Confirmaciones del Admin
-                df_act_work = df_act_work[df_act_work["confirmado"] == False]
-        elif sel_estado == "✅ Confirmados" and not df_act_work.empty:
-            df_act_work = df_act_work[df_act_work["confirmado"] == True]
-
-        if "fecha" in df_act_work.columns and not df_act_work.empty:
-            df_act_work = df_act_work.sort_values(by="fecha", ascending=False)
-
-        st.markdown("---")
-        _renderizar_resumen_metricas(df_act_metricas)
-        st.markdown("---")
-
-        st.markdown("<h4 style='font-size: 16px; font-weight: 700; margin-top: 10px;'>📋 Detalle de Transacciones (Ciclo Activo)</h4>", unsafe_allow_html=True)
-        _renderizar_lista_transacciones(df_act_work, key_prefix="act", es_pizarra_supervisor=False, existe_supervisor=existe_sup)
-
-    # -------------------------------------------------------------
-    # PESTAÑA 2: 💵 PIZARRA DE SUPERVISIÓN & CAJA (CAJERO / SUPERVISOR)
-    # -------------------------------------------------------------
-    with tab_efectivo_sup:
+    if sel_estado == "⏳ Pendientes" and not df_act_work.empty:
         if existe_sup:
-            st.markdown("<h4 style='font-size: 17px; font-weight: 800; color: #22c55e;'>📋 Control de Entregas y Recibidos: Cajero ➔ Supervisor ➔ Administrador</h4>", unsafe_allow_html=True)
-            st.caption("Verificación y recibido por parte del Supervisor para **Gastos**, **Punto de Venta** y **Efectivo** antes de enviar a Confirmación del Administrador.")
+            # Pago Móvil y Transferencias pasan directo a la Pizarra del Admin sin requerir recibido previo de supervisor.
+            # Gastos, Punto de Venta y Efectivo requieren recibido por supervisor (confirmado_supervisor == True) para pasar al Admin.
+            is_direct_admin = (df_act_work["categoria"] == "Transferencia / Zelle / Pago Móvil") | df_act_work["metodo"].astype(str).str.upper().str.contains("TRANSFERENCIA|ZELLE|PAGO MÓVIL|PAGOMOVIL", regex=True)
+            is_sup_ready = df_act_work["confirmado_supervisor"] == True
+            df_act_work = df_act_work[(df_act_work["confirmado"] == False) & (is_direct_admin | is_sup_ready)]
         else:
-            st.markdown("<h4 style='font-size: 17px; font-weight: 800; color: #22c55e;'>💵 Control de Efectivo: Cajero ➔ Administrador</h4>", unsafe_allow_html=True)
-            st.caption("Control de caja chica de efectivo recaudado por el Cajero y acumulación para su liquidación al Administrador.")
+            # Si no hay supervisor, todo pasa directo a la Pizarra de Confirmaciones del Admin
+            df_act_work = df_act_work[df_act_work["confirmado"] == False]
+    elif sel_estado == "✅ Confirmados" and not df_act_work.empty:
+        df_act_work = df_act_work[df_act_work["confirmado"] == True]
 
-        # Sección Superior: Caja de Efectivo Acumulada (Supervisor o Cajero)
-        _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=existe_sup)
-        st.markdown("---")
+    if "fecha" in df_act_work.columns and not df_act_work.empty:
+        df_act_work = df_act_work.sort_values(by="fecha", ascending=False)
 
-        if existe_sup:
-            st.markdown("<h4 style='font-size: 16px; font-weight: 800; color: #eab308;'>📋 Entregas (Gastos, POS y Efectivo) por Confirmar / Recibir por Supervisor</h4>", unsafe_allow_html=True)
-        else:
-            st.markdown("<h4 style='font-size: 16px; font-weight: 800; color: #eab308;'>📋 Entregas de Efectivo en Caja del Cajero</h4>", unsafe_allow_html=True)
+    st.markdown("---")
+    st.markdown("<h4 style='font-size: 16px; font-weight: 700; margin-top: 10px;'>📋 Detalle de Transacciones (Ciclo Activo)</h4>", unsafe_allow_html=True)
+    _renderizar_lista_transacciones(df_act_work, key_prefix="act", es_pizarra_supervisor=False, existe_supervisor=existe_sup)
 
-        col_es1, col_es2, col_es3 = st.columns([2, 2, 2])
-        sel_ag_sup = col_es1.selectbox("🏢 Agencia:", lista_agencias, key="pizarra_ef_ag_sel")
-        sel_caj_sup = col_es2.selectbox("👤 Cajero:", lista_cajeros, key="pizarra_ef_caj_sel")
-        
-        if existe_sup:
-            sel_est_sup = col_es3.selectbox("🚦 Estado Supervisor:", ["⏳ Pendientes por Recibir", "🤝 Recibidos por Supervisor", "Todos"], key="pizarra_ef_est_sel")
-        else:
-            sel_est_sup = col_es3.selectbox("🚦 Estado Caja:", ["📦 En Caja de Cajero", "✅ Confirmados Admin", "Todos"], key="pizarra_ef_est_sel")
-
-        if existe_sup:
-            # En la pestaña del supervisor se incluyen Gastos, POS y Efectivo (excluyendo Transferencias/Pago Móvil que van directo al Admin)
-            df_ef_work = df_activo[df_activo["categoria"].isin(["Efectivo", "Gastos", "Punto de Venta (Punde)"]) | df_activo["metodo"].astype(str).str.upper().str.contains("PUNTO|POS", regex=True)].copy()
-        else:
-            df_ef_work = df_activo[df_activo["categoria"] == "Efectivo"].copy()
-
-        if sel_ag_sup != "Todas" and not df_ef_work.empty:
-            df_ef_work = df_ef_work[df_ef_work["agencia"] == sel_ag_sup]
-
-        if sel_caj_sup != "Todos" and not df_ef_work.empty:
-            df_ef_work = df_ef_work[df_ef_work["cajero_nombre"] == sel_caj_sup]
-
-        if existe_sup:
-            if sel_est_sup == "⏳ Pendientes por Recibir" and not df_ef_work.empty:
-                df_ef_work = df_ef_work[(df_ef_work["confirmado_supervisor"] == False) & (df_ef_work["confirmado"] == False)]
-            elif sel_est_sup == "🤝 Recibidos por Supervisor" and not df_ef_work.empty:
-                df_ef_work = df_ef_work[df_ef_work["confirmado_supervisor"] == True]
-        else:
-            if sel_est_sup == "📦 En Caja de Cajero" and not df_ef_work.empty:
-                df_ef_work = df_ef_work[df_ef_work["confirmado"] == False]
-            elif sel_est_sup == "✅ Confirmados Admin" and not df_ef_work.empty:
-                df_ef_work = df_ef_work[df_ef_work["confirmado"] == True]
-
-        if "fecha" in df_ef_work.columns and not df_ef_work.empty:
-            df_ef_work = df_ef_work.sort_values(by="fecha", ascending=False)
-
-        _renderizar_lista_transacciones(df_ef_work, key_prefix="ef_sup", es_pizarra_supervisor=True, existe_supervisor=existe_sup)

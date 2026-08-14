@@ -3441,6 +3441,58 @@ if not st.session_state.taquilla_autenticada:
             [data-testid="stSidebar"] { display: none !important; }
             [data-testid="stSidebarCollapsedControl"] { display: none !important; }
             [data-testid="collapsedControl"] { display: none !important; }
+            [data-testid="stHeader"] { display: none !important; }
+            
+            .stApp, [data-testid="stAppViewContainer"], section.main, .main {
+                background-color: #071217 !important;
+                background-image: radial-gradient(at 50% 30%, rgba(0, 200, 83, 0.08) 0px, transparent 60%) !important;
+                min-height: 100vh !important;
+            }
+
+            [data-testid="stForm"] {
+                background-color: #0d1b22 !important;
+                border: 1px solid rgba(255, 255, 255, 0.1) !important;
+                border-radius: 16px !important;
+                padding: 2.25rem 2rem !important;
+                box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5) !important;
+            }
+
+            [data-testid="stForm"] h2 {
+                color: #ffffff !important;
+            }
+
+            [data-testid="stForm"] p, 
+            [data-testid="stForm"] label, 
+            [data-testid="stWidgetLabel"] p {
+                color: #cbd5e1 !important;
+            }
+
+            div[data-baseweb="input"] {
+                background-color: #1e293b !important;
+                border: 1px solid rgba(255, 255, 255, 0.12) !important;
+                border-radius: 10px !important;
+            }
+
+            div[data-baseweb="input"] input {
+                color: #ffffff !important;
+                background-color: transparent !important;
+            }
+
+            div[data-baseweb="input"]:focus-within {
+                border-color: #00c853 !important;
+                box-shadow: 0 0 0 2px rgba(0, 200, 83, 0.25) !important;
+            }
+
+            button[kind="primaryFormSubmit"],
+            [data-testid="stForm"] button {
+                background: linear-gradient(90deg, #00c853 0%, #00e676 100%) !important;
+                color: #ffffff !important;
+                font-weight: 700 !important;
+                border: none !important;
+                border-radius: 10px !important;
+                height: 44px !important;
+                box-shadow: 0 4px 14px rgba(0, 200, 83, 0.3) !important;
+            }
         </style>
         """,
         unsafe_allow_html=True
@@ -4047,38 +4099,72 @@ else:
 
         /* 🟢 STYLING FOR TOP HORIZONTAL PILLS & DATAFRAMES (DARK) 🟢 */
         [data-testid="stPills"] {
-            gap: 0.4rem !important;
+            gap: 0.5rem !important;
             margin-top: 0.5rem !important;
-            margin-bottom: 1rem !important;
+            margin-bottom: 1.25rem !important;
         }
-        [data-testid="stPills"] button {
-            background-color: rgba(13, 27, 34, 0.7) !important;
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+
+        [data-testid="stPills"] button,
+        [data-testid="stPills"] [data-baseweb="button"],
+        [data-testid="stPills"] [role="option"],
+        [data-testid="stPill"],
+        div[data-testid="stPills"] button,
+        div[data-testid="stPill"] {
+            background-color: #0d1b22 !important;
+            background: #0d1b22 !important;
+            border: 1px solid rgba(255, 255, 255, 0.15) !important;
             color: #cbd5e1 !important;
             font-weight: 600 !important;
-            border-radius: 8px !important;
-            padding: 0.4rem 0.85rem !important;
+            border-radius: 20px !important;
+            padding: 0.4rem 0.9rem !important;
             transition: all 0.15s ease !important;
         }
-        [data-testid="stPills"] button * {
+
+        [data-testid="stPills"] button *,
+        [data-testid="stPills"] [data-baseweb="button"] *,
+        [data-testid="stPills"] [role="option"] *,
+        [data-testid="stPill"] *,
+        div[data-testid="stPills"] button *,
+        div[data-testid="stPill"] * {
             color: #cbd5e1 !important;
             font-weight: 600 !important;
         }
-        [data-testid="stPills"] button[aria-selected="true"] {
+
+        [data-testid="stPills"] button[aria-selected="true"],
+        [data-testid="stPills"] [data-baseweb="button"][aria-selected="true"],
+        [data-testid="stPills"] [role="option"][aria-selected="true"],
+        [data-testid="stPills"] [aria-selected="true"],
+        [data-testid="stPill"][aria-selected="true"],
+        div[data-testid="stPills"] button[aria-selected="true"],
+        div[data-testid="stPill"][aria-selected="true"] {
             background-color: #00c853 !important;
+            background: #00c853 !important;
             color: #ffffff !important;
             border-color: #00c853 !important;
             font-weight: 800 !important;
             box-shadow: 0 4px 14px rgba(0, 200, 83, 0.4) !important;
         }
-        [data-testid="stPills"] button[aria-selected="true"] * {
+
+        [data-testid="stPills"] button[aria-selected="true"] *,
+        [data-testid="stPills"] [data-baseweb="button"][aria-selected="true"] *,
+        [data-testid="stPills"] [role="option"][aria-selected="true"] *,
+        [data-testid="stPills"] [aria-selected="true"] *,
+        [data-testid="stPill"][aria-selected="true"] *,
+        div[data-testid="stPills"] button[aria-selected="true"] *,
+        div[data-testid="stPill"][aria-selected="true"] * {
             color: #ffffff !important;
             font-weight: 800 !important;
         }
-        [data-testid="stDataFrame"], [data-testid="stDataFrame"] > div {
+
+        /* DataFrames Styling (Dark) */
+        [data-testid="stDataFrame"],
+        [data-testid="stDataFrame"] > div,
+        [data-testid="stDataFrame"] iframe,
+        .stDataFrame {
             background-color: #0d1b22 !important;
             color: #cbd5e1 !important;
             border-radius: 10px !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
         }
 
         /* General text readability improvements */
@@ -4462,36 +4548,69 @@ else:
 
         /* 🟢 STYLING FOR TOP HORIZONTAL PILLS & DATAFRAMES (LIGHT) 🟢 */
         [data-testid="stPills"] {
-            gap: 0.4rem !important;
+            gap: 0.5rem !important;
             margin-top: 0.5rem !important;
-            margin-bottom: 1rem !important;
+            margin-bottom: 1.25rem !important;
         }
-        [data-testid="stPills"] button {
+
+        [data-testid="stPills"] button,
+        [data-testid="stPills"] [data-baseweb="button"],
+        [data-testid="stPills"] [role="option"],
+        [data-testid="stPill"],
+        div[data-testid="stPills"] button,
+        div[data-testid="stPill"] {
             background-color: #ffffff !important;
+            background: #ffffff !important;
             border: 1px solid rgba(15, 23, 42, 0.15) !important;
             color: #0f172a !important;
             font-weight: 600 !important;
-            border-radius: 8px !important;
-            padding: 0.4rem 0.85rem !important;
+            border-radius: 20px !important;
+            padding: 0.4rem 0.9rem !important;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04) !important;
             transition: all 0.15s ease !important;
         }
-        [data-testid="stPills"] button * {
+
+        [data-testid="stPills"] button *,
+        [data-testid="stPills"] [data-baseweb="button"] *,
+        [data-testid="stPills"] [role="option"] *,
+        [data-testid="stPill"] *,
+        div[data-testid="stPills"] button *,
+        div[data-testid="stPill"] * {
             color: #0f172a !important;
             font-weight: 600 !important;
         }
-        [data-testid="stPills"] button[aria-selected="true"] {
+
+        [data-testid="stPills"] button[aria-selected="true"],
+        [data-testid="stPills"] [data-baseweb="button"][aria-selected="true"],
+        [data-testid="stPills"] [role="option"][aria-selected="true"],
+        [data-testid="stPills"] [aria-selected="true"],
+        [data-testid="stPill"][aria-selected="true"],
+        div[data-testid="stPills"] button[aria-selected="true"],
+        div[data-testid="stPill"][aria-selected="true"] {
             background-color: #00c853 !important;
+            background: #00c853 !important;
             color: #ffffff !important;
             border-color: #00c853 !important;
             font-weight: 800 !important;
             box-shadow: 0 4px 14px rgba(0, 200, 83, 0.3) !important;
         }
-        [data-testid="stPills"] button[aria-selected="true"] * {
+
+        [data-testid="stPills"] button[aria-selected="true"] *,
+        [data-testid="stPills"] [data-baseweb="button"][aria-selected="true"] *,
+        [data-testid="stPills"] [role="option"][aria-selected="true"] *,
+        [data-testid="stPills"] [aria-selected="true"] *,
+        [data-testid="stPill"][aria-selected="true"] *,
+        div[data-testid="stPills"] button[aria-selected="true"] *,
+        div[data-testid="stPill"][aria-selected="true"] * {
             color: #ffffff !important;
             font-weight: 800 !important;
         }
-        [data-testid="stDataFrame"], [data-testid="stDataFrame"] > div {
+
+        /* DataFrames Styling (Light) */
+        [data-testid="stDataFrame"],
+        [data-testid="stDataFrame"] > div,
+        [data-testid="stDataFrame"] iframe,
+        .stDataFrame {
             background-color: #ffffff !important;
             color: #0f172a !important;
             border-radius: 10px !important;

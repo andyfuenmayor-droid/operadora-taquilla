@@ -637,6 +637,7 @@ def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha
             "tipo_pago": tipo,
             "monto": monto_b,
             "moneda": r.get("moneda", "COP"),
+            "referencia": ref_b if ref_b else r.get("referencia", ""),
             "cajero_id": r.get("cajero_id"),
             "user_id": r.get("user_id"),
             "confirmado": r.get("confirmado", False)
@@ -1215,14 +1216,7 @@ def modulo_home(agencia_data):
 
             with col_t2:
                 render_titulo_seccion(f"💸 Gastos y Pagos del Ciclo - {m_code} ({ciclo_rango_str})")
-                df_p_all_m = pd.DataFrame()
-                if not df_p_m.empty:
-                    df_p_all_m = df_p_m.copy()
-                if not df_pb_m.empty:
-                    df_pb_fmt_m = df_pb_m.copy()
-                    if "tipo_pago" not in df_pb_fmt_m.columns:
-                        df_pb_fmt_m["tipo_pago"] = df_pb_fmt_m.get("metodo_pago", df_pb_fmt_m.get("concepto", "PAGO BANCO"))
-                    df_p_all_m = pd.concat([df_p_all_m, df_pb_fmt_m], ignore_index=True) if not df_p_all_m.empty else df_pb_fmt_m
+                df_p_all_m = df_p_m.copy() if not df_p_m.empty else pd.DataFrame()
 
                 if not df_g_m.empty or not df_p_all_m.empty:
                     if not df_g_m.empty:
@@ -1252,6 +1246,12 @@ def modulo_home(agencia_data):
                             df_p_disp["agencia"] = df_p_disp["agencia"].fillna(df_p_disp["nombre_agency"])
                         if "tipo_pago" in df_p_disp.columns:
                             df_p_disp = df_p_disp.rename(columns={"tipo_pago": "pagos registrados", "referencia": "referencia / banco"})
+
+                        # Desduplicar registros por fecha, monto, moneda y pago/referencia
+                        cols_dup = [c for c in ["fecha", "monto", "moneda", "pagos registrados", "referencia / banco", "cajero"] if c in df_p_disp.columns]
+                        if cols_dup:
+                            df_p_disp = df_p_disp.drop_duplicates(subset=cols_dup)
+
                         cols_p_show = [c for c in ["fecha", "agencia", "cajero", "pagos registrados", "referencia / banco", "banco", "moneda", "monto", "Conf."] if c in df_p_disp.columns]
                         st.dataframe(
                             df_p_disp[cols_p_show],
@@ -3401,111 +3401,133 @@ if "taquilla_autenticada" not in st.session_state:
     st.session_state.taquilla_autenticada = False
 
 if not st.session_state.taquilla_autenticada:
-    _, col_login, _ = st.columns([1.3, 1.4, 1.3])
-    with col_login:
-        st.write("")
-        with st.form("login_form", clear_on_submit=False):
-            st.markdown(
-                """
-                <div style="text-align: center; margin-bottom: 1rem;">
-                    <div style="font-size: 2.25rem; margin-bottom: 0.25rem;">🔐</div>
-                    <h2 style="font-size: 1.4rem; font-weight: 700; margin: 0; letter-spacing: -0.02em; line-height: 1.2;">
-                        Taquilla POS
-                    </h2>
-                    <p style="font-size: 0.8rem; margin-top: 0.2rem; font-weight: 400; opacity: 0.7;">
-                        Acceso al sistema
-                    </p>
-                </div>
-                """, 
-                unsafe_allow_html=True
-            )
-            user_input = st.text_input("Usuario", placeholder="Ingresa tu usuario").strip()
-            key_input = st.text_input("Clave", type="password", placeholder="Ingresa tu clave").strip()
-            
-            # Contenedor para spinner y mensajes de error dentro del formulario
-            status_placeholder = st.empty()
-            
-            submitted = st.form_submit_button("Iniciar Sesión", use_container_width=True)
+    st.markdown(
+        """
+        <style>
+            [data-testid="stSidebar"] { display: none !important; }
+            [data-testid="stSidebarCollapsedControl"] { display: none !important; }
+            [data-testid="collapsedControl"] { display: none !important; }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    login_box = st.empty()
+    with login_box.container():
+        _, col_login, _ = st.columns([1.3, 1.4, 1.3])
+        with col_login:
+            st.write("")
+            with st.form("login_form", clear_on_submit=False):
+                st.markdown(
+                    """
+                    <div style="text-align: center; margin-bottom: 1rem;">
+                        <div style="font-size: 2.25rem; margin-bottom: 0.25rem;">🔐</div>
+                        <h2 style="font-size: 1.4rem; font-weight: 700; margin: 0; letter-spacing: -0.02em; line-height: 1.2;">
+                            Taquilla POS
+                        </h2>
+                        <p style="font-size: 0.8rem; margin-top: 0.2rem; font-weight: 400; opacity: 0.7;">
+                            Acceso al sistema
+                        </p>
+                    </div>
+                    """, 
+                    unsafe_allow_html=True
+                )
+                user_input = st.text_input("Usuario", placeholder="Ingresa tu usuario").strip()
+                key_input = st.text_input("Clave", type="password", placeholder="Ingresa tu clave").strip()
+                
+                # Contenedor para spinner y mensajes de error dentro del formulario
+                status_placeholder = st.empty()
+                
+                submitted = st.form_submit_button("Iniciar Sesión", use_container_width=True)
 
-        if submitted:
-            if not user_input or not key_input:
-                status_placeholder.error("Por favor, ingrese usuario y clave.")
-            else:
-                with status_placeholder:
-                    with st.spinner("Verificando usuario..."):
-                        time.sleep(0.5)
-                        u_clean = user_input.strip()
-                        p_clean = key_input.strip()
+            if submitted:
+                if not user_input or not key_input:
+                    status_placeholder.error("Por favor, ingrese usuario y clave.")
+                else:
+                    with status_placeholder:
+                        with st.spinner("Verificando usuario..."):
+                            time.sleep(0.3)
+                            u_clean = user_input.strip()
+                            p_clean = key_input.strip()
 
-                        matched_user = None
-                        matched_agency = None
+                            matched_user = None
+                            matched_agency = None
 
-                        # 1. Search in taquilla_usuarios for Cajero/Supervisor/Agencia assigned audit role FIRST
-                        try:
-                            res_user = supabase.table("taquilla_usuarios").select("*").ilike("usuario", u_clean).execute()
-                            res_data = res_user.data or []
-                            for u_rec in res_data:
-                                if str(u_rec.get("clave", "")).strip() == p_clean:
-                                    matched_user = u_rec
-                                    break
-                        except Exception:
-                            pass
-
-                        # 2. Search in agencias table for Agency access if not explicitly found in taquilla_usuarios
-                        if not matched_user:
+                            # 1. Search in taquilla_usuarios for Cajero/Supervisor/Agencia assigned audit role FIRST
                             try:
-                                res_ag_user = supabase.table("agencias").select("*").ilike("usuario_taquilla", u_clean).execute()
-                                ag_data = res_ag_user.data or []
-                                for ag_rec in ag_data:
-                                    if str(ag_rec.get("clave_taquilla", "")).strip() == p_clean:
-                                        matched_agency = ag_rec
-                                        matched_user = {
-                                            "id": f"ag_{ag_rec['id']}",
-                                            "usuario": str(ag_rec.get("usuario_taquilla", u_clean)).strip(),
-                                            "clave": p_clean,
-                                            "agencia_id": ag_rec["id"],
-                                            "nombre_cajero": ag_rec.get("nombre_agencia", u_clean),
-                                            "rol": "agencia",
-                                            "activo": True
-                                        }
+                                res_user = supabase.table("taquilla_usuarios").select("*").ilike("usuario", u_clean).execute()
+                                res_data = res_user.data or []
+                                for u_rec in res_data:
+                                    if str(u_rec.get("clave", "")).strip() == p_clean:
+                                        matched_user = u_rec
                                         break
                             except Exception:
                                 pass
-                
-                if matched_user:
-                    user_data = matched_user
-                    res_agencia = supabase.table("agencias").select("*").execute()
-                    df_todas = pd.DataFrame(res_agencia.data or [])
-                    raw_id = str(user_data.get("agencia_id", "")).strip()
 
-                    match = pd.DataFrame()
-                    if matched_agency:
-                        match = pd.DataFrame([matched_agency])
-                    elif not df_todas.empty:
-                        if raw_id and raw_id.lower() != "none":
-                            match = df_todas[df_todas["id"].astype(str) == raw_id]
-                        if match.empty and "nombre_cajero" in user_data:
-                            caj_nom = str(user_data.get("nombre_cajero", "")).strip().upper()
-                            if caj_nom:
-                                match = df_todas[df_todas["nombre_agencia"].astype(str).str.upper().str.strip() == caj_nom]
-                        if match.empty and len(df_todas) == 1:
-                            match = df_todas.iloc[[0]]
+                            # 2. Search in agencias table for Agency access if not explicitly found in taquilla_usuarios
+                            if not matched_user:
+                                try:
+                                    res_ag_user = supabase.table("agencias").select("*").ilike("usuario_taquilla", u_clean).execute()
+                                    ag_data = res_ag_user.data or []
+                                    for ag_rec in ag_data:
+                                        if str(ag_rec.get("clave_taquilla", "")).strip() == p_clean:
+                                            matched_agency = ag_rec
+                                            matched_user = {
+                                                "id": f"ag_{ag_rec['id']}",
+                                                "usuario": str(ag_rec.get("usuario_taquilla", u_clean)).strip(),
+                                                "clave": p_clean,
+                                                "agencia_id": ag_rec["id"],
+                                                "nombre_cajero": ag_rec.get("nombre_agencia", u_clean),
+                                                "rol": "agencia",
+                                                "activo": True
+                                            }
+                                            break
+                                except Exception:
+                                    pass
+                    
+                    if matched_user:
+                        user_data = matched_user
+                        res_agencia = supabase.table("agencias").select("*").execute()
+                        df_todas = pd.DataFrame(res_agencia.data or [])
+                        raw_id = str(user_data.get("agencia_id", "")).strip()
 
-                    if not match.empty:
-                        st.session_state.taquilla_autenticada = True
-                        st.session_state.agencia_actual = match.iloc[0].to_dict()
-                        st.session_state.cajero_actual = {
-                            "id": user_data["id"], 
-                            "usuario": user_data["usuario"], 
-                            "rol": user_data.get("rol", "agencia"), 
-                            "nombre": user_data.get("nombre_cajero", user_data["usuario"])
-                        }
-                        st.session_state["opcion_actual"] = "Inicio"
-                        st.rerun()
+                        match = pd.DataFrame()
+                        if matched_agency:
+                            match = pd.DataFrame([matched_agency])
+                        elif not df_todas.empty:
+                            if raw_id and raw_id.lower() != "none":
+                                match = df_todas[df_todas["id"].astype(str) == raw_id]
+                            if match.empty and "nombre_cajero" in user_data:
+                                caj_nom = str(user_data.get("nombre_cajero", "")).strip().upper()
+                                if caj_nom:
+                                    match = df_todas[df_todas["nombre_agencia"].astype(str).str.upper().str.strip() == caj_nom]
+                            if match.empty and len(df_todas) == 1:
+                                match = df_todas.iloc[[0]]
+
+                        if not match.empty:
+                            st.session_state.taquilla_autenticada = True
+                            st.session_state.agencia_actual = match.iloc[0].to_dict()
+                            st.session_state.cajero_actual = {
+                                "id": user_data["id"], 
+                                "usuario": user_data["usuario"], 
+                                "rol": user_data.get("rol", "agencia"), 
+                                "nombre": user_data.get("nombre_cajero", user_data["usuario"])
+                            }
+                            st.session_state["opcion_actual"] = "Inicio"
+                            login_box.markdown(
+                                """
+                                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 50vh; text-align: center;">
+                                    <div style="font-size: 3rem; margin-bottom: 0.5rem;">🔐</div>
+                                    <h3 style="color: #00c853; font-weight: 700; margin: 0;">Iniciando Sesión...</h3>
+                                    <p style="color: #64748b; font-size: 0.85rem; margin-top: 0.25rem;">Cargando sistema taquilla...</p>
+                                </div>
+                                """,
+                                unsafe_allow_html=True
+                            )
+                            st.rerun()
+                        else:
+                            status_placeholder.error("Agencia no encontrada.")
                     else:
-                        status_placeholder.error("Agencia no encontrada.")
-                else:
-                    status_placeholder.error("Credenciales incorrectas.")
+                        status_placeholder.error("Credenciales incorrectas.")
 else:
     _check_cerrado_col()
     _check_saldo_taquilla_table()

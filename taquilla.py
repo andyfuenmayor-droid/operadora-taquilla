@@ -137,22 +137,43 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(0, 200, 83, 0.35) !important;
         margin-top: 0.5rem !important;
     }
-    [data-testid="collapsedControl"] {
+    /* 🟢 CONTROL Y BOTÓN DEL MENÚ LATERAL EN MÓVIL Y ESCRITORIO (STREAMLIT COMPATIBLE) 🟢 */
+    [data-testid="collapsedControl"],
+    [data-testid="stSidebarCollapsedControl"],
+    [data-testid="stHeader"] button[aria-label*="sidebar" i],
+    [data-testid="stHeader"] button[aria-label*="Sidebar" i],
+    [data-testid="stSidebarCollapseButton"],
+    button[data-testid="stSidebarCollapsedControl"] {
         display: flex !important;
         visibility: visible !important;
+        opacity: 1 !important;
         z-index: 999999 !important;
         position: fixed !important;
         top: 10px !important;
         left: 10px !important;
         background-color: #0d1b22 !important;
         color: #ffffff !important;
-        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        border: 1px solid rgba(0, 200, 83, 0.6) !important;
         border-radius: 8px !important;
-        padding: 4px !important;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3) !important;
+        padding: 4px 8px !important;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5) !important;
     }
+
+    [data-testid="collapsedControl"] svg,
+    [data-testid="stSidebarCollapsedControl"] svg,
+    [data-testid="stHeader"] button[aria-label*="sidebar" i] svg,
+    [data-testid="stHeader"] button[aria-label*="Sidebar" i] svg,
+    [data-testid="stSidebarCollapseButton"] svg {
+        fill: #ffffff !important;
+        color: #ffffff !important;
+        stroke: #ffffff !important;
+        width: 22px !important;
+        height: 22px !important;
+    }
+
     [data-testid="stHeader"] {
         background-color: transparent !important;
+        z-index: 999990 !important;
     }
     [data-testid="stDecoration"] {
         display: none !important;
@@ -3499,10 +3520,43 @@ else:
             backdrop-filter: blur(12px) !important;
             -webkit-backdrop-filter: blur(12px) !important;
             border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+            z-index: 999990 !important;
         }
 
         footer, [data-testid="stDecoration"] {
             display: none !important;
+        }
+
+        /* Botón de apertura de menú colapsado */
+        [data-testid="collapsedControl"],
+        [data-testid="stSidebarCollapsedControl"],
+        [data-testid="stHeader"] button[aria-label*="sidebar" i],
+        [data-testid="stHeader"] button[aria-label*="Sidebar" i],
+        button[data-testid="stSidebarCollapsedControl"] {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            z-index: 999999 !important;
+            position: fixed !important;
+            top: 10px !important;
+            left: 10px !important;
+            background-color: #0d1b22 !important;
+            color: #ffffff !important;
+            border: 1px solid rgba(0, 200, 83, 0.6) !important;
+            border-radius: 8px !important;
+            padding: 4px 8px !important;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5) !important;
+        }
+
+        [data-testid="collapsedControl"] svg,
+        [data-testid="stSidebarCollapsedControl"] svg,
+        [data-testid="stHeader"] button[aria-label*="sidebar" i] svg,
+        [data-testid="stHeader"] button[aria-label*="Sidebar" i] svg {
+            fill: #ffffff !important;
+            color: #ffffff !important;
+            stroke: #ffffff !important;
+            width: 22px !important;
+            height: 22px !important;
         }
 
         /* Page background colors - dark mode */
@@ -3651,6 +3705,14 @@ else:
             }
             [data-testid="stForm"] {
                 padding: 1rem !important;
+            }
+            [data-testid="stSidebar"] {
+                z-index: 999998 !important;
+                top: 0 !important;
+            }
+            [data-testid="stSidebar"] [data-testid="stButton"] button {
+                min-height: 40px !important;
+                font-size: 0.92rem !important;
             }
         }
 
@@ -3948,6 +4010,39 @@ else:
             backdrop-filter: blur(12px) !important;
             -webkit-backdrop-filter: blur(12px) !important;
             border-bottom: 1px solid rgba(15, 23, 42, 0.05) !important;
+            z-index: 999990 !important;
+        }
+
+        /* Botón de apertura de menú colapsado */
+        [data-testid="collapsedControl"],
+        [data-testid="stSidebarCollapsedControl"],
+        [data-testid="stHeader"] button[aria-label*="sidebar" i],
+        [data-testid="stHeader"] button[aria-label*="Sidebar" i],
+        button[data-testid="stSidebarCollapsedControl"] {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            z-index: 999999 !important;
+            position: fixed !important;
+            top: 10px !important;
+            left: 10px !important;
+            background-color: #ffffff !important;
+            color: #0f172a !important;
+            border: 1px solid rgba(0, 200, 83, 0.6) !important;
+            border-radius: 8px !important;
+            padding: 4px 8px !important;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15) !important;
+        }
+
+        [data-testid="collapsedControl"] svg,
+        [data-testid="stSidebarCollapsedControl"] svg,
+        [data-testid="stHeader"] button[aria-label*="sidebar" i] svg,
+        [data-testid="stHeader"] button[aria-label*="Sidebar" i] svg {
+            fill: #0f172a !important;
+            color: #0f172a !important;
+            stroke: #0f172a !important;
+            width: 22px !important;
+            height: 22px !important;
         }
 
         footer, [data-testid="stDecoration"] {
@@ -3995,6 +4090,14 @@ else:
             }
             [data-testid="stForm"] {
                 padding: 1rem !important;
+            }
+            [data-testid="stSidebar"] {
+                z-index: 999998 !important;
+                top: 0 !important;
+            }
+            [data-testid="stSidebar"] [data-testid="stButton"] button {
+                min-height: 40px !important;
+                font-size: 0.92rem !important;
             }
         }
 

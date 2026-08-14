@@ -4453,25 +4453,6 @@ else:
         if st.session_state["opcion_actual"] not in [m[1] for m in menu_items]:
             st.session_state["opcion_actual"] = "Inicio"
 
-    # 🟢 DESPLEGABLE DE NAVEGACIÓN DIRECTA EN CABECERA (ACCESO 100% GARANTIZADO EN MÓVIL) 🟢
-    opts_nav_m = [m[0] for m in menu_items]
-    vals_nav_m = [m[1] for m in menu_items]
-    curr_op_m = st.session_state.get("opcion_actual", "Inicio")
-    curr_idx_m = vals_nav_m.index(curr_op_m) if curr_op_m in vals_nav_m else 0
-
-    with col_h1:
-        sel_mod_top = st.selectbox(
-            "📌 Menú de Módulos",
-            options=opts_nav_m,
-            index=curr_idx_m,
-            key="top_module_selector_mobile",
-            label_visibility="collapsed"
-        )
-        target_val_m = vals_nav_m[opts_nav_m.index(sel_mod_top)]
-        if target_val_m != st.session_state["opcion_actual"]:
-            st.session_state["opcion_actual"] = target_val_m
-            st.rerun()
-
     u_id_admin_sb = ag.get("user_id")
     ciclo_admin_sb = obtener_periodo_trabajo(u_id_admin_sb)
     

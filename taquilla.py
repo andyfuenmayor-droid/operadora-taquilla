@@ -20,6 +20,18 @@ def obtener_hora_local():
     """Retorna la fecha y hora actual ajustada a la zona horaria local (UTC-4)."""
     return datetime.now(timezone(timedelta(hours=-4)))
 
+def obtener_formato_moneda(m_code):
+    """Retorna la máscara de formato según la moneda (BS -> Bs. %,.2f, USD -> $%,.2f, COP -> COP %,.2f)."""
+    m_upper = str(m_code).strip().upper()
+    if m_upper in ["BS", "VES", "BOLIVARES", "BOLÍVARES", "BS."]:
+        return "Bs. %,.2f"
+    elif m_upper in ["COP", "PESOS"]:
+        return "COP %,.2f"
+    elif m_upper in ["USD", "DOLARES", "DÓLARES"]:
+        return "$%,.2f"
+    else:
+        return "%,.2f"
+
 try:
     headers = getattr(st.context, "headers", {}) or {}
     user_agent = str(headers.get("User-Agent", "") or headers.get("user-agent", "")).lower()
@@ -1198,15 +1210,16 @@ def modulo_home(agencia_data):
                     cols_v_show = [c for c in desired_cols if c in df_v_disp.columns]
                     df_v_disp = df_v_disp.loc[:, ~df_v_disp.columns.duplicated()][cols_v_show]
 
+                    fmt_m_disp = obtener_formato_moneda(m_code)
                     st.dataframe(
                         df_v_disp,
                         column_config={
                             "sistema": "Sistema",
                             "moneda": "Moneda",
-                            "venta": st.column_config.NumberColumn("Venta", format="$%,.2f"),
-                            "comision": st.column_config.NumberColumn("Comisión", format="$%,.2f"),
-                            "premios": st.column_config.NumberColumn("Premios", format="$%,.2f"),
-                            "neto": st.column_config.NumberColumn("Neto", format="$%,.2f"),
+                            "venta": st.column_config.NumberColumn("Venta", format=fmt_m_disp),
+                            "comision": st.column_config.NumberColumn("Comisión", format=fmt_m_disp),
+                            "premios": st.column_config.NumberColumn("Premios", format=fmt_m_disp),
+                            "neto": st.column_config.NumberColumn("Neto", format=fmt_m_disp),
                         },
                         use_container_width=True,
                         hide_index=True
@@ -1219,6 +1232,7 @@ def modulo_home(agencia_data):
                 df_p_all_m = df_p_m.copy() if not df_p_m.empty else pd.DataFrame()
 
                 if not df_g_m.empty or not df_p_all_m.empty:
+                    fmt_m_disp = obtener_formato_moneda(m_code)
                     if not df_g_m.empty:
                         st.caption(f"💸 **Gastos Registrados ({m_code}):**")
                         df_g_disp = enriquecer_columna_cajero(df_g_m)
@@ -1231,7 +1245,7 @@ def modulo_home(agencia_data):
                         cols_g_show = [c for c in ["fecha", "agencia", "cajero", "concepto", "moneda", "monto", "Conf."] if c in df_g_disp.columns]
                         st.dataframe(
                             df_g_disp[cols_g_show],
-                            column_config={"monto": st.column_config.NumberColumn("monto", format="$%,.2f")},
+                            column_config={"monto": st.column_config.NumberColumn("monto", format=fmt_m_disp)},
                             use_container_width=True,
                             hide_index=True
                         )
@@ -1255,7 +1269,7 @@ def modulo_home(agencia_data):
                         cols_p_show = [c for c in ["fecha", "agencia", "cajero", "pagos registrados", "referencia / banco", "banco", "moneda", "monto", "Conf."] if c in df_p_disp.columns]
                         st.dataframe(
                             df_p_disp[cols_p_show],
-                            column_config={"monto": st.column_config.NumberColumn("monto", format="$%,.2f")},
+                            column_config={"monto": st.column_config.NumberColumn("monto", format=fmt_m_disp)},
                             use_container_width=True,
                             hide_index=True
                         )
@@ -1683,7 +1697,7 @@ def modulo_pagos(agencia_data):
         st.dataframe(
             df_p_disp[cols_p],
             column_config={
-                "monto": st.column_config.NumberColumn("monto", format="$%,.2f")
+                "monto": st.column_config.NumberColumn("monto", format="%,.2f")
             },
             use_container_width=True,
             hide_index=True
@@ -2461,6 +2475,7 @@ def modulo_reporte_rango(agencia_data):
             st.divider()
 
             render_titulo_seccion(f"📋 Detalle por Día ({m_code})")
+            fmt_curr_r = obtener_formato_moneda(m_code)
             if not df_v_m.empty:
                 cols = ["fecha", "sistema", "moneda", "monto_venta", "comision", "monto_premios"]
                 cols = [c for c in cols if c in df_v_m.columns]
@@ -2469,9 +2484,9 @@ def modulo_reporte_rango(agencia_data):
                 st.dataframe(
                     df_v_disp,
                     column_config={
-                        "venta": st.column_config.NumberColumn("Venta", format="$%,.2f"),
-                        "comision": st.column_config.NumberColumn("Comisión", format="$%,.2f"),
-                        "premios": st.column_config.NumberColumn("Premios", format="$%,.2f"),
+                        "venta": st.column_config.NumberColumn("Venta", format=fmt_curr_r),
+                        "comision": st.column_config.NumberColumn("Comisión", format=fmt_curr_r),
+                        "premios": st.column_config.NumberColumn("Premios", format=fmt_curr_r),
                     },
                     use_container_width=True,
                     hide_index=True
@@ -2492,7 +2507,7 @@ def modulo_reporte_rango(agencia_data):
                     cols_existentes = [c for c in cols_g if c in df_g_disp.columns]
                     st.dataframe(
                         df_g_disp[cols_existentes],
-                        column_config={"monto": st.column_config.NumberColumn("monto", format="$%,.2f")},
+                        column_config={"monto": st.column_config.NumberColumn("monto", format=fmt_curr_r)},
                         use_container_width=True,
                         hide_index=True
                     )
@@ -2511,7 +2526,7 @@ def modulo_reporte_rango(agencia_data):
                     cols_existentes_p = [c for c in cols_p if c in df_p_disp.columns]
                     st.dataframe(
                         df_p_disp[cols_existentes_p],
-                        column_config={"monto": st.column_config.NumberColumn("monto", format="$%,.2f")},
+                        column_config={"monto": st.column_config.NumberColumn("monto", format=fmt_curr_r)},
                         use_container_width=True,
                         hide_index=True
                     )

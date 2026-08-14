@@ -357,11 +357,12 @@ def modulo_auditoria_hibrida():
                         df_g_disp["agencia"] = df_g_disp["nombre_agency"]
                     elif "nombre_agency" in df_g_disp.columns:
                         df_g_disp["agencia"] = df_g_disp["agencia"].fillna(df_g_disp["nombre_agency"])
+                    fmt_mon = "Bs. %,.2f" if m_search == "BS" else ("$%,.2f" if m_search == "USD" else "COP %,.2f")
                     cols_g = ["agencia", "concepto", "moneda", "monto", "Conf.", "fecha"]
                     cols_g_existentes = [c for c in cols_g if c in df_g_disp.columns]
                     st.dataframe(
                         df_g_disp[cols_g_existentes],
-                        column_config={"monto": st.column_config.NumberColumn("monto", format="$%,.2f")},
+                        column_config={"monto": st.column_config.NumberColumn("monto", format=fmt_mon)},
                         use_container_width=True,
                         hide_index=True
                     )
@@ -381,7 +382,7 @@ def modulo_auditoria_hibrida():
                     cols_p_existentes = [c for c in cols_p if c in df_p_disp.columns]
                     st.dataframe(
                         df_p_disp[cols_p_existentes],
-                        column_config={"monto": st.column_config.NumberColumn("monto", format="$%,.2f")},
+                        column_config={"monto": st.column_config.NumberColumn("monto", format=fmt_mon)},
                         use_container_width=True,
                         hide_index=True
                     )

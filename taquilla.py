@@ -461,25 +461,26 @@ def enriquecer_columna_cajero(df):
 def sincronizar_confirmaciones_pagos(df_p, df_pb=None, ag_nombre=None):
     """
     Sincroniza el estado 'confirmado' de df_p cruzando con df_pb (cda_pagos_bancarios).
-    Cualquier pago en df_p cuya referencia (Ref: XXXX) aparezca confirmada en cda_pagos_bancarios
-    (o presente en la tabla bancaria como confirmada) actualizará su estado a confirmado = True.
+    Además, cualquier pago bancario confirmado por el Admin en cda_pagos_bancarios que no exista
+    en cda_pagos_diarios es insertado automáticamente para registrarlo en el resumen de cobranzas/ingresos.
     """
-    if df_p.empty:
-        return df_p
-
-    df_p = df_p.copy()
-    if "confirmado" not in df_p.columns:
-        df_p["confirmado"] = False
-
     if df_pb is None or (isinstance(df_pb, pd.DataFrame) and df_pb.empty):
         try:
-            q = supabase.table("cda_pagos_bancarios").select("referencia, confirmado")
+            q = supabase.table("cda_pagos_bancarios").select("*")
             if ag_nombre:
                 q = q.eq("agencia", ag_nombre)
             res_pb = q.execute()
             df_pb = pd.DataFrame(res_pb.data or [])
         except Exception:
             df_pb = pd.DataFrame()
+
+    if df_p is None or (isinstance(df_p, pd.DataFrame) and df_p.empty):
+        df_p = pd.DataFrame(columns=["fecha", "agencia", "nombre_agency", "tipo_pago", "monto", "moneda", "confirmado", "user_id", "cajero_id"])
+    else:
+        df_p = df_p.copy()
+
+    if "confirmado" not in df_p.columns:
+        df_p["confirmado"] = False
 
     if df_pb is None or df_pb.empty:
         return df_p
@@ -491,14 +492,65 @@ def sincronizar_confirmaciones_pagos(df_p, df_pb=None, ag_nombre=None):
         if ref_val and conf_val:
             refs_confirmadas.add(ref_val)
 
+    # 1. Actualizar pagos existentes en df_p
     for idx, row in df_p.iterrows():
         tipo_str = str(row.get("tipo_pago", "")).upper()
         if "REF:" in tipo_str:
             partes = tipo_str.split("REF:")
             if len(partes) > 1:
-                ref_pago = partes[1].replace(")", "").strip()
+                ref_pago = partes[1].replace(")", "").strip().upper()
                 if ref_pago in refs_confirmadas:
                     df_p.at[idx, "confirmado"] = True
+
+    # 2. Sincronización Automática: Insertar transacciones bancarias confirmadas que falten en cda_pagos_diarios
+    nuevos_filas = []
+    for _, r_pb in df_pb.iterrows():
+        if not bool(r_pb.get("confirmado", False)):
+            continue
+
+        m_pb = float(r_pb.get("monto", 0))
+        f_pb = str(r_pb.get("fecha", ""))[:10]
+        ref_pb = str(r_pb.get("referencia", "")).strip()
+        ag_pb = str(r_pb.get("agencia", ag_nombre or "")).strip()
+        conc_pb = str(r_pb.get("concepto", "Pago a Comercializador")).strip()
+
+        # Verificar si ya existe en df_p
+        ya_existe = False
+        if not df_p.empty and "monto" in df_p.columns:
+            f_p_series = df_p["fecha"].astype(str).str.slice(0, 10)
+            m_p_series = df_p["monto"].astype(float)
+            match_cond = (f_p_series == f_pb) & (abs(m_p_series - m_pb) < 0.01)
+            if match_cond.any():
+                ya_existe = True
+                df_p.loc[match_cond, "confirmado"] = True
+
+        if not ya_existe:
+            desc_tipo = f"{conc_pb} (Banco Ref: {ref_pb})" if ref_pb else conc_pb
+            nuevo_pago = {
+                "fecha": f_pb,
+                "agencia": ag_pb,
+                "nombre_agency": ag_pb,
+                "tipo_pago": desc_tipo,
+                "monto": m_pb,
+                "moneda": str(r_pb.get("moneda", "BS")).upper(),
+                "user_id": r_pb.get("user_id"),
+                "cajero_id": r_pb.get("cajero_id"),
+                "confirmado": True,
+                "confirmado_supervisor": True,
+                "confirmado_por": str(r_pb.get("confirmado_por", "Admin"))
+            }
+
+            if ag_pb:
+                try:
+                    supabase.table("cda_pagos_diarios").insert(nuevo_pago).execute()
+                except Exception:
+                    pass
+
+            nuevos_filas.append(nuevo_pago)
+
+    if nuevos_filas:
+        df_nuevos = pd.DataFrame(nuevos_filas)
+        df_p = pd.concat([df_p, df_nuevos], ignore_index=True)
 
     return df_p
 

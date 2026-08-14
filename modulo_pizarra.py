@@ -558,12 +558,32 @@ def _renderizar_lista_transacciones(df_list, key_prefix="act", es_pizarra_superv
 
                                     if row["tabla"] == "cda_pagos_bancarios":
                                         try:
-                                            supabase.table("cda_pagos_diarios").update(data_conf).eq("agencia", row["agencia"]).eq("fecha", row["fecha"]).eq("monto", row["monto"]).execute()
+                                            f_str = str(row.get("fecha", ""))[:10]
+                                            ag_str = str(row.get("agencia", "")).strip()
+                                            m_num = float(row.get("monto", 0))
+                                            ref_str = str(row.get("referencia", "")).strip()
+                                            conc_str = str(row.get("concepto", "Pago a Comercializador")).strip()
+
+                                            res_chk = supabase.table("cda_pagos_diarios").select("id").eq("agencia", ag_str).eq("fecha", f_str).eq("monto", m_num).execute()
+                                            if res_chk.data:
+                                                supabase.table("cda_pagos_diarios").update(data_conf).eq("agencia", ag_str).eq("fecha", f_str).eq("monto", m_num).execute()
+                                            else:
+                                                pago_auto = {
+                                                    "fecha": f_str,
+                                                    "agencia": ag_str,
+                                                    "nombre_agency": ag_str,
+                                                    "tipo_pago": f"{conc_str} (Banco Ref: {ref_str})" if ref_str else conc_str,
+                                                    "monto": m_num,
+                                                    "moneda": str(row.get("moneda", "BS")).upper(),
+                                                    "user_id": row.get("user_id"),
+                                                    "cajero_id": row.get("cajero_id"),
+                                                    "confirmado": True,
+                                                    "confirmado_supervisor": True,
+                                                    "confirmado_por": current_usr
+                                                }
+                                                supabase.table("cda_pagos_diarios").insert(pago_auto).execute()
                                         except Exception:
-                                            try:
-                                                supabase.table("cda_pagos_diarios").update({"confirmado": True}).eq("agencia", row["agencia"]).eq("fecha", row["fecha"]).eq("monto", row["monto"]).execute()
-                                            except Exception:
-                                                pass
+                                            pass
 
                                     st.success(f"✅ Confirmado por {current_usr}")
                                     time.sleep(0.5)

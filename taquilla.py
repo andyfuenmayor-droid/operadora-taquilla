@@ -157,6 +157,7 @@ st.markdown("""
         border-radius: 8px !important;
         padding: 4px 8px !important;
         box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5) !important;
+        pointer-events: auto !important;
     }
 
     [data-testid="collapsedControl"] svg,
@@ -174,6 +175,10 @@ st.markdown("""
     [data-testid="stHeader"] {
         background-color: transparent !important;
         z-index: 999990 !important;
+        pointer-events: none !important;
+    }
+    [data-testid="stHeader"] * {
+        pointer-events: auto !important;
     }
     [data-testid="stDecoration"] {
         display: none !important;

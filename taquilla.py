@@ -1603,6 +1603,14 @@ def modulo_pagos(agencia_data):
     map_cajeros = {}
     cajero_filtro_target = None
 
+    ciclo_admin = obtener_periodo_trabajo(u_id)
+    fecha_ciclo_hasta = None
+    if ciclo_admin and ciclo_admin.get("hasta"):
+        try:
+            fecha_ciclo_hasta = pd.to_datetime(ciclo_admin["hasta"]).date()
+        except Exception:
+            pass
+
     if es_supervisor:
         try:
             res_u = supabase.table("taquilla_usuarios").select("id, usuario, nombre_cajero, rol").execute()
@@ -1614,7 +1622,7 @@ def modulo_pagos(agencia_data):
         col_f1, col_f2 = st.columns([2, 2])
         with col_f1:
             ult_fecha = obtener_ultimo_dia_cerrado(ag_nombre, cajero_id=None)
-            fecha_defecto = ult_fecha if ult_fecha else datetime.now().date()
+            fecha_defecto = fecha_ciclo_hasta if fecha_ciclo_hasta else (ult_fecha if ult_fecha else datetime.now().date())
             if "fecha_pago_filtro" not in st.session_state or st.session_state.get("last_pago_cajero") != str(cajero_id):
                 st.session_state["fecha_pago_filtro"] = fecha_defecto
                 st.session_state["last_pago_cajero"] = str(cajero_id)
@@ -1633,7 +1641,7 @@ def modulo_pagos(agencia_data):
     else:
         c_id_ref = None if es_agencia else cajero_id
         ult_fecha = obtener_ultimo_dia_cerrado(ag_nombre, cajero_id=c_id_ref)
-        fecha_defecto = ult_fecha if ult_fecha else datetime.now().date()
+        fecha_defecto = fecha_ciclo_hasta if fecha_ciclo_hasta else (ult_fecha if ult_fecha else datetime.now().date())
         if "fecha_pago_filtro" not in st.session_state or st.session_state.get("last_pago_cajero") != str(cajero_id):
             st.session_state["fecha_pago_filtro"] = fecha_defecto
             st.session_state["last_pago_cajero"] = str(cajero_id)
@@ -1735,7 +1743,16 @@ def modulo_gestion_bancaria(agencia_data):
 
     c_id_ref = None if (es_agencia_b or es_supervisor_b) else cajero_id_b
     ult_fecha = obtener_ultimo_dia_cerrado(ag_nombre, cajero_id=c_id_ref)
-    fecha_defecto = ult_fecha if ult_fecha else datetime.now().date()
+
+    ciclo_admin_b = obtener_periodo_trabajo(u_id)
+    fecha_ciclo_hasta_b = None
+    if ciclo_admin_b and ciclo_admin_b.get("hasta"):
+        try:
+            fecha_ciclo_hasta_b = pd.to_datetime(ciclo_admin_b["hasta"]).date()
+        except Exception:
+            pass
+
+    fecha_defecto = fecha_ciclo_hasta_b if fecha_ciclo_hasta_b else (ult_fecha if ult_fecha else datetime.now().date())
 
     # ---------------------------------------------------------
     # 1. OBTENER CUENTAS ASIGNADAS Y DISPOSITIVOS DE PAGO DESDE SUPABASE

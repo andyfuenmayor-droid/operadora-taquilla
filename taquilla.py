@@ -143,43 +143,35 @@ st.html("""
     [data-testid="stSidebarCollapsedControl"],
     [data-testid="stHeader"] button[aria-label*="sidebar" i],
     [data-testid="stHeader"] button[aria-label*="Sidebar" i],
-    [data-testid="stSidebarCollapseButton"],
     button[data-testid="stSidebarCollapsedControl"] {
         display: flex !important;
         visibility: visible !important;
         opacity: 1 !important;
         z-index: 999999 !important;
-        position: fixed !important;
-        top: 10px !important;
-        left: 10px !important;
         background-color: #0d1b22 !important;
         color: #ffffff !important;
-        border: 1px solid rgba(0, 200, 83, 0.6) !important;
+        border: 2px solid #00c853 !important;
         border-radius: 8px !important;
-        padding: 4px 8px !important;
-        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5) !important;
-        pointer-events: auto !important;
+        min-width: 44px !important;
+        min-height: 44px !important;
+        box-shadow: 0 4px 14px rgba(0, 200, 83, 0.4) !important;
+        margin: 4px 8px !important;
     }
 
     [data-testid="collapsedControl"] svg,
     [data-testid="stSidebarCollapsedControl"] svg,
     [data-testid="stHeader"] button[aria-label*="sidebar" i] svg,
-    [data-testid="stHeader"] button[aria-label*="Sidebar" i] svg,
-    [data-testid="stSidebarCollapseButton"] svg {
+    [data-testid="stHeader"] button[aria-label*="Sidebar" i] svg {
         fill: #ffffff !important;
         color: #ffffff !important;
         stroke: #ffffff !important;
-        width: 22px !important;
-        height: 22px !important;
+        width: 24px !important;
+        height: 24px !important;
     }
 
     [data-testid="stHeader"] {
         background-color: transparent !important;
         z-index: 999990 !important;
-        pointer-events: none !important;
-    }
-    [data-testid="stHeader"] * {
-        pointer-events: auto !important;
     }
     [data-testid="stDecoration"] {
         display: none !important;
@@ -3542,15 +3534,14 @@ else:
             visibility: visible !important;
             opacity: 1 !important;
             z-index: 999999 !important;
-            position: fixed !important;
-            top: 10px !important;
-            left: 10px !important;
             background-color: #0d1b22 !important;
             color: #ffffff !important;
-            border: 1px solid rgba(0, 200, 83, 0.6) !important;
+            border: 2px solid #00c853 !important;
             border-radius: 8px !important;
-            padding: 4px 8px !important;
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5) !important;
+            min-width: 44px !important;
+            min-height: 44px !important;
+            box-shadow: 0 4px 14px rgba(0, 200, 83, 0.4) !important;
+            margin: 4px 8px !important;
         }
 
         [data-testid="collapsedControl"] svg,
@@ -3560,8 +3551,8 @@ else:
             fill: #ffffff !important;
             color: #ffffff !important;
             stroke: #ffffff !important;
-            width: 22px !important;
-            height: 22px !important;
+            width: 24px !important;
+            height: 24px !important;
         }
 
         /* Page background colors - dark mode */
@@ -4028,15 +4019,14 @@ else:
             visibility: visible !important;
             opacity: 1 !important;
             z-index: 999999 !important;
-            position: fixed !important;
-            top: 10px !important;
-            left: 10px !important;
             background-color: #ffffff !important;
             color: #0f172a !important;
-            border: 1px solid rgba(0, 200, 83, 0.6) !important;
+            border: 2px solid #00c853 !important;
             border-radius: 8px !important;
-            padding: 4px 8px !important;
+            min-width: 44px !important;
+            min-height: 44px !important;
             box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15) !important;
+            margin: 4px 8px !important;
         }
 
         [data-testid="collapsedControl"] svg,
@@ -4046,8 +4036,8 @@ else:
             fill: #0f172a !important;
             color: #0f172a !important;
             stroke: #0f172a !important;
-            width: 22px !important;
-            height: 22px !important;
+            width: 24px !important;
+            height: 24px !important;
         }
 
         footer, [data-testid="stDecoration"] {
@@ -4442,6 +4432,25 @@ else:
         ]
         if st.session_state["opcion_actual"] not in [m[1] for m in menu_items]:
             st.session_state["opcion_actual"] = "Inicio"
+
+    # 🟢 DESPLEGABLE DE NAVEGACIÓN DIRECTA EN CABECERA (ACCESO 100% GARANTIZADO EN MÓVIL) 🟢
+    opts_nav_m = [m[0] for m in menu_items]
+    vals_nav_m = [m[1] for m in menu_items]
+    curr_op_m = st.session_state.get("opcion_actual", "Inicio")
+    curr_idx_m = vals_nav_m.index(curr_op_m) if curr_op_m in vals_nav_m else 0
+
+    with col_h1:
+        sel_mod_top = st.selectbox(
+            "📌 Menú de Módulos",
+            options=opts_nav_m,
+            index=curr_idx_m,
+            key="top_module_selector_mobile",
+            label_visibility="collapsed"
+        )
+        target_val_m = vals_nav_m[opts_nav_m.index(sel_mod_top)]
+        if target_val_m != st.session_state["opcion_actual"]:
+            st.session_state["opcion_actual"] = target_val_m
+            st.rerun()
 
     u_id_admin_sb = ag.get("user_id")
     ciclo_admin_sb = obtener_periodo_trabajo(u_id_admin_sb)

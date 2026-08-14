@@ -4410,14 +4410,16 @@ else:
             ("🏠 Inicio", "Inicio"),
             ("📌 Pizarra", "Pizarra"),
             ("📊 Reporte", "Reporte por Rango"),
-            ("🔒 Cierre Diario", "Cierre Diario")
+            ("🔒 Cierre Diario", "Cierre Diario"),
+            ("🚪 Cerrar Sesión", "Cerrar Sesión")
         ]
     elif rol_lower == "agencia":
         menu_items = [
             ("🏠 Inicio", "Inicio"),
             ("📊 Reporte", "Reporte por Rango"),
             ("💵 Pago Efectivo", "Gestión de Pagos"),
-            ("🏦 Gestión Bancaria", "Gestión Bancaria")
+            ("🏦 Gestión Bancaria", "Gestión Bancaria"),
+            ("🚪 Cerrar Sesión", "Cerrar Sesión")
         ]
     else:
         menu_items = [
@@ -4428,7 +4430,8 @@ else:
             ("💸 Gastos Agencias", "Gestión de Gastos"),
             ("💵 Pago Efectivo", "Gestión de Pagos"),
             ("🏦 Gestión Bancaria", "Gestión Bancaria"),
-            ("🔒 Cierre Diario", "Cierre Diario")
+            ("🔒 Cierre Diario", "Cierre Diario"),
+            ("🚪 Cerrar Sesión", "Cerrar Sesión")
         ]
         if st.session_state["opcion_actual"] not in [m[1] for m in menu_items]:
             st.session_state["opcion_actual"] = "Inicio"
@@ -4569,7 +4572,11 @@ else:
 
     opcion = st.session_state["opcion_actual"]
 
-    if opcion == "Inicio": modulo_home(ag)
+    if opcion == "Cerrar Sesión":
+        st.session_state.taquilla_autenticada = False
+        st.session_state["opcion_actual"] = "Inicio"
+        st.rerun()
+    elif opcion == "Inicio": modulo_home(ag)
     elif opcion == "Pizarra": modulo_pizarra(ag)
     elif opcion == "Carga de Ventas": modulo_registro_taquilla(ag)
     elif opcion == "Gestión de Gastos": modulo_gastos(ag)

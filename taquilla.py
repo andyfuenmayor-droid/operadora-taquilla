@@ -59,7 +59,7 @@ if "tema_oscuro" not in st.session_state:
     st.session_state.tema_oscuro = True
 
 # Anti-cache meta tags, JS auto-clearing script y CSS para visibilidad de controles
-st.markdown(textwrap.dedent("""
+st.html("""
     <head>
         <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
         <meta http-equiv="Pragma" content="no-cache" />
@@ -197,7 +197,7 @@ st.markdown(textwrap.dedent("""
         visibility: hidden !important;
     }
     </style>
-"""), unsafe_allow_html=True)
+""")
 
 
 if "tema_oscuro" not in st.session_state:
@@ -4381,7 +4381,7 @@ else:
         }
         </style>
         """
-    st.markdown(textwrap.dedent(dashboard_css), unsafe_allow_html=True)
+    st.html(dashboard_css)
 
     col_h1, col_h2 = st.columns([5, 1])
     with col_h1:

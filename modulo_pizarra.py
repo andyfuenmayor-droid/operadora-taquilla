@@ -856,7 +856,7 @@ def modulo_pizarra(agencia_data=None):
     return modulo_pizarra_confirmaciones(agencia_data)
 
 def modulo_pizarra_confirmaciones(agencia_data=None):
-    st.markdown(textwrap.dedent("""
+    st.html("""
         <style>
         .stMetric { background: rgba(255, 255, 255, 0.03); padding: 8px 12px !important; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); }
         .stMetric label { font-size: 0.75rem !important; opacity: 0.8; }
@@ -864,7 +864,7 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
         .badge-pending { background-color: rgba(234, 179, 8, 0.15); color: #eab308; border: 1px solid rgba(234, 179, 8, 0.3); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; }
         .badge-confirmed { background-color: rgba(34, 197, 94, 0.15); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; }
         </style>
-    """), unsafe_allow_html=True)
+    """)
 
     cajero_info = st.session_state.get("cajero_actual", {})
     ag_info = agencia_data or st.session_state.get("agencia_actual", {})

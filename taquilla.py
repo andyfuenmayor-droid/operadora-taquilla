@@ -4453,6 +4453,26 @@ else:
         if st.session_state["opcion_actual"] not in [m[1] for m in menu_items]:
             st.session_state["opcion_actual"] = "Inicio"
 
+    # 🟢 BARRA DE NAVEGACIÓN HORIZONTAL POR PÍLDORAS (SIEMPRE VISIBLE EN MÓVIL Y ESCRITORIO SIN DESPLEGABLE) 🟢
+    opts_nav_labels = [m[0] for m in menu_items]
+    vals_nav_values = [m[1] for m in menu_items]
+    curr_val = st.session_state.get("opcion_actual", "Inicio")
+    curr_label = opts_nav_labels[vals_nav_values.index(curr_val)] if curr_val in vals_nav_values else opts_nav_labels[0]
+
+    selected_nav = st.pills(
+        "Menú de Módulos",
+        options=opts_nav_labels,
+        default=curr_label,
+        key="top_horizontal_nav_pills",
+        label_visibility="collapsed"
+    )
+
+    if selected_nav:
+        target_nav_val = vals_nav_values[opts_nav_labels.index(selected_nav)]
+        if target_nav_val != st.session_state["opcion_actual"]:
+            st.session_state["opcion_actual"] = target_nav_val
+            st.rerun()
+
     u_id_admin_sb = ag.get("user_id")
     ciclo_admin_sb = obtener_periodo_trabajo(u_id_admin_sb)
     
@@ -4492,14 +4512,16 @@ else:
 </div>
 """
 
+    usr_disp_email = str(cajero.get('usuario') or cajero.get('nombre') or 'USUARIO').lower()
+
     with st.sidebar:
-        sidebar_info = f"""<div style="background-color: {card_bg}; border: 1px solid {card_border}; padding: 0.85rem 1rem; border-radius: 12px; margin-bottom: 0.5rem;">
+        sidebar_info = f"""<div style="background-color: {card_bg}; border: 1px solid {card_border}; padding: 0.85rem 1rem; border-radius: 12px; margin-bottom: 0.75rem;">
+<div style="font-size: 0.65rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.15rem;">USUARIO ACTIVO</div>
+<div style="font-size: 0.95rem; font-weight: 700; color: {text_val_color}; border-bottom: 2px solid #00c853; padding-bottom: 0.35rem; margin-bottom: 0.5rem; word-break: break-all;">{usr_disp_email}</div>
 <div style="font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.1rem;">Terminal</div>
-<div style="font-size: 1rem; font-weight: 700; color: {text_val_color}; margin-bottom: 0.5rem;">🏢 {ag['nombre_agencia'].upper()}</div>
-<div style="font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.1rem;">Usuario</div>
-<div style="font-size: 0.9rem; font-weight: 600; color: {text_val_color}; margin-bottom: 0.5rem;">👤 {(cajero.get('nombre') or cajero.get('usuario') or 'USUARIO').upper()}</div>
+<div style="font-size: 0.95rem; font-weight: 700; color: {text_val_color}; margin-bottom: 0.35rem;">🏢 {ag['nombre_agencia'].upper()}</div>
 <div style="font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.1rem;">Rol</div>
-<div style="display: inline-block; background-color: {badge_bg}; border: 1px solid {badge_border}; color: {badge_text}; font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.4rem; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">{cajero['rol'].upper()}</div>
+<div style="display: inline-block; background-color: {badge_bg}; border: 1px solid {badge_border}; color: {badge_text}; font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.4rem; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.35rem;">{cajero['rol'].upper()}</div>
 <div style="font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.1rem;">{label_periodo_sb}</div>
 <div style="font-size: 0.85rem; font-weight: 500; color: {val_color_sb}; font-family: inherit;">{val_periodo_sb}</div>
 {wa_display_html}

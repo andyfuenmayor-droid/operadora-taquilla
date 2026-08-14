@@ -4021,6 +4021,80 @@ else:
             color: #ffffff !important;
         }
 
+        /* 🟢 STYLING FOR TOP HORIZONTAL PILLS & DATAFRAMES (DARK) 🟢 */
+        [data-testid="stPills"] {
+            gap: 0.5rem !important;
+            margin-top: 0.5rem !important;
+            margin-bottom: 1.25rem !important;
+        }
+
+        [data-testid="stPills"] button,
+        [data-testid="stPills"] [data-testid="stBaseButton-secondary"] button,
+        [data-testid="stPills"] [data-baseweb="button"],
+        [data-testid="stPills"] [role="option"],
+        [data-testid="stPill"],
+        div[data-testid="stPills"] button,
+        div[data-testid="stPill"] {
+            background-color: #0d1b22 !important;
+            background: #0d1b22 !important;
+            border: 1px solid rgba(255, 255, 255, 0.15) !important;
+            color: #cbd5e1 !important;
+            font-weight: 600 !important;
+            border-radius: 20px !important;
+            padding: 0.4rem 0.9rem !important;
+            transition: all 0.15s ease !important;
+        }
+
+        [data-testid="stPills"] button *,
+        [data-testid="stPills"] [data-testid="stBaseButton-secondary"] button *,
+        [data-testid="stPills"] [data-baseweb="button"] *,
+        [data-testid="stPills"] [role="option"] *,
+        [data-testid="stPill"] *,
+        div[data-testid="stPills"] button *,
+        div[data-testid="stPill"] * {
+            color: #cbd5e1 !important;
+            font-weight: 600 !important;
+        }
+
+        [data-testid="stPills"] button[aria-selected="true"],
+        [data-testid="stPills"] [data-testid="stBaseButton-secondary"] button[aria-selected="true"],
+        [data-testid="stPills"] [data-baseweb="button"][aria-selected="true"],
+        [data-testid="stPills"] [role="option"][aria-selected="true"],
+        [data-testid="stPills"] [aria-selected="true"],
+        [data-testid="stPill"][aria-selected="true"],
+        div[data-testid="stPills"] button[aria-selected="true"],
+        div[data-testid="stPill"][aria-selected="true"] {
+            background-color: #00c853 !important;
+            background: #00c853 !important;
+            color: #ffffff !important;
+            border-color: #00c853 !important;
+            font-weight: 800 !important;
+            box-shadow: 0 4px 14px rgba(0, 200, 83, 0.4) !important;
+        }
+
+        [data-testid="stPills"] button[aria-selected="true"] *,
+        [data-testid="stPills"] [data-testid="stBaseButton-secondary"] button[aria-selected="true"] *,
+        [data-testid="stPills"] [data-baseweb="button"][aria-selected="true"] *,
+        [data-testid="stPills"] [role="option"][aria-selected="true"] *,
+        [data-testid="stPills"] [aria-selected="true"] *,
+        [data-testid="stPill"][aria-selected="true"] *,
+        div[data-testid="stPills"] button[aria-selected="true"] *,
+        div[data-testid="stPill"][aria-selected="true"] * {
+            color: #ffffff !important;
+            font-weight: 800 !important;
+        }
+
+        /* DataFrames Styling (Dark) */
+        [data-testid="stDataFrame"],
+        [data-testid="stDataFrame"] > div,
+        [data-testid="stDataFrame"] iframe,
+        .stDataFrame {
+            background-color: #0d1b22 !important;
+            color: #cbd5e1 !important;
+            border-radius: 10px !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        }
+
         [data-testid="stBaseButton-primary"] button,
         button[data-testid="stBaseButton-primary"] {
             background: linear-gradient(90deg, #00c853 0%, #00e676 100%) !important;
@@ -4468,6 +4542,81 @@ else:
         button[data-testid="stBaseButton-secondary"]:hover {
             background-color: #e2e8f0 !important;
             color: #0f172a !important;
+        }
+
+        /* 🟢 STYLING FOR TOP HORIZONTAL PILLS & DATAFRAMES (LIGHT) 🟢 */
+        [data-testid="stPills"] {
+            gap: 0.5rem !important;
+            margin-top: 0.5rem !important;
+            margin-bottom: 1.25rem !important;
+        }
+
+        [data-testid="stPills"] button,
+        [data-testid="stPills"] [data-testid="stBaseButton-secondary"] button,
+        [data-testid="stPills"] [data-baseweb="button"],
+        [data-testid="stPills"] [role="option"],
+        [data-testid="stPill"],
+        div[data-testid="stPills"] button,
+        div[data-testid="stPill"] {
+            background-color: #ffffff !important;
+            background: #ffffff !important;
+            border: 1px solid rgba(15, 23, 42, 0.15) !important;
+            color: #0f172a !important;
+            font-weight: 600 !important;
+            border-radius: 20px !important;
+            padding: 0.4rem 0.9rem !important;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04) !important;
+            transition: all 0.15s ease !important;
+        }
+
+        [data-testid="stPills"] button *,
+        [data-testid="stPills"] [data-testid="stBaseButton-secondary"] button *,
+        [data-testid="stPills"] [data-baseweb="button"] *,
+        [data-testid="stPills"] [role="option"] *,
+        [data-testid="stPill"] *,
+        div[data-testid="stPills"] button *,
+        div[data-testid="stPill"] * {
+            color: #0f172a !important;
+            font-weight: 600 !important;
+        }
+
+        [data-testid="stPills"] button[aria-selected="true"],
+        [data-testid="stPills"] [data-testid="stBaseButton-secondary"] button[aria-selected="true"],
+        [data-testid="stPills"] [data-baseweb="button"][aria-selected="true"],
+        [data-testid="stPills"] [role="option"][aria-selected="true"],
+        [data-testid="stPills"] [aria-selected="true"],
+        [data-testid="stPill"][aria-selected="true"],
+        div[data-testid="stPills"] button[aria-selected="true"],
+        div[data-testid="stPill"][aria-selected="true"] {
+            background-color: #00c853 !important;
+            background: #00c853 !important;
+            color: #ffffff !important;
+            border-color: #00c853 !important;
+            font-weight: 800 !important;
+            box-shadow: 0 4px 14px rgba(0, 200, 83, 0.3) !important;
+        }
+
+        [data-testid="stPills"] button[aria-selected="true"] *,
+        [data-testid="stPills"] [data-testid="stBaseButton-secondary"] button[aria-selected="true"] *,
+        [data-testid="stPills"] [data-baseweb="button"][aria-selected="true"] *,
+        [data-testid="stPills"] [role="option"][aria-selected="true"] *,
+        [data-testid="stPills"] [aria-selected="true"] *,
+        [data-testid="stPill"][aria-selected="true"] *,
+        div[data-testid="stPills"] button[aria-selected="true"] *,
+        div[data-testid="stPill"][aria-selected="true"] * {
+            color: #ffffff !important;
+            font-weight: 800 !important;
+        }
+
+        /* DataFrames Styling (Light) */
+        [data-testid="stDataFrame"],
+        [data-testid="stDataFrame"] > div,
+        [data-testid="stDataFrame"] iframe,
+        .stDataFrame {
+            background-color: #ffffff !important;
+            color: #0f172a !important;
+            border-radius: 10px !important;
+            border: 1px solid rgba(15, 23, 42, 0.08) !important;
         }
 
         [data-testid="stBaseButton-primary"] button,

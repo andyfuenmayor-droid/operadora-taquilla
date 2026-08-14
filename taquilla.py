@@ -218,13 +218,15 @@ def render_subtitulo_terminal(nombre_agencia):
     st.markdown(f"<div style='font-size: 14px; font-weight: 600; color: {color}; margin-bottom: 12px;'>Terminal: <b>{nombre_agencia}</b></div>", unsafe_allow_html=True)
 
 def render_titulo_seccion(texto):
-    st.markdown(f"<div style='font-size: 14px; font-weight: 700; color: #38bdf8; margin: 12px 0 8px 0;'>{texto}</div>", unsafe_allow_html=True)
+    is_dark = st.session_state.get("tema_oscuro", True)
+    color = "#38bdf8" if is_dark else "#0284c7"
+    st.markdown(f"<div style='font-size: 14px; font-weight: 700; color: {color}; margin: 12px 0 8px 0;'>{texto}</div>", unsafe_allow_html=True)
 
 def render_tarjetas_metricas(t_venta, t_comis, t_premios, t_gastos, t_pagos, t_saldo, t_pago_banco=None, solo_operativo=False, moneda="BS"):
     is_dark = st.session_state.get("tema_oscuro", True)
-    bg_color = "rgba(30, 41, 59, 0.6)" if is_dark else "#f8fafc"
-    border_color = "rgba(255, 255, 255, 0.08)" if is_dark else "#e2e8f0"
-    title_color = "#94a3b8" if is_dark else "#64748b"
+    bg_color = "rgba(30, 41, 59, 0.6)" if is_dark else "#ffffff"
+    border_color = "rgba(255, 255, 255, 0.08)" if is_dark else "rgba(15, 23, 42, 0.12)"
+    title_color = "#94a3b8" if is_dark else "#475569"
     val_color = "#f8fafc" if is_dark else "#0f172a"
 
     m_upper = str(moneda).strip().upper()
@@ -265,17 +267,17 @@ def render_tarjetas_metricas(t_venta, t_comis, t_premios, t_gastos, t_pagos, t_s
         if title == "Saldo":
             val_num = (t_venta - t_comis - t_premios) if solo_operativo else t_saldo
             if val_num > 0:
-                cur_val_color = "#34d399" if is_dark else "#16a34a"
+                cur_val_color = "#34d399" if is_dark else "#15803d"
             elif val_num < 0:
-                cur_val_color = "#f87171" if is_dark else "#dc2626"
+                cur_val_color = "#f87171" if is_dark else "#b91c1c"
             else:
                 cur_val_color = val_color
         else:
             cur_val_color = val_color
 
-        card_html = f"""<div style="background: {bg_color}; border: 1px solid {border_color}; border-radius: 8px; padding: 6px 8px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-<div style="font-size: 9px; font-weight: 700; color: {title_color}; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{title}</div>
-<div style="font-size: 12px; font-weight: 700; color: {cur_val_color}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{val}</div>
+        card_html = f"""<div style="background: {bg_color}; border: 1px solid {border_color}; border-radius: 8px; padding: 8px 10px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+<div style="font-size: 10px; font-weight: 700; color: {title_color}; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{title}</div>
+<div style="font-size: 13px; font-weight: 700; color: {cur_val_color}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{val}</div>
 </div>"""
         cols[idx].markdown(card_html, unsafe_allow_html=True)
 
@@ -1042,21 +1044,31 @@ def modulo_home(agencia_data):
         wa_home = obtener_whatsapp_agencia_local(u_id_admin, ag_nombre)
     wa_home_str = f" &bull; 📱 WhatsApp: <b style='color: #25D366;'>{wa_home}</b>" if wa_home and wa_home.lower() != "none" else ""
 
+    is_dark = st.session_state.get("tema_oscuro", True)
+    welcome_bg = "linear-gradient(135deg, rgba(11, 19, 37, 0.95) 0%, rgba(13, 27, 42, 0.95) 100%)" if is_dark else "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)"
+    welcome_border = "rgba(255, 255, 255, 0.08)" if is_dark else "rgba(15, 23, 42, 0.1)"
+    welcome_title_color = "#ffffff" if is_dark else "#0f172a"
+    welcome_sub_color = "#94a3b8" if is_dark else "#475569"
+    welcome_ag_color = "#f8fafc" if is_dark else "#0f172a"
+    welcome_role_color = "#69f0ae" if is_dark else "#00c853"
+    welcome_date_color = "#64748b" if is_dark else "#64748b"
+    welcome_shadow = "0 8px 24px rgba(0,0,0,0.25)" if is_dark else "0 4px 12px rgba(0,0,0,0.05)"
+
     st.markdown(
         f"""
-        <div style="background: linear-gradient(135deg, rgba(11, 19, 37, 0.95) 0%, rgba(13, 27, 42, 0.95) 100%); border: 1px solid rgba(255, 255, 255, 0.08); padding: 1.25rem 1.5rem; border-radius: 16px; margin-bottom: 1.25rem; box-shadow: 0 8px 24px rgba(0,0,0,0.25);">
+        <div style="background: {welcome_bg}; border: 1px solid {welcome_border}; padding: 1.25rem 1.5rem; border-radius: 16px; margin-bottom: 1.25rem; box-shadow: {welcome_shadow};">
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
                 <div>
-                    <h2 style="margin: 0; font-size: 1.5rem; font-weight: 800; color: #ffffff; letter-spacing: -0.02em;">
+                    <h2 style="margin: 0; font-size: 1.5rem; font-weight: 800; color: {welcome_title_color}; letter-spacing: -0.02em;">
                         👋 ¡Bienvenido, {nombre_user}!
                     </h2>
-                    <p style="margin: 0.25rem 0 0 0; font-size: 0.88rem; color: #94a3b8;">
-                        Panel Principal &bull; 🏢 <b style="color: #f8fafc;">{ag_nombre}</b> &bull; 👤 Rol: <b style="color: #69f0ae;">{rol_user}</b>{wa_home_str}
+                    <p style="margin: 0.25rem 0 0 0; font-size: 0.88rem; color: {welcome_sub_color};">
+                        Panel Principal &bull; 🏢 <b style="color: {welcome_ag_color};">{ag_nombre}</b> &bull; 👤 Rol: <b style="color: {welcome_role_color};">{rol_user}</b>{wa_home_str}
                     </p>
                 </div>
                 <div style="text-align: right;">
                     {badge_estado}
-                    <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.35rem;">
+                    <div style="font-size: 0.8rem; color: {welcome_date_color}; margin-top: 0.35rem;">
                         📅 Día Operativo: <b>{str_operativa}</b> | Ciclo Admin (Sem. {sem_no_str}): {ciclo_rango_str}
                     </div>
                 </div>
@@ -1168,23 +1180,30 @@ def modulo_home(agencia_data):
             render_tarjetas_metricas(t_v_m, t_c_m, t_p_m, t_g_m, t_pago_efectivo_m, saldo_neto_m, t_pago_banco=t_pago_banco_m, solo_operativo=True, moneda=m_code)
 
             # 2. BALANCE DE SALDO ACUMULADO DE LA MONEDA CON SU ARRASTRE
-            cur_sf_color_m = '#34d399' if saldo_fin_m >= 0 else '#fb7185'
+            cur_sf_color_m = '#34d399' if (is_dark and saldo_fin_m >= 0) else ('#15803d' if saldo_fin_m >= 0 else ('#fb7185' if is_dark else '#b91c1c'))
+            s_bar_bg = "rgba(13, 27, 34, 0.5)" if is_dark else "#ffffff"
+            s_bar_border = "rgba(255, 255, 255, 0.08)" if is_dark else "rgba(15, 23, 42, 0.12)"
+            s_label_col = "#94a3b8" if is_dark else "#475569"
+            s_val_col = "#ffffff" if is_dark else "#0f172a"
+            s_op_col = ('#34d399' if is_dark else '#15803d') if saldo_op_m >= 0 else ('#fb7185' if is_dark else '#b91c1c')
+            s_prem_col = '#34d399' if is_dark else '#15803d'
+
             st.markdown(
                 f"""
-                <div style="background-color: rgba(13, 27, 34, 0.5); padding: 0.85rem 1.25rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); margin-top: 0.75rem; margin-bottom: 1.25rem; text-align: center; font-size: 0.85rem;">
-                    <span style="color: #94a3b8;">Saldo Anterior ({m_code}):</span> <b style="color: #ffffff;">{sym_curr} {saldo_ant_m:,.2f}</b>
-                    <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">+</span>
-                    <span style="color: #94a3b8;">Resultado Hoy / Periodo:</span> <b style="color: {'#34d399' if saldo_op_m >= 0 else '#fb7185'};">{sym_curr} {saldo_op_m:,.2f}</b>
-                    <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
-                    <span style="color: #94a3b8;">Gastos:</span> <b style="color: #ffffff;">{sym_curr} {t_g_m:,.2f}</b>
-                    <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
-                    <span style="color: #94a3b8;">Pagos Bancos:</span> <b style="color: #ffffff;">{sym_curr} {t_pago_banco_m:,.2f}</b>
-                    <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
-                    <span style="color: #94a3b8;">Pago Efectivo:</span> <b style="color: #ffffff;">{sym_curr} {t_pago_efectivo_m:,.2f}</b>
-                    <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">+</span>
-                    <span style="color: #94a3b8;">Pago Pérdidas / Premios:</span> <b style="color: #34d399;">{sym_curr} {t_pago_premios_m:,.2f}</b>
-                    <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">=</span>
-                    <span style="color: #94a3b8;">Saldo Actual ({m_code}):</span> <b style="font-size: 1.1rem; color: {cur_sf_color_m};">{sym_curr} {saldo_fin_m:,.2f}</b>
+                <div style="background-color: {s_bar_bg}; padding: 0.85rem 1.25rem; border-radius: 12px; border: 1px solid {s_bar_border}; margin-top: 0.75rem; margin-bottom: 1.25rem; text-align: center; font-size: 0.85rem; box-shadow: 0 2px 4px rgba(0,0,0,0.04);">
+                    <span style="color: {s_label_col};">Saldo Anterior ({m_code}):</span> <b style="color: {s_val_col};">{sym_curr} {saldo_ant_m:,.2f}</b>
+                    <span style="margin: 0 0.4rem; color: rgba(100,116,139,0.4);">+</span>
+                    <span style="color: {s_label_col};">Resultado Hoy / Periodo:</span> <b style="color: {s_op_col};">{sym_curr} {saldo_op_m:,.2f}</b>
+                    <span style="margin: 0 0.4rem; color: rgba(100,116,139,0.4);">-</span>
+                    <span style="color: {s_label_col};">Gastos:</span> <b style="color: {s_val_col};">{sym_curr} {t_g_m:,.2f}</b>
+                    <span style="margin: 0 0.4rem; color: rgba(100,116,139,0.4);">-</span>
+                    <span style="color: {s_label_col};">Pagos Bancos:</span> <b style="color: {s_val_col};">{sym_curr} {t_pago_banco_m:,.2f}</b>
+                    <span style="margin: 0 0.4rem; color: rgba(100,116,139,0.4);">-</span>
+                    <span style="color: {s_label_col};">Pago Efectivo:</span> <b style="color: {s_val_col};">{sym_curr} {t_pago_efectivo_m:,.2f}</b>
+                    <span style="margin: 0 0.4rem; color: rgba(100,116,139,0.4);">+</span>
+                    <span style="color: {s_label_col};">Pago Pérdidas / Premios:</span> <b style="color: {s_prem_col};">{sym_curr} {t_pago_premios_m:,.2f}</b>
+                    <span style="margin: 0 0.4rem; color: rgba(100,116,139,0.4);">=</span>
+                    <span style="color: {s_label_col};">Saldo Actual ({m_code}):</span> <b style="font-size: 1.1rem; color: {cur_sf_color_m};">{sym_curr} {saldo_fin_m:,.2f}</b>
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -4026,6 +4045,42 @@ else:
             background-color: #1e293b !important;
         }
 
+        /* 🟢 STYLING FOR TOP HORIZONTAL PILLS & DATAFRAMES (DARK) 🟢 */
+        [data-testid="stPills"] {
+            gap: 0.4rem !important;
+            margin-top: 0.5rem !important;
+            margin-bottom: 1rem !important;
+        }
+        [data-testid="stPills"] button {
+            background-color: rgba(13, 27, 34, 0.7) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            color: #cbd5e1 !important;
+            font-weight: 600 !important;
+            border-radius: 8px !important;
+            padding: 0.4rem 0.85rem !important;
+            transition: all 0.15s ease !important;
+        }
+        [data-testid="stPills"] button * {
+            color: #cbd5e1 !important;
+            font-weight: 600 !important;
+        }
+        [data-testid="stPills"] button[aria-selected="true"] {
+            background-color: #00c853 !important;
+            color: #ffffff !important;
+            border-color: #00c853 !important;
+            font-weight: 800 !important;
+            box-shadow: 0 4px 14px rgba(0, 200, 83, 0.4) !important;
+        }
+        [data-testid="stPills"] button[aria-selected="true"] * {
+            color: #ffffff !important;
+            font-weight: 800 !important;
+        }
+        [data-testid="stDataFrame"], [data-testid="stDataFrame"] > div {
+            background-color: #0d1b22 !important;
+            color: #cbd5e1 !important;
+            border-radius: 10px !important;
+        }
+
         /* General text readability improvements */
         h1, h2, h3, h4, h5, h6 {
             color: #ffffff !important;
@@ -4403,6 +4458,44 @@ else:
         }
         tr:hover td {
             background-color: #f8fafc !important;
+        }
+
+        /* 🟢 STYLING FOR TOP HORIZONTAL PILLS & DATAFRAMES (LIGHT) 🟢 */
+        [data-testid="stPills"] {
+            gap: 0.4rem !important;
+            margin-top: 0.5rem !important;
+            margin-bottom: 1rem !important;
+        }
+        [data-testid="stPills"] button {
+            background-color: #ffffff !important;
+            border: 1px solid rgba(15, 23, 42, 0.15) !important;
+            color: #0f172a !important;
+            font-weight: 600 !important;
+            border-radius: 8px !important;
+            padding: 0.4rem 0.85rem !important;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04) !important;
+            transition: all 0.15s ease !important;
+        }
+        [data-testid="stPills"] button * {
+            color: #0f172a !important;
+            font-weight: 600 !important;
+        }
+        [data-testid="stPills"] button[aria-selected="true"] {
+            background-color: #00c853 !important;
+            color: #ffffff !important;
+            border-color: #00c853 !important;
+            font-weight: 800 !important;
+            box-shadow: 0 4px 14px rgba(0, 200, 83, 0.3) !important;
+        }
+        [data-testid="stPills"] button[aria-selected="true"] * {
+            color: #ffffff !important;
+            font-weight: 800 !important;
+        }
+        [data-testid="stDataFrame"], [data-testid="stDataFrame"] > div {
+            background-color: #ffffff !important;
+            color: #0f172a !important;
+            border-radius: 10px !important;
+            border: 1px solid rgba(15, 23, 42, 0.08) !important;
         }
 
         /* Ensure alert box texts are readable */

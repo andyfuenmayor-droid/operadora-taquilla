@@ -11,8 +11,4 @@ showErrorDetails = false
 
 [theme]
 primaryColor = "#00C853"
-backgroundColor = "#071217"
-secondaryBackgroundColor = "#0D1B22"
-textColor = "#FAFAFA"
 font = "sans serif"
-

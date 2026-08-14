@@ -3,6 +3,7 @@ import pandas as pd
 import time
 import os
 import urllib.parse
+import textwrap
 from utils import supabase, obtener_periodo_trabajo, obtener_whatsapp_agencia_local, obtener_pagos_locales_agencia, obtener_gastos_locales_agencia
 
 from datetime import datetime, timedelta, timezone
@@ -58,7 +59,7 @@ if "tema_oscuro" not in st.session_state:
     st.session_state.tema_oscuro = True
 
 # Anti-cache meta tags, JS auto-clearing script y CSS para visibilidad de controles
-st.markdown("""
+st.markdown(textwrap.dedent("""
     <head>
         <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
         <meta http-equiv="Pragma" content="no-cache" />
@@ -196,8 +197,7 @@ st.markdown("""
         visibility: hidden !important;
     }
     </style>
-""", 
-unsafe_allow_html=True)
+"""), unsafe_allow_html=True)
 
 
 if "tema_oscuro" not in st.session_state:
@@ -4381,7 +4381,7 @@ else:
         }
         </style>
         """
-    st.markdown(dashboard_css, unsafe_allow_html=True)
+    st.markdown(textwrap.dedent(dashboard_css), unsafe_allow_html=True)
 
     col_h1, col_h2 = st.columns([5, 1])
     with col_h1:

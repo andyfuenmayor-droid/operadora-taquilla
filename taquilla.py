@@ -870,9 +870,12 @@ def modulo_home(agencia_data):
 
     f_desde_admin = str(ciclo_admin.get("desde"))
     f_hasta_admin = str(ciclo_admin.get("hasta"))
+    f_desde_carga = f_desde_admin if (f_desde_admin and f_desde_admin.lower() != "none") else str_operativa
+    if f_desde_carga > str_operativa:
+        f_desde_carga = str_operativa
 
     try:
-        df_v_hoy = cargar_datos_agencia_tabla("cda_reportes_diarios", ag_nombre, fecha_desde=str_operativa, fecha_hasta=f_hasta_admin)
+        df_v_hoy = cargar_datos_agencia_tabla("cda_reportes_diarios", ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_admin)
         if df_v_hoy.empty or "monto_venta" not in df_v_hoy.columns or float(pd.to_numeric(df_v_hoy["monto_venta"], errors="coerce").fillna(0).sum()) == 0:
             df_ofic = cargar_datos_agencia_tabla("carga_actual", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_admin)
             if df_ofic.empty:
@@ -884,14 +887,14 @@ def modulo_home(agencia_data):
                 df_ofic["neto"] = pd.to_numeric(df_ofic.get("neto", 0), errors="coerce").fillna(0.0)
                 df_v_hoy = df_ofic
 
-        df_g_hoy = cargar_datos_agencia_tabla("cda_gastos_diarios", ag_nombre, fecha_desde=str_operativa, fecha_hasta=f_hasta_admin)
+        df_g_hoy = cargar_datos_agencia_tabla("cda_gastos_diarios", ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_admin)
         if df_g_hoy.empty or "monto" not in df_g_hoy.columns or float(pd.to_numeric(df_g_hoy["monto"], errors="coerce").fillna(0).sum()) == 0:
             df_g_ofic = cargar_datos_agencia_tabla("gastos", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_admin)
             if not df_g_ofic.empty:
                 df_g_ofic["concepto"] = df_g_ofic.get("concepto", df_g_ofic.get("descripcion", "Gasto General"))
                 df_g_hoy = df_g_ofic
 
-        df_p_hoy, df_pb_hoy = obtener_pagos_unificados(ag_nombre, fecha_desde=str_operativa, fecha_hasta=f_hasta_admin, cajero_id=c_id_target, es_supervisor=es_sup_o_ag)
+        df_p_hoy, df_pb_hoy = obtener_pagos_unificados(ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_admin, cajero_id=c_id_target, es_supervisor=es_sup_o_ag)
         if df_p_hoy.empty or "monto" not in df_p_hoy.columns or float(pd.to_numeric(df_p_hoy["monto"], errors="coerce").fillna(0).sum()) == 0:
             df_p_sem = cargar_datos_agencia_tabla("pagos_semana", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_admin)
             if df_p_sem.empty:
@@ -917,7 +920,7 @@ def modulo_home(agencia_data):
             df_g_loc = pd.DataFrame(loc_gastos)
             df_g_hoy = pd.concat([df_g_hoy, df_g_loc], ignore_index=True) if not df_g_hoy.empty else df_g_loc
 
-        df_t_hoy = cargar_datos_agencia_tabla("cda_premios_tickets", ag_nombre, fecha_desde=str_operativa, fecha_hasta=f_hasta_admin)
+        df_t_hoy = cargar_datos_agencia_tabla("cda_premios_tickets", ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_admin)
     except Exception:
         pass
 
@@ -1194,7 +1197,7 @@ def modulo_home(agencia_data):
                             hide_index=True
                         )
                 else:
-                    st.info(f"ℹ️ Sin gastos ni pagos registrados en {m_code} para esta fecha.")
+                    st.info(f"ℹ️ Sin gastos ni pagos registrados en {m_code} para este ciclo.")
 
     if es_supervisor:
         try:

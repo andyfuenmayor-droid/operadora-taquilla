@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timedelta
 import streamlit as st
 import pandas as pd
 try:
@@ -49,8 +50,12 @@ def db_engine(tabla, accion, datos=None, u_id=None, filtrar_usuario=True):
         return pd.DataFrame()
 
 def obtener_periodo_trabajo(u_id):
-    # Valores por defecto en caso de que la tabla esté vacía
-    default = {"desde": "2026-06-15", "hasta": "2026-06-21", "tipo": "SEMANAL", "semana": "25"}
+    # Valores por defecto calculados dinámicamente (Semana actual Lunes a Domingo)
+    hoy = datetime.now().date()
+    lunes = hoy - timedelta(days=hoy.weekday())
+    domingo = lunes + timedelta(days=6)
+    sem_no = hoy.strftime("%V")
+    default = {"desde": str(lunes), "hasta": str(domingo), "tipo": "SEMANAL", "semana": str(sem_no)}
     try:
         # Forzar que u_id sea string y sin espacios
         u_id_clean = str(u_id).strip() if u_id else None

@@ -3968,85 +3968,104 @@ else:
             font-weight: 600 !important;
         }
 
-        /* 🟢 TOP PILLS (LIGHT) 🟢 */
-        [data-testid="stPills"] {
+        /* 🟢 TOP PILLS (LIGHT MODE) 🟢 */
+        [data-testid="stPills"],
+        div[data-testid="stPills"],
+        [data-testid="stPills"] > div {
+            background: transparent !important;
+            background-color: transparent !important;
             gap: 0.5rem !important;
             margin-top: 0.5rem !important;
             margin-bottom: 1.25rem !important;
         }
+
+        /* Unselected Pills */
         [data-testid="stPills"] button,
+        [data-testid="stPills"] div[role="option"],
         [data-testid="stPills"] [data-testid="stPill"],
-        [data-testid="stPills"] [data-testid="stBaseButton-pills"],
-        [data-testid="stPills"] [data-testid="stBaseButton-secondary"],
         [data-testid="stPills"] [data-baseweb="button"],
-        [data-testid="stPills"] [role="option"],
+        [data-testid="stPills"] [data-testid="stBaseButton-secondary"],
+        [data-testid="stPills"] [data-testid="stBaseButton-pills"],
         [data-testid="stPills"] li,
-        [data-testid="stPill"],
-        [data-testid="stBaseButton-pills"] {
+        div[data-testid="stPill"] {
             background: #ffffff !important;
             background-color: #ffffff !important;
             background-image: none !important;
-            border: 1px solid rgba(15, 23, 42, 0.18) !important;
-            border-color: rgba(15, 23, 42, 0.18) !important;
+            border: 1px solid #cbd5e1 !important;
+            border-color: #cbd5e1 !important;
             color: #0f172a !important;
             font-weight: 600 !important;
             border-radius: 20px !important;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05) !important;
-            transition: all 0.15s ease !important;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06) !important;
         }
+
+        /* All child text, spans, and markdown containers inside unselected pills */
         [data-testid="stPills"] button *,
+        [data-testid="stPills"] div[role="option"] *,
         [data-testid="stPills"] [data-testid="stPill"] *,
-        [data-testid="stPills"] [data-testid="stBaseButton-pills"] *,
-        [data-testid="stPills"] [data-testid="stBaseButton-secondary"] *,
         [data-testid="stPills"] [data-baseweb="button"] *,
-        [data-testid="stPills"] [role="option"] *,
+        [data-testid="stPills"] [data-testid="stBaseButton-secondary"] *,
+        [data-testid="stPills"] [data-testid="stBaseButton-pills"] *,
         [data-testid="stPills"] li *,
-        [data-testid="stPill"] *,
-        [data-testid="stBaseButton-pills"] * {
+        [data-testid="stPills"] [data-testid="stMarkdownContainer"],
+        [data-testid="stPills"] [data-testid="stMarkdownContainer"] *,
+        div[data-testid="stPill"] * {
             color: #0f172a !important;
+            -webkit-text-fill-color: #0f172a !important;
             background: transparent !important;
             background-color: transparent !important;
+            background-image: none !important;
         }
+
+        /* Hover on unselected pills */
+        [data-testid="stPills"] button:hover,
+        [data-testid="stPills"] [data-testid="stPill"]:hover,
+        [data-testid="stPills"] [data-baseweb="button"]:hover {
+            background: #f1f5f9 !important;
+            background-color: #f1f5f9 !important;
+            border-color: #00c853 !important;
+        }
+
+        /* Selected / Active Pill */
         [data-testid="stPills"] button[aria-selected="true"],
         [data-testid="stPills"] button[aria-checked="true"],
         [data-testid="stPills"] button[data-checked="true"],
+        [data-testid="stPills"] div[role="option"][aria-selected="true"],
+        [data-testid="stPills"] div[role="option"][aria-checked="true"],
         [data-testid="stPills"] [data-testid="stPill"][aria-selected="true"],
         [data-testid="stPills"] [data-testid="stPill"][aria-checked="true"],
         [data-testid="stPills"] [data-testid="stPill"][data-checked="true"],
-        [data-testid="stPills"] [data-testid="stBaseButton-pills"][aria-selected="true"],
-        [data-testid="stPills"] [data-testid="stBaseButton-secondary"][aria-selected="true"],
-        [data-testid="stPills"] [data-baseweb="button"][aria-selected="true"],
-        [data-testid="stPills"] [role="option"][aria-selected="true"],
-        [data-testid="stPills"] li[aria-selected="true"],
-        [data-testid="stPill"][aria-selected="true"],
-        [data-testid="stPill"][aria-checked="true"],
-        [data-testid="stPill"][data-checked="true"],
-        [data-testid="stBaseButton-pills"][aria-selected="true"] {
+        [data-testid="stPills"] [aria-selected="true"],
+        [data-testid="stPills"] [aria-checked="true"],
+        div[data-testid="stPill"][aria-selected="true"],
+        div[data-testid="stPill"][aria-checked="true"] {
             background: #00c853 !important;
             background-color: #00c853 !important;
+            background-image: none !important;
             border-color: #00c853 !important;
             color: #ffffff !important;
             font-weight: 800 !important;
-            box-shadow: 0 4px 14px rgba(0, 200, 83, 0.35) !important;
+            box-shadow: 0 4px 14px rgba(0, 200, 83, 0.4) !important;
         }
+
+        /* All child text inside selected pill */
         [data-testid="stPills"] button[aria-selected="true"] *,
         [data-testid="stPills"] button[aria-checked="true"] *,
         [data-testid="stPills"] button[data-checked="true"] *,
+        [data-testid="stPills"] div[role="option"][aria-selected="true"] *,
+        [data-testid="stPills"] div[role="option"][aria-checked="true"] *,
         [data-testid="stPills"] [data-testid="stPill"][aria-selected="true"] *,
         [data-testid="stPills"] [data-testid="stPill"][aria-checked="true"] *,
         [data-testid="stPills"] [data-testid="stPill"][data-checked="true"] *,
-        [data-testid="stPills"] [data-testid="stBaseButton-pills"][aria-selected="true"] *,
-        [data-testid="stPills"] [data-testid="stBaseButton-secondary"][aria-selected="true"] *,
-        [data-testid="stPills"] [data-baseweb="button"][aria-selected="true"] *,
-        [data-testid="stPills"] [role="option"][aria-selected="true"] *,
-        [data-testid="stPills"] li[aria-selected="true"] *,
-        [data-testid="stPill"][aria-selected="true"] *,
-        [data-testid="stPill"][aria-checked="true"] *,
-        [data-testid="stPill"][data-checked="true"] *,
-        [data-testid="stBaseButton-pills"][aria-selected="true"] * {
+        [data-testid="stPills"] [aria-selected="true"] *,
+        [data-testid="stPills"] [aria-checked="true"] *,
+        div[data-testid="stPill"][aria-selected="true"] *,
+        div[data-testid="stPill"][aria-checked="true"] * {
             color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
             background: transparent !important;
             background-color: transparent !important;
+            background-image: none !important;
         }
 
         /* 🟢 DATAFRAMES (LIGHT) 🟢 */

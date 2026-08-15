@@ -3700,32 +3700,77 @@ else:
             margin-top: 0.5rem !important;
             margin-bottom: 1.25rem !important;
         }
+        [data-testid="stPills"] button,
+        [data-testid="stPills"] [data-testid="stPill"],
+        [data-testid="stPills"] [data-testid="stBaseButton-pills"],
+        [data-testid="stPills"] [data-testid="stBaseButton-secondary"],
+        [data-testid="stPills"] [data-baseweb="button"],
+        [data-testid="stPills"] [role="option"],
+        [data-testid="stPills"] li,
         [data-testid="stPill"],
-        [data-testid="stPills"] button {
+        [data-testid="stBaseButton-pills"] {
+            background: #0d1b22 !important;
             background-color: #0d1b22 !important;
+            background-image: none !important;
             border: 1px solid rgba(255, 255, 255, 0.15) !important;
+            border-color: rgba(255, 255, 255, 0.15) !important;
             color: #cbd5e1 !important;
             font-weight: 600 !important;
             border-radius: 20px !important;
+            transition: all 0.15s ease !important;
         }
+        [data-testid="stPills"] button *,
+        [data-testid="stPills"] [data-testid="stPill"] *,
+        [data-testid="stPills"] [data-testid="stBaseButton-pills"] *,
+        [data-testid="stPills"] [data-testid="stBaseButton-secondary"] *,
+        [data-testid="stPills"] [data-baseweb="button"] *,
+        [data-testid="stPills"] [role="option"] *,
+        [data-testid="stPills"] li *,
         [data-testid="stPill"] *,
-        [data-testid="stPills"] button * {
+        [data-testid="stBaseButton-pills"] * {
             color: #cbd5e1 !important;
+            background: transparent !important;
             background-color: transparent !important;
         }
+        [data-testid="stPills"] button[aria-selected="true"],
+        [data-testid="stPills"] button[aria-checked="true"],
+        [data-testid="stPills"] button[data-checked="true"],
+        [data-testid="stPills"] [data-testid="stPill"][aria-selected="true"],
+        [data-testid="stPills"] [data-testid="stPill"][aria-checked="true"],
+        [data-testid="stPills"] [data-testid="stPill"][data-checked="true"],
+        [data-testid="stPills"] [data-testid="stBaseButton-pills"][aria-selected="true"],
+        [data-testid="stPills"] [data-testid="stBaseButton-secondary"][aria-selected="true"],
+        [data-testid="stPills"] [data-baseweb="button"][aria-selected="true"],
+        [data-testid="stPills"] [role="option"][aria-selected="true"],
+        [data-testid="stPills"] li[aria-selected="true"],
         [data-testid="stPill"][aria-selected="true"],
+        [data-testid="stPill"][aria-checked="true"],
         [data-testid="stPill"][data-checked="true"],
-        [data-testid="stPills"] button[aria-selected="true"] {
+        [data-testid="stBaseButton-pills"][aria-selected="true"] {
+            background: #00c853 !important;
             background-color: #00c853 !important;
             border-color: #00c853 !important;
             color: #ffffff !important;
             font-weight: 800 !important;
             box-shadow: 0 4px 14px rgba(0, 200, 83, 0.4) !important;
         }
+        [data-testid="stPills"] button[aria-selected="true"] *,
+        [data-testid="stPills"] button[aria-checked="true"] *,
+        [data-testid="stPills"] button[data-checked="true"] *,
+        [data-testid="stPills"] [data-testid="stPill"][aria-selected="true"] *,
+        [data-testid="stPills"] [data-testid="stPill"][aria-checked="true"] *,
+        [data-testid="stPills"] [data-testid="stPill"][data-checked="true"] *,
+        [data-testid="stPills"] [data-testid="stBaseButton-pills"][aria-selected="true"] *,
+        [data-testid="stPills"] [data-testid="stBaseButton-secondary"][aria-selected="true"] *,
+        [data-testid="stPills"] [data-baseweb="button"][aria-selected="true"] *,
+        [data-testid="stPills"] [role="option"][aria-selected="true"] *,
+        [data-testid="stPills"] li[aria-selected="true"] *,
         [data-testid="stPill"][aria-selected="true"] *,
+        [data-testid="stPill"][aria-checked="true"] *,
         [data-testid="stPill"][data-checked="true"] *,
-        [data-testid="stPills"] button[aria-selected="true"] * {
+        [data-testid="stBaseButton-pills"][aria-selected="true"] * {
             color: #ffffff !important;
+            background: transparent !important;
             background-color: transparent !important;
         }
 
@@ -3929,33 +3974,78 @@ else:
             margin-top: 0.5rem !important;
             margin-bottom: 1.25rem !important;
         }
+        [data-testid="stPills"] button,
+        [data-testid="stPills"] [data-testid="stPill"],
+        [data-testid="stPills"] [data-testid="stBaseButton-pills"],
+        [data-testid="stPills"] [data-testid="stBaseButton-secondary"],
+        [data-testid="stPills"] [data-baseweb="button"],
+        [data-testid="stPills"] [role="option"],
+        [data-testid="stPills"] li,
         [data-testid="stPill"],
-        [data-testid="stPills"] button {
+        [data-testid="stBaseButton-pills"] {
+            background: #ffffff !important;
             background-color: #ffffff !important;
-            border: 1px solid rgba(15, 23, 42, 0.15) !important;
+            background-image: none !important;
+            border: 1px solid rgba(15, 23, 42, 0.18) !important;
+            border-color: rgba(15, 23, 42, 0.18) !important;
             color: #0f172a !important;
             font-weight: 600 !important;
             border-radius: 20px !important;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04) !important;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05) !important;
+            transition: all 0.15s ease !important;
         }
+        [data-testid="stPills"] button *,
+        [data-testid="stPills"] [data-testid="stPill"] *,
+        [data-testid="stPills"] [data-testid="stBaseButton-pills"] *,
+        [data-testid="stPills"] [data-testid="stBaseButton-secondary"] *,
+        [data-testid="stPills"] [data-baseweb="button"] *,
+        [data-testid="stPills"] [role="option"] *,
+        [data-testid="stPills"] li *,
         [data-testid="stPill"] *,
-        [data-testid="stPills"] button * {
+        [data-testid="stBaseButton-pills"] * {
             color: #0f172a !important;
+            background: transparent !important;
             background-color: transparent !important;
         }
+        [data-testid="stPills"] button[aria-selected="true"],
+        [data-testid="stPills"] button[aria-checked="true"],
+        [data-testid="stPills"] button[data-checked="true"],
+        [data-testid="stPills"] [data-testid="stPill"][aria-selected="true"],
+        [data-testid="stPills"] [data-testid="stPill"][aria-checked="true"],
+        [data-testid="stPills"] [data-testid="stPill"][data-checked="true"],
+        [data-testid="stPills"] [data-testid="stBaseButton-pills"][aria-selected="true"],
+        [data-testid="stPills"] [data-testid="stBaseButton-secondary"][aria-selected="true"],
+        [data-testid="stPills"] [data-baseweb="button"][aria-selected="true"],
+        [data-testid="stPills"] [role="option"][aria-selected="true"],
+        [data-testid="stPills"] li[aria-selected="true"],
         [data-testid="stPill"][aria-selected="true"],
+        [data-testid="stPill"][aria-checked="true"],
         [data-testid="stPill"][data-checked="true"],
-        [data-testid="stPills"] button[aria-selected="true"] {
+        [data-testid="stBaseButton-pills"][aria-selected="true"] {
+            background: #00c853 !important;
             background-color: #00c853 !important;
             border-color: #00c853 !important;
             color: #ffffff !important;
             font-weight: 800 !important;
-            box-shadow: 0 4px 14px rgba(0, 200, 83, 0.3) !important;
+            box-shadow: 0 4px 14px rgba(0, 200, 83, 0.35) !important;
         }
+        [data-testid="stPills"] button[aria-selected="true"] *,
+        [data-testid="stPills"] button[aria-checked="true"] *,
+        [data-testid="stPills"] button[data-checked="true"] *,
+        [data-testid="stPills"] [data-testid="stPill"][aria-selected="true"] *,
+        [data-testid="stPills"] [data-testid="stPill"][aria-checked="true"] *,
+        [data-testid="stPills"] [data-testid="stPill"][data-checked="true"] *,
+        [data-testid="stPills"] [data-testid="stBaseButton-pills"][aria-selected="true"] *,
+        [data-testid="stPills"] [data-testid="stBaseButton-secondary"][aria-selected="true"] *,
+        [data-testid="stPills"] [data-baseweb="button"][aria-selected="true"] *,
+        [data-testid="stPills"] [role="option"][aria-selected="true"] *,
+        [data-testid="stPills"] li[aria-selected="true"] *,
         [data-testid="stPill"][aria-selected="true"] *,
+        [data-testid="stPill"][aria-checked="true"] *,
         [data-testid="stPill"][data-checked="true"] *,
-        [data-testid="stPills"] button[aria-selected="true"] * {
+        [data-testid="stBaseButton-pills"][aria-selected="true"] * {
             color: #ffffff !important;
+            background: transparent !important;
             background-color: transparent !important;
         }
 

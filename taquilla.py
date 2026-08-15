@@ -3528,26 +3528,457 @@ else:
         dashboard_css = """
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+
+        :root, .stApp {
+            --primary-color: #00c853 !important;
+            --background-color: #071217 !important;
+            --secondary-background-color: #0d1b22 !important;
+            --text-color: #f8fafc !important;
+            font-family: 'Plus Jakarta Sans', sans-serif !important;
         }
 
-        /* Ensure alert box texts are readable */
-        [data-testid="stNotification"] * {
-            color: inherit !important;
+        [data-testid="stHeader"] {
+            background-color: rgba(7, 18, 23, 0.8) !important;
+            backdrop-filter: blur(12px) !important;
+            -webkit-backdrop-filter: blur(12px) !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+            z-index: 999990 !important;
         }
 
-        /* General text readability improvements */
-        h1, h2, h3, h4, h5, h6 {
-            color: #0f172a !important;
+        footer, [data-testid="stDecoration"] {
+            display: none !important;
+        }
+
+        /* Boton apertura sidebar */
+        [data-testid="collapsedControl"],
+        [data-testid="stSidebarCollapsedControl"],
+        [data-testid="stHeader"] button[aria-label*="sidebar" i],
+        [data-testid="stHeader"] button[aria-label*="Sidebar" i],
+        button[data-testid="stSidebarCollapsedControl"] {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            z-index: 999999 !important;
+            background-color: #0d1b22 !important;
+            color: #ffffff !important;
+            border: 2px solid #00c853 !important;
+            border-radius: 8px !important;
+            min-width: 44px !important;
+            min-height: 44px !important;
+            box-shadow: 0 4px 14px rgba(0, 200, 83, 0.4) !important;
+            margin: 4px 8px !important;
+        }
+
+        [data-testid="collapsedControl"] svg,
+        [data-testid="stSidebarCollapsedControl"] svg,
+        [data-testid="stHeader"] button[aria-label*="sidebar" i] svg,
+        [data-testid="stHeader"] button[aria-label*="Sidebar" i] svg {
+            fill: #ffffff !important;
+            color: #ffffff !important;
+            stroke: #ffffff !important;
+            width: 24px !important;
+            height: 24px !important;
+        }
+
+        .stApp, [data-testid="stAppViewContainer"], section.main, .main {
+            background-color: #071217 !important;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(0, 200, 83, 0.06) 0px, transparent 40%),
+                radial-gradient(at 100% 100%, rgba(0, 210, 182, 0.04) 0px, transparent 40%) !important;
+            background-size: cover !important;
+            min-height: 100vh !important;
+        }
+
+        [data-testid="stSidebar"], [data-testid="stSidebar"] > div {
+            background-color: #0b1325 !important;
+            border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
+        }
+
+        [data-testid="stBlockContainer"],
+        [data-testid="stAppViewBlockContainer"],
+        .block-container {
+            max-width: 100% !important;
+            padding: 2rem 3rem !important;
+        }
+
+        @media (max-width: 768px) {
+            [data-testid="stBlockContainer"],
+            .block-container {
+                padding: 1.25rem 1rem !important;
+            }
+        }
+
+        [data-testid="stForm"] {
+            background-color: rgba(13, 27, 34, 0.75) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            border-radius: 16px !important;
+            padding: 1.5rem !important;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37) !important;
+        }
+
+        [data-testid="stMetric"] {
+            background-color: rgba(13, 27, 34, 0.6) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            border-radius: 16px !important;
+            padding: 1.25rem 1.5rem !important;
+        }
+        [data-testid="stMetricLabel"] p {
+            color: #94a3b8 !important;
+            font-size: 0.8rem !important;
+            font-weight: 600 !important;
+            text-transform: uppercase !important;
+        }
+        [data-testid="stMetricValue"] {
+            color: #f8fafc !important;
+            font-size: 1.75rem !important;
             font-weight: 700 !important;
-            margin: 0 !important;
         }
-        p, span, label, li, ul, ol {
+
+        div[data-baseweb="input"],
+        div[data-baseweb="textarea"],
+        div[data-baseweb="select"] {
+            background-color: #0d1b22 !important;
+            border: 1px solid rgba(255, 255, 255, 0.12) !important;
+            border-radius: 10px !important;
+        }
+        div[data-baseweb="input"] *,
+        div[data-baseweb="textarea"] *,
+        div[data-baseweb="select"] * {
+            color: #f8fafc !important;
+            background-color: transparent !important;
+        }
+        input, select, textarea {
+            color: #f8fafc !important;
+            background-color: #0d1b22 !important;
+        }
+        div[data-baseweb="input"]:focus-within,
+        div[data-baseweb="textarea"]:focus-within,
+        div[data-baseweb="select"]:focus-within {
+            border-color: #00c853 !important;
+            box-shadow: 0 0 0 2px rgba(0, 200, 83, 0.25) !important;
+        }
+
+        [data-testid="stSidebar"] [data-testid="stButton"] button {
+            justify-content: flex-start !important;
+            text-align: left !important;
+            font-size: 0.88rem !important;
+            font-weight: 600 !important;
+            padding: 4px 10px !important;
+            min-height: 32px !important;
+            height: 32px !important;
+            border-radius: 6px !important;
+            background: transparent !important;
+            border: none !important;
+            color: #ffffff !important;
+            width: 100% !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stButton"] button[kind="primary"] {
+            background-color: #00c853 !important;
+            color: #ffffff !important;
+            font-weight: 800 !important;
+        }
+
+        [data-testid="stBaseButton-secondary"] button,
+        button[data-testid="stBaseButton-secondary"] {
+            background-color: rgba(30, 41, 59, 0.5) !important;
+            color: #f1f5f9 !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            border-radius: 10px !important;
+        }
+        [data-testid="stBaseButton-primary"] button,
+        button[data-testid="stBaseButton-primary"] {
+            background: linear-gradient(90deg, #00c853 0%, #00e676 100%) !important;
+            color: #ffffff !important;
+            border: none !important;
+            border-radius: 10px !important;
+            font-weight: 600 !important;
+        }
+
+        /* 🟢 TOP PILLS (DARK) 🟢 */
+        [data-testid="stPills"] {
+            gap: 0.5rem !important;
+            margin-top: 0.5rem !important;
+            margin-bottom: 1.25rem !important;
+        }
+        [data-testid="stPill"],
+        [data-testid="stPills"] button {
+            background-color: #0d1b22 !important;
+            border: 1px solid rgba(255, 255, 255, 0.15) !important;
+            color: #cbd5e1 !important;
+            font-weight: 600 !important;
+            border-radius: 20px !important;
+        }
+        [data-testid="stPill"] *,
+        [data-testid="stPills"] button * {
+            color: #cbd5e1 !important;
+            background-color: transparent !important;
+        }
+        [data-testid="stPill"][aria-selected="true"],
+        [data-testid="stPill"][data-checked="true"],
+        [data-testid="stPills"] button[aria-selected="true"] {
+            background-color: #00c853 !important;
+            border-color: #00c853 !important;
+            color: #ffffff !important;
+            font-weight: 800 !important;
+            box-shadow: 0 4px 14px rgba(0, 200, 83, 0.4) !important;
+        }
+        [data-testid="stPill"][aria-selected="true"] *,
+        [data-testid="stPill"][data-checked="true"] *,
+        [data-testid="stPills"] button[aria-selected="true"] * {
+            color: #ffffff !important;
+            background-color: transparent !important;
+        }
+
+        /* 🟢 DATAFRAMES (DARK) 🟢 */
+        [data-testid="stDataFrame"] {
+            filter: none !important;
+            border-radius: 10px !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        }
+
+        [data-testid="stExpander"] {
+            background-color: rgba(13, 27, 34, 0.25) !important;
+            border: 1px solid rgba(255, 255, 255, 0.06) !important;
+            border-radius: 12px !important;
+        }
+        [data-testid="stExpander"] summary {
+            color: #f1f5f9 !important;
+            font-weight: 600 !important;
+        }
+
+        h1, h2, h3, h4, h5, h6 { color: #ffffff !important; font-weight: 700 !important; }
+        p, span, label, li { color: #cbd5e1 !important; }
+        strong, b { color: #ffffff !important; font-weight: 700 !important; }
+        </style>
+        """
+    else:
+        # Light mode dashboard CSS
+        dashboard_css = """
+        <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+
+        :root, .stApp {
+            --primary-color: #00c853 !important;
+            --background-color: #f0f7f4 !important;
+            --secondary-background-color: #ffffff !important;
+            --text-color: #0f172a !important;
+            font-family: 'Plus Jakarta Sans', sans-serif !important;
+        }
+
+        [data-testid="stHeader"] {
+            background-color: rgba(240, 247, 244, 0.8) !important;
+            backdrop-filter: blur(12px) !important;
+            -webkit-backdrop-filter: blur(12px) !important;
+            border-bottom: 1px solid rgba(15, 23, 42, 0.05) !important;
+            z-index: 999990 !important;
+        }
+
+        footer, [data-testid="stDecoration"] {
+            display: none !important;
+        }
+
+        /* Boton apertura sidebar */
+        [data-testid="collapsedControl"],
+        [data-testid="stSidebarCollapsedControl"],
+        [data-testid="stHeader"] button[aria-label*="sidebar" i],
+        [data-testid="stHeader"] button[aria-label*="Sidebar" i],
+        button[data-testid="stSidebarCollapsedControl"] {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            z-index: 999999 !important;
+            background-color: #ffffff !important;
+            color: #0f172a !important;
+            border: 2px solid #00c853 !important;
+            border-radius: 8px !important;
+            min-width: 44px !important;
+            min-height: 44px !important;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15) !important;
+            margin: 4px 8px !important;
+        }
+
+        [data-testid="collapsedControl"] svg,
+        [data-testid="stSidebarCollapsedControl"] svg,
+        [data-testid="stHeader"] button[aria-label*="sidebar" i] svg,
+        [data-testid="stHeader"] button[aria-label*="Sidebar" i] svg {
+            fill: #0f172a !important;
+            color: #0f172a !important;
+            stroke: #0f172a !important;
+            width: 24px !important;
+            height: 24px !important;
+        }
+
+        .stApp, [data-testid="stAppViewContainer"], section.main, .main {
+            background-color: #f0f7f4 !important;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(0, 200, 83, 0.04) 0px, transparent 40%),
+                radial-gradient(at 100% 100%, rgba(0, 210, 182, 0.03) 0px, transparent 40%) !important;
+            background-size: cover !important;
+            min-height: 100vh !important;
+        }
+
+        [data-testid="stSidebar"], [data-testid="stSidebar"] > div {
+            background-color: #ffffff !important;
+            border-right: 1px solid rgba(15, 23, 42, 0.06) !important;
+        }
+
+        [data-testid="stBlockContainer"],
+        [data-testid="stAppViewBlockContainer"],
+        .block-container {
+            max-width: 100% !important;
+            padding: 2rem 3rem !important;
+        }
+
+        @media (max-width: 768px) {
+            [data-testid="stBlockContainer"],
+            .block-container {
+                padding: 1.25rem 1rem !important;
+            }
+        }
+
+        [data-testid="stForm"] {
+            background-color: #ffffff !important;
+            border: 1px solid rgba(15, 23, 42, 0.08) !important;
+            border-radius: 16px !important;
+            padding: 1.5rem !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;
+        }
+
+        [data-testid="stMetric"] {
+            background-color: #ffffff !important;
+            border: 1px solid rgba(15, 23, 42, 0.08) !important;
+            border-radius: 16px !important;
+            padding: 1.25rem 1.5rem !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;
+        }
+        [data-testid="stMetricLabel"] p {
+            color: #475569 !important;
+            font-size: 0.8rem !important;
+            font-weight: 600 !important;
+            text-transform: uppercase !important;
+        }
+        [data-testid="stMetricValue"] {
+            color: #0f172a !important;
+            font-size: 1.75rem !important;
+            font-weight: 700 !important;
+        }
+
+        div[data-baseweb="input"],
+        div[data-baseweb="textarea"],
+        div[data-baseweb="select"] {
+            background-color: #ffffff !important;
+            border: 1px solid rgba(15, 23, 42, 0.12) !important;
+            border-radius: 10px !important;
+        }
+        div[data-baseweb="input"] *,
+        div[data-baseweb="textarea"] *,
+        div[data-baseweb="select"] * {
+            color: #0f172a !important;
+            background-color: transparent !important;
+        }
+        input, select, textarea {
+            color: #0f172a !important;
+            background-color: #ffffff !important;
+        }
+        div[data-baseweb="input"]:focus-within,
+        div[data-baseweb="textarea"]:focus-within,
+        div[data-baseweb="select"]:focus-within {
+            border-color: #00c853 !important;
+            box-shadow: 0 0 0 2px rgba(0, 200, 83, 0.15) !important;
+        }
+
+        [data-testid="stSidebar"] [data-testid="stButton"] button {
+            justify-content: flex-start !important;
+            text-align: left !important;
+            font-size: 0.88rem !important;
+            font-weight: 600 !important;
+            padding: 4px 10px !important;
+            min-height: 32px !important;
+            height: 32px !important;
+            border-radius: 6px !important;
+            background: transparent !important;
+            border: none !important;
+            color: #0f172a !important;
+            width: 100% !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stButton"] button[kind="primary"] {
+            background-color: #00c853 !important;
+            color: #ffffff !important;
+            font-weight: 800 !important;
+        }
+
+        [data-testid="stBaseButton-secondary"] button,
+        button[data-testid="stBaseButton-secondary"] {
+            background-color: #f1f5f9 !important;
             color: #334155 !important;
+            border: 1px solid rgba(15, 23, 42, 0.08) !important;
+            border-radius: 10px !important;
         }
-        strong, b {
+        [data-testid="stBaseButton-primary"] button,
+        button[data-testid="stBaseButton-primary"] {
+            background: linear-gradient(90deg, #00c853 0%, #00e676 100%) !important;
+            color: #ffffff !important;
+            border: none !important;
+            border-radius: 10px !important;
+            font-weight: 600 !important;
+        }
+
+        /* 🟢 TOP PILLS (LIGHT) 🟢 */
+        [data-testid="stPills"] {
+            gap: 0.5rem !important;
+            margin-top: 0.5rem !important;
+            margin-bottom: 1.25rem !important;
+        }
+        [data-testid="stPill"],
+        [data-testid="stPills"] button {
+            background-color: #ffffff !important;
+            border: 1px solid rgba(15, 23, 42, 0.15) !important;
             color: #0f172a !important;
-            font-weight: 700 !important;
+            font-weight: 600 !important;
+            border-radius: 20px !important;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04) !important;
         }
+        [data-testid="stPill"] *,
+        [data-testid="stPills"] button * {
+            color: #0f172a !important;
+            background-color: transparent !important;
+        }
+        [data-testid="stPill"][aria-selected="true"],
+        [data-testid="stPill"][data-checked="true"],
+        [data-testid="stPills"] button[aria-selected="true"] {
+            background-color: #00c853 !important;
+            border-color: #00c853 !important;
+            color: #ffffff !important;
+            font-weight: 800 !important;
+            box-shadow: 0 4px 14px rgba(0, 200, 83, 0.3) !important;
+        }
+        [data-testid="stPill"][aria-selected="true"] *,
+        [data-testid="stPill"][data-checked="true"] *,
+        [data-testid="stPills"] button[aria-selected="true"] * {
+            color: #ffffff !important;
+            background-color: transparent !important;
+        }
+
+        /* 🟢 DATAFRAMES (LIGHT) 🟢 */
+        [data-testid="stDataFrame"] {
+            filter: invert(0.92) hue-rotate(180deg) !important;
+            border-radius: 10px !important;
+            border: 1px solid rgba(15, 23, 42, 0.08) !important;
+        }
+
+        [data-testid="stExpander"] {
+            background-color: #ffffff !important;
+            border: 1px solid rgba(15, 23, 42, 0.08) !important;
+            border-radius: 12px !important;
+        }
+        [data-testid="stExpander"] summary {
+            color: #0f172a !important;
+            font-weight: 600 !important;
+        }
+
+        h1, h2, h3, h4, h5, h6 { color: #0f172a !important; font-weight: 700 !important; }
+        p, span, label, li { color: #334155 !important; }
+        strong, b { color: #0f172a !important; font-weight: 700 !important; }
         </style>
         """
     st.html(dashboard_css)

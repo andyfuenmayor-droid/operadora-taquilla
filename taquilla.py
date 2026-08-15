@@ -3774,6 +3774,32 @@ else:
             background-color: transparent !important;
         }
 
+        /* 🟢 FORM SUBMIT BUTTONS (DARK MODE) 🟢 */
+        [data-testid="stFormSubmitButton"] button,
+        [data-testid="stFormSubmitButton"] [data-testid="stBaseButton-secondary"] button,
+        [data-testid="stFormSubmitButton"] [data-testid="stBaseButton-secondary"],
+        [data-testid="stFormSubmitButton"] [data-baseweb="button"],
+        button[kind="secondaryFormSubmit"],
+        button[kind="primaryFormSubmit"],
+        button[data-testid="stBaseButton-secondaryFormSubmit"],
+        button[data-testid="stBaseButton-primaryFormSubmit"] {
+            background: linear-gradient(90deg, #00c853 0%, #00e676 100%) !important;
+            background-color: #00c853 !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+            border: none !important;
+            border-radius: 10px !important;
+            font-weight: 700 !important;
+            padding: 0.6rem 1.25rem !important;
+            box-shadow: 0 4px 14px rgba(0, 200, 83, 0.4) !important;
+        }
+        [data-testid="stFormSubmitButton"] button *,
+        button[kind="secondaryFormSubmit"] *,
+        button[kind="primaryFormSubmit"] * {
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+        }
+
         /* 🟢 DATAFRAMES (DARK) 🟢 */
         [data-testid="stDataFrame"] {
             filter: none !important;
@@ -3970,102 +3996,37 @@ else:
 
         /* 🟢 TOP PILLS (LIGHT MODE) 🟢 */
         [data-testid="stPills"],
-        div[data-testid="stPills"],
-        [data-testid="stPills"] > div {
-            background: transparent !important;
-            background-color: transparent !important;
+        div[data-testid="stPills"] {
+            filter: invert(0.92) hue-rotate(180deg) !important;
             gap: 0.5rem !important;
             margin-top: 0.5rem !important;
             margin-bottom: 1.25rem !important;
         }
 
-        /* Unselected Pills */
-        [data-testid="stPills"] button,
-        [data-testid="stPills"] div[role="option"],
-        [data-testid="stPills"] [data-testid="stPill"],
-        [data-testid="stPills"] [data-baseweb="button"],
-        [data-testid="stPills"] [data-testid="stBaseButton-secondary"],
-        [data-testid="stPills"] [data-testid="stBaseButton-pills"],
-        [data-testid="stPills"] li,
-        div[data-testid="stPill"] {
-            background: #ffffff !important;
-            background-color: #ffffff !important;
-            background-image: none !important;
-            border: 1px solid #cbd5e1 !important;
-            border-color: #cbd5e1 !important;
-            color: #0f172a !important;
-            font-weight: 600 !important;
-            border-radius: 20px !important;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06) !important;
-        }
-
-        /* All child text, spans, and markdown containers inside unselected pills */
-        [data-testid="stPills"] button *,
-        [data-testid="stPills"] div[role="option"] *,
-        [data-testid="stPills"] [data-testid="stPill"] *,
-        [data-testid="stPills"] [data-baseweb="button"] *,
-        [data-testid="stPills"] [data-testid="stBaseButton-secondary"] *,
-        [data-testid="stPills"] [data-testid="stBaseButton-pills"] *,
-        [data-testid="stPills"] li *,
-        [data-testid="stPills"] [data-testid="stMarkdownContainer"],
-        [data-testid="stPills"] [data-testid="stMarkdownContainer"] *,
-        div[data-testid="stPill"] * {
-            color: #0f172a !important;
-            -webkit-text-fill-color: #0f172a !important;
-            background: transparent !important;
-            background-color: transparent !important;
-            background-image: none !important;
-        }
-
-        /* Hover on unselected pills */
-        [data-testid="stPills"] button:hover,
-        [data-testid="stPills"] [data-testid="stPill"]:hover,
-        [data-testid="stPills"] [data-baseweb="button"]:hover {
-            background: #f1f5f9 !important;
-            background-color: #f1f5f9 !important;
-            border-color: #00c853 !important;
-        }
-
-        /* Selected / Active Pill */
-        [data-testid="stPills"] button[aria-selected="true"],
-        [data-testid="stPills"] button[aria-checked="true"],
-        [data-testid="stPills"] button[data-checked="true"],
-        [data-testid="stPills"] div[role="option"][aria-selected="true"],
-        [data-testid="stPills"] div[role="option"][aria-checked="true"],
-        [data-testid="stPills"] [data-testid="stPill"][aria-selected="true"],
-        [data-testid="stPills"] [data-testid="stPill"][aria-checked="true"],
-        [data-testid="stPills"] [data-testid="stPill"][data-checked="true"],
-        [data-testid="stPills"] [aria-selected="true"],
-        [data-testid="stPills"] [aria-checked="true"],
-        div[data-testid="stPill"][aria-selected="true"],
-        div[data-testid="stPill"][aria-checked="true"] {
-            background: #00c853 !important;
+        /* 🟢 FORM SUBMIT BUTTONS (LIGHT MODE) 🟢 */
+        [data-testid="stFormSubmitButton"] button,
+        [data-testid="stFormSubmitButton"] [data-testid="stBaseButton-secondary"] button,
+        [data-testid="stFormSubmitButton"] [data-testid="stBaseButton-secondary"],
+        [data-testid="stFormSubmitButton"] [data-baseweb="button"],
+        button[kind="secondaryFormSubmit"],
+        button[kind="primaryFormSubmit"],
+        button[data-testid="stBaseButton-secondaryFormSubmit"],
+        button[data-testid="stBaseButton-primaryFormSubmit"] {
+            background: linear-gradient(90deg, #00c853 0%, #00e676 100%) !important;
             background-color: #00c853 !important;
-            background-image: none !important;
-            border-color: #00c853 !important;
-            color: #ffffff !important;
-            font-weight: 800 !important;
-            box-shadow: 0 4px 14px rgba(0, 200, 83, 0.4) !important;
-        }
-
-        /* All child text inside selected pill */
-        [data-testid="stPills"] button[aria-selected="true"] *,
-        [data-testid="stPills"] button[aria-checked="true"] *,
-        [data-testid="stPills"] button[data-checked="true"] *,
-        [data-testid="stPills"] div[role="option"][aria-selected="true"] *,
-        [data-testid="stPills"] div[role="option"][aria-checked="true"] *,
-        [data-testid="stPills"] [data-testid="stPill"][aria-selected="true"] *,
-        [data-testid="stPills"] [data-testid="stPill"][aria-checked="true"] *,
-        [data-testid="stPills"] [data-testid="stPill"][data-checked="true"] *,
-        [data-testid="stPills"] [aria-selected="true"] *,
-        [data-testid="stPills"] [aria-checked="true"] *,
-        div[data-testid="stPill"][aria-selected="true"] *,
-        div[data-testid="stPill"][aria-checked="true"] * {
             color: #ffffff !important;
             -webkit-text-fill-color: #ffffff !important;
-            background: transparent !important;
-            background-color: transparent !important;
-            background-image: none !important;
+            border: none !important;
+            border-radius: 10px !important;
+            font-weight: 700 !important;
+            padding: 0.6rem 1.25rem !important;
+            box-shadow: 0 4px 14px rgba(0, 200, 83, 0.35) !important;
+        }
+        [data-testid="stFormSubmitButton"] button *,
+        button[kind="secondaryFormSubmit"] *,
+        button[kind="primaryFormSubmit"] * {
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
         }
 
         /* 🟢 DATAFRAMES (LIGHT) 🟢 */
@@ -4090,6 +4051,7 @@ else:
         strong, b { color: #0f172a !important; font-weight: 700 !important; }
         </style>
         """
+    st.markdown(dashboard_css, unsafe_allow_html=True)
     st.html(dashboard_css)
 
     col_h1, col_h2 = st.columns([5, 1])

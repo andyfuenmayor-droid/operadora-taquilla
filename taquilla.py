@@ -4033,8 +4033,10 @@ else:
         [data-testid="stPills"] [data-baseweb="button"],
         [data-testid="stPills"] [role="option"],
         [data-testid="stPill"],
+        [data-testid="stPill"] button,
         div[data-testid="stPills"] button,
-        div[data-testid="stPill"] {
+        div[data-testid="stPill"],
+        div[data-testid="stPills"] div {
             background-color: #0d1b22 !important;
             background: #0d1b22 !important;
             border: 1px solid rgba(255, 255, 255, 0.15) !important;
@@ -4050,10 +4052,14 @@ else:
         [data-testid="stPills"] [data-baseweb="button"] *,
         [data-testid="stPills"] [role="option"] *,
         [data-testid="stPill"] *,
+        [data-testid="stPill"] button *,
         div[data-testid="stPills"] button *,
-        div[data-testid="stPill"] * {
+        div[data-testid="stPill"] *,
+        div[data-testid="stPills"] div * {
             color: #cbd5e1 !important;
             font-weight: 600 !important;
+            background-color: transparent !important;
+            background: transparent !important;
         }
 
         [data-testid="stPills"] button[aria-selected="true"],
@@ -4062,7 +4068,10 @@ else:
         [data-testid="stPills"] [role="option"][aria-selected="true"],
         [data-testid="stPills"] [aria-selected="true"],
         [data-testid="stPill"][aria-selected="true"],
+        [data-testid="stPill"][data-checked="true"],
+        [data-testid="stPill"][aria-checked="true"],
         div[data-testid="stPills"] button[aria-selected="true"],
+        div[data-testid="stPills"] button[aria-checked="true"],
         div[data-testid="stPill"][aria-selected="true"] {
             background-color: #00c853 !important;
             background: #00c853 !important;
@@ -4078,10 +4087,15 @@ else:
         [data-testid="stPills"] [role="option"][aria-selected="true"] *,
         [data-testid="stPills"] [aria-selected="true"] *,
         [data-testid="stPill"][aria-selected="true"] *,
+        [data-testid="stPill"][data-checked="true"] *,
+        [data-testid="stPill"][aria-checked="true"] *,
         div[data-testid="stPills"] button[aria-selected="true"] *,
+        div[data-testid="stPills"] button[aria-checked="true"] *,
         div[data-testid="stPill"][aria-selected="true"] * {
             color: #ffffff !important;
             font-weight: 800 !important;
+            background-color: transparent !important;
+            background: transparent !important;
         }
 
         /* DataFrames Styling (Dark) */
@@ -4093,6 +4107,7 @@ else:
             color: #cbd5e1 !important;
             border-radius: 10px !important;
             border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            filter: none !important;
         }
 
         [data-testid="stBaseButton-primary"] button,
@@ -4556,8 +4571,10 @@ else:
         [data-testid="stPills"] [data-baseweb="button"],
         [data-testid="stPills"] [role="option"],
         [data-testid="stPill"],
+        [data-testid="stPill"] button,
         div[data-testid="stPills"] button,
-        div[data-testid="stPill"] {
+        div[data-testid="stPill"],
+        div[data-testid="stPills"] div {
             background-color: #ffffff !important;
             background: #ffffff !important;
             border: 1px solid rgba(15, 23, 42, 0.15) !important;
@@ -4574,10 +4591,14 @@ else:
         [data-testid="stPills"] [data-baseweb="button"] *,
         [data-testid="stPills"] [role="option"] *,
         [data-testid="stPill"] *,
+        [data-testid="stPill"] button *,
         div[data-testid="stPills"] button *,
-        div[data-testid="stPill"] * {
+        div[data-testid="stPill"] *,
+        div[data-testid="stPills"] div * {
             color: #0f172a !important;
             font-weight: 600 !important;
+            background-color: transparent !important;
+            background: transparent !important;
         }
 
         [data-testid="stPills"] button[aria-selected="true"],
@@ -4586,7 +4607,10 @@ else:
         [data-testid="stPills"] [role="option"][aria-selected="true"],
         [data-testid="stPills"] [aria-selected="true"],
         [data-testid="stPill"][aria-selected="true"],
+        [data-testid="stPill"][data-checked="true"],
+        [data-testid="stPill"][aria-checked="true"],
         div[data-testid="stPills"] button[aria-selected="true"],
+        div[data-testid="stPills"] button[aria-checked="true"],
         div[data-testid="stPill"][aria-selected="true"] {
             background-color: #00c853 !important;
             background: #00c853 !important;
@@ -4602,10 +4626,15 @@ else:
         [data-testid="stPills"] [role="option"][aria-selected="true"] *,
         [data-testid="stPills"] [aria-selected="true"] *,
         [data-testid="stPill"][aria-selected="true"] *,
+        [data-testid="stPill"][data-checked="true"] *,
+        [data-testid="stPill"][aria-checked="true"] *,
         div[data-testid="stPills"] button[aria-selected="true"] *,
+        div[data-testid="stPills"] button[aria-checked="true"] *,
         div[data-testid="stPill"][aria-selected="true"] * {
             color: #ffffff !important;
             font-weight: 800 !important;
+            background-color: transparent !important;
+            background: transparent !important;
         }
 
         /* DataFrames Styling (Light) */
@@ -4613,8 +4642,7 @@ else:
         [data-testid="stDataFrame"] > div,
         [data-testid="stDataFrame"] iframe,
         .stDataFrame {
-            background-color: #ffffff !important;
-            color: #0f172a !important;
+            filter: invert(0.92) hue-rotate(180deg) !important;
             border-radius: 10px !important;
             border: 1px solid rgba(15, 23, 42, 0.08) !important;
         }

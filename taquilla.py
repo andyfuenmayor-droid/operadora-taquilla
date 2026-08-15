@@ -4035,8 +4035,7 @@ else:
         [data-testid="stPill"],
         [data-testid="stPill"] button,
         div[data-testid="stPills"] button,
-        div[data-testid="stPill"],
-        div[data-testid="stPills"] div {
+        div[data-testid="stPill"] {
             background-color: #0d1b22 !important;
             background: #0d1b22 !important;
             border: 1px solid rgba(255, 255, 255, 0.15) !important;
@@ -4054,8 +4053,7 @@ else:
         [data-testid="stPill"] *,
         [data-testid="stPill"] button *,
         div[data-testid="stPills"] button *,
-        div[data-testid="stPill"] *,
-        div[data-testid="stPills"] div * {
+        div[data-testid="stPill"] * {
             color: #cbd5e1 !important;
             font-weight: 600 !important;
             background-color: transparent !important;
@@ -4573,8 +4571,7 @@ else:
         [data-testid="stPill"],
         [data-testid="stPill"] button,
         div[data-testid="stPills"] button,
-        div[data-testid="stPill"],
-        div[data-testid="stPills"] div {
+        div[data-testid="stPill"] {
             background-color: #ffffff !important;
             background: #ffffff !important;
             border: 1px solid rgba(15, 23, 42, 0.15) !important;
@@ -4593,8 +4590,7 @@ else:
         [data-testid="stPill"] *,
         [data-testid="stPill"] button *,
         div[data-testid="stPills"] button *,
-        div[data-testid="stPill"] *,
-        div[data-testid="stPills"] div * {
+        div[data-testid="stPill"] * {
             color: #0f172a !important;
             font-weight: 600 !important;
             background-color: transparent !important;

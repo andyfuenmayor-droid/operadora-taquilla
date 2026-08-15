@@ -202,23 +202,46 @@ def _check_cerrado_col():
             )
     return st.session_state["check_ok"]
 
-def cargar_datos_agencia_tabla(tabla, agencia_nombre, fecha=None, fecha_desde=None, fecha_hasta=None):
+def es_misma_moneda(series_moneda, target_code):
+    if series_moneda is None:
+        return pd.Series(True)
+    s = series_moneda.astype(str).str.strip().str.upper()
+    t = str(target_code).strip().upper()
+    if t == "BS":
+        return s.isin(["BS", "BS.", "BOLIVARES", "BOLÍVARES", "VES", "", "NONE", "NAN", "NULL", "<NA>"])
+    elif t == "USD":
+        return s.isin(["USD", "DOLARES", "DOLAR", "$", "USD$"])
+    elif t == "COP":
+        return s.isin(["COP", "PESOS", "COP$"])
+    return s == t
+
+def cargar_datos_agencia_tabla(tabla, agencia_nombre, fecha=None, fecha_desde=None, fecha_hasta=None, u_id=None):
     """
-    Carga registros de Supabase comprobando tanto 'agencia' como 'nombre_agency'
-    y filtrando por fecha o rango de fechas.
+    Carga registros de Supabase comprobando 'agencia', 'nombre_agency', 'nombre_agencia', 'agencia_nombre' y 'user_id'
+    y filtrando por fecha o rango de fechas (compatible con timestamps y cadenas de fecha ISO).
     """
     try:
         q = supabase.table(tabla).select("*")
         if tabla != "pagos_semana":
             if fecha:
-                q = q.eq("fecha", str(fecha))
+                f_str = str(fecha)[:10]
+                q = q.gte("fecha", f_str).lte("fecha", f"{f_str}T23:59:59")
             if fecha_desde:
-                q = q.gte("fecha", str(fecha_desde))
+                q = q.gte("fecha", str(fecha_desde)[:10])
             if fecha_hasta:
-                q = q.lte("fecha", str(fecha_hasta))
+                fh_str = str(fecha_hasta)[:10]
+                q = q.lte("fecha", f"{fh_str}T23:59:59")
             
         res = q.execute()
         df = pd.DataFrame(res.data or [])
+        if df.empty and (fecha_desde or fecha_hasta or fecha):
+            # Fallback: consultar la tabla completa si la comparación de strings en BD difiere por formato de fecha
+            try:
+                res_fb = supabase.table(tabla).select("*").execute()
+                df = pd.DataFrame(res_fb.data or [])
+            except Exception:
+                pass
+
         if df.empty:
             return df
             
@@ -227,27 +250,31 @@ def cargar_datos_agencia_tabla(tabla, agencia_nombre, fecha=None, fecha_desde=No
         
         mask = pd.Series(False, index=df.index)
         found_col = False
-        if "agencia" in df.columns:
-            mask = mask | (df["agencia"].astype(str).str.strip().str.upper() == ag_str)
-            found_col = True
-        if "nombre_agency" in df.columns:
-            mask = mask | (df["nombre_agency"].astype(str).str.strip().str.upper() == ag_str)
-            found_col = True
+        for col_ag in ["agencia", "nombre_agency", "nombre_agencia", "agencia_nombre"]:
+            if col_ag in df.columns:
+                mask = mask | (df[col_ag].astype(str).str.strip().str.upper() == ag_str)
+                found_col = True
+
+        if u_id and "user_id" in df.columns:
+            u_str = str(u_id).strip()
+            if u_str and u_str.lower() not in ["none", "nan", ""]:
+                mask = mask | (df["user_id"].astype(str).str.strip() == u_str)
+                found_col = True
             
         if found_col:
             df = df[mask]
 
-        if tabla == "pagos_semana" and not df.empty and "fecha" in df.columns:
+        if "fecha" in df.columns and not df.empty:
             fechas_str = df["fecha"].astype(str).str.slice(0, 10)
             if fecha_desde:
-                df = df[fechas_str >= str(fecha_desde)]
+                df = df[fechas_str >= str(fecha_desde)[:10]]
             elif fecha:
                 is_prem = pd.Series(False, index=df.index)
                 if "tipo_pago" in df.columns:
                     is_prem = df["tipo_pago"].astype(str).str.upper().str.contains("PREMIO|PÉRDIDA|PERDIDA|ABONO|REPOSICION|REPOSICIÓN", regex=True)
-                df = df[(fechas_str == str(fecha)) | is_prem]
+                df = df[(fechas_str == str(fecha)[:10]) | is_prem]
             if fecha_hasta:
-                df = df[fechas_str <= str(fecha_hasta)]
+                df = df[fechas_str <= str(fecha_hasta)[:10]]
 
         return df
     except Exception as e:
@@ -417,13 +444,13 @@ def sincronizar_confirmaciones_pagos(df_p, df_pb=None, ag_nombre=None):
 
     return df_p
 
-def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha_hasta=None, cajero_id=None, es_supervisor=False):
+def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha_hasta=None, cajero_id=None, es_supervisor=False, u_id=None):
     """
     Retorna tuple: (df_p_total, df_pb)
     """
-    df_p = cargar_datos_agencia_tabla("cda_pagos_diarios", agencia_nombre, fecha=fecha, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta)
-    df_pb = cargar_datos_agencia_tabla("cda_pagos_bancarios", agencia_nombre, fecha=fecha, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta)
-    df_ps = cargar_datos_agencia_tabla("pagos_semana", agencia_nombre, fecha=fecha, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta)
+    df_p = cargar_datos_agencia_tabla("cda_pagos_diarios", agencia_nombre, fecha=fecha, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, u_id=u_id)
+    df_pb = cargar_datos_agencia_tabla("cda_pagos_bancarios", agencia_nombre, fecha=fecha, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, u_id=u_id)
+    df_ps = cargar_datos_agencia_tabla("pagos_semana", agencia_nombre, fecha=fecha, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, u_id=u_id)
 
     if cajero_id:
         df_p = filtrar_df_por_cajero(df_p, cajero_id)
@@ -875,11 +902,11 @@ def modulo_home(agencia_data):
         f_desde_carga = str_operativa
 
     try:
-        df_v_hoy = cargar_datos_agencia_tabla("cda_reportes_diarios", ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_admin)
+        df_v_hoy = cargar_datos_agencia_tabla("cda_reportes_diarios", ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_admin, u_id=u_id_admin)
         if df_v_hoy.empty or "monto_venta" not in df_v_hoy.columns or float(pd.to_numeric(df_v_hoy["monto_venta"], errors="coerce").fillna(0).sum()) == 0:
-            df_ofic = cargar_datos_agencia_tabla("carga_actual", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_admin)
+            df_ofic = cargar_datos_agencia_tabla("carga_actual", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_admin, u_id=u_id_admin)
             if df_ofic.empty:
-                df_ofic = cargar_datos_agencia_tabla("carga_actual", ag_nombre)
+                df_ofic = cargar_datos_agencia_tabla("carga_actual", ag_nombre, u_id=u_id_admin)
             if not df_ofic.empty:
                 df_ofic["monto_venta"] = pd.to_numeric(df_ofic.get("venta", 0), errors="coerce").fillna(0.0)
                 df_ofic["comision"] = pd.to_numeric(df_ofic.get("comision", 0), errors="coerce").fillna(0.0)
@@ -887,18 +914,22 @@ def modulo_home(agencia_data):
                 df_ofic["neto"] = pd.to_numeric(df_ofic.get("neto", 0), errors="coerce").fillna(0.0)
                 df_v_hoy = df_ofic
 
-        df_g_hoy = cargar_datos_agencia_tabla("cda_gastos_diarios", ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_admin)
+        df_g_hoy = cargar_datos_agencia_tabla("cda_gastos_diarios", ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_admin, u_id=u_id_admin)
         if df_g_hoy.empty or "monto" not in df_g_hoy.columns or float(pd.to_numeric(df_g_hoy["monto"], errors="coerce").fillna(0).sum()) == 0:
-            df_g_ofic = cargar_datos_agencia_tabla("gastos", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_admin)
+            df_g_ofic = cargar_datos_agencia_tabla("gastos", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_admin, u_id=u_id_admin)
+            if df_g_ofic.empty:
+                df_g_ofic = cargar_datos_agencia_tabla("gastos", ag_nombre, u_id=u_id_admin)
             if not df_g_ofic.empty:
                 df_g_ofic["concepto"] = df_g_ofic.get("concepto", df_g_ofic.get("descripcion", "Gasto General"))
                 df_g_hoy = df_g_ofic
 
-        df_p_hoy, df_pb_hoy = obtener_pagos_unificados(ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_admin, cajero_id=c_id_target, es_supervisor=es_sup_o_ag)
+        df_p_hoy, df_pb_hoy = obtener_pagos_unificados(ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_admin, cajero_id=c_id_target, es_supervisor=es_sup_o_ag, u_id=u_id_admin)
         if df_p_hoy.empty or "monto" not in df_p_hoy.columns or float(pd.to_numeric(df_p_hoy["monto"], errors="coerce").fillna(0).sum()) == 0:
-            df_p_sem = cargar_datos_agencia_tabla("pagos_semana", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_admin)
+            df_p_sem = cargar_datos_agencia_tabla("pagos_semana", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_admin, u_id=u_id_admin)
             if df_p_sem.empty:
-                df_p_sem = cargar_datos_agencia_tabla("pagos_semana", ag_nombre)
+                df_p_sem = cargar_datos_agencia_tabla("pagos_semana", ag_nombre, u_id=u_id_admin)
+            if df_p_sem.empty:
+                df_p_sem = cargar_datos_agencia_tabla("pagos", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_admin, u_id=u_id_admin)
             if not df_p_sem.empty:
                 df_p_sem["tipo_pago"] = df_p_sem.get("metodo", df_p_sem.get("tipo", df_p_sem.get("tipo_pago", "EFECTIVO")))
                 df_p_hoy = df_p_sem
@@ -920,7 +951,7 @@ def modulo_home(agencia_data):
             df_g_loc = pd.DataFrame(loc_gastos)
             df_g_hoy = pd.concat([df_g_hoy, df_g_loc], ignore_index=True) if not df_g_hoy.empty else df_g_loc
 
-        df_t_hoy = cargar_datos_agencia_tabla("cda_premios_tickets", ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_admin)
+        df_t_hoy = cargar_datos_agencia_tabla("cda_premios_tickets", ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_admin, u_id=u_id_admin)
     except Exception:
         pass
 
@@ -1030,11 +1061,11 @@ def modulo_home(agencia_data):
             sym_curr = "Bs." if m_code == "BS" else ("$" if m_code == "USD" else "COP$")
             
             # Filtrar dataframes exclusivamente para la moneda m_code
-            df_v_m = df_v_raw[df_v_raw["moneda"].astype(str).str.strip().str.upper() == m_code] if not df_v_raw.empty and "moneda" in df_v_raw.columns else pd.DataFrame()
-            df_g_m = df_g_raw[df_g_raw["moneda"].astype(str).str.strip().str.upper() == m_code] if not df_g_raw.empty and "moneda" in df_g_raw.columns else pd.DataFrame()
-            df_p_m = df_p_raw[df_p_raw["moneda"].astype(str).str.strip().str.upper() == m_code] if not df_p_raw.empty and "moneda" in df_p_raw.columns else pd.DataFrame()
-            df_pb_m = df_pb_raw[df_pb_raw["moneda"].astype(str).str.strip().str.upper() == m_code] if not df_pb_raw.empty and "moneda" in df_pb_raw.columns else pd.DataFrame()
-            df_t_m = df_t_raw[df_t_raw["moneda"].astype(str).str.strip().str.upper() == m_code] if not df_t_raw.empty and "moneda" in df_t_raw.columns else pd.DataFrame()
+            df_v_m = df_v_raw[es_misma_moneda(df_v_raw["moneda"], m_code)] if not df_v_raw.empty and "moneda" in df_v_raw.columns else df_v_raw
+            df_g_m = df_g_raw[es_misma_moneda(df_g_raw["moneda"], m_code)] if not df_g_raw.empty and "moneda" in df_g_raw.columns else df_g_raw
+            df_p_m = df_p_raw[es_misma_moneda(df_p_raw["moneda"], m_code)] if not df_p_raw.empty and "moneda" in df_p_raw.columns else df_p_raw
+            df_pb_m = df_pb_raw[es_misma_moneda(df_pb_raw["moneda"], m_code)] if not df_pb_raw.empty and "moneda" in df_pb_raw.columns else df_pb_raw
+            df_t_m = df_t_raw[es_misma_moneda(df_t_raw["moneda"], m_code)] if not df_t_raw.empty and "moneda" in df_t_raw.columns else df_t_raw
 
             if not es_sup_o_ag and cajero_id:
                 df_v_m = filtrar_df_por_cajero(df_v_m, cajero_id)

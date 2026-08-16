@@ -217,7 +217,7 @@ def es_misma_moneda(series_moneda, target_code):
 
 def cargar_datos_agencia_tabla(tabla, agencia_nombre, fecha=None, fecha_desde=None, fecha_hasta=None, u_id=None):
     """
-    Carga registros de Supabase comprobando 'agencia', 'nombre_agency', 'nombre_agencia', 'agencia_nombre' y 'user_id'
+    Carga registros de Supabase comprobando estrictamente el nombre de la agencia
     y filtrando por fecha o rango de fechas (compatible con timestamps y cadenas de fecha ISO).
     """
     try:
@@ -255,14 +255,15 @@ def cargar_datos_agencia_tabla(tabla, agencia_nombre, fecha=None, fecha_desde=No
                 mask = mask | (df[col_ag].astype(str).str.strip().str.upper() == ag_str)
                 found_col = True
 
-        if u_id and "user_id" in df.columns:
-            u_str = str(u_id).strip()
-            if u_str and u_str.lower() not in ["none", "nan", ""]:
-                mask = mask | (df["user_id"].astype(str).str.strip() == u_str)
-                found_col = True
-            
         if found_col:
             df = df[mask]
+        else:
+            return pd.DataFrame()
+
+        if u_id and "user_id" in df.columns and not df.empty:
+            u_str = str(u_id).strip()
+            if u_str and u_str.lower() not in ["none", "nan", ""]:
+                df = df[df["user_id"].astype(str).str.strip() == u_str]
 
         if "fecha" in df.columns and not df.empty:
             fechas_str = df["fecha"].astype(str).str.slice(0, 10)
@@ -1061,11 +1062,11 @@ def modulo_home(agencia_data):
             sym_curr = "Bs." if m_code == "BS" else ("$" if m_code == "USD" else "COP$")
             
             # Filtrar dataframes exclusivamente para la moneda m_code
-            df_v_m = df_v_raw[es_misma_moneda(df_v_raw["moneda"], m_code)] if not df_v_raw.empty and "moneda" in df_v_raw.columns else df_v_raw
-            df_g_m = df_g_raw[es_misma_moneda(df_g_raw["moneda"], m_code)] if not df_g_raw.empty and "moneda" in df_g_raw.columns else df_g_raw
-            df_p_m = df_p_raw[es_misma_moneda(df_p_raw["moneda"], m_code)] if not df_p_raw.empty and "moneda" in df_p_raw.columns else df_p_raw
-            df_pb_m = df_pb_raw[es_misma_moneda(df_pb_raw["moneda"], m_code)] if not df_pb_raw.empty and "moneda" in df_pb_raw.columns else df_pb_raw
-            df_t_m = df_t_raw[es_misma_moneda(df_t_raw["moneda"], m_code)] if not df_t_raw.empty and "moneda" in df_t_raw.columns else df_t_raw
+            df_v_m = df_v_raw[es_misma_moneda(df_v_raw["moneda"], m_code)] if not df_v_raw.empty and "moneda" in df_v_raw.columns else pd.DataFrame()
+            df_g_m = df_g_raw[es_misma_moneda(df_g_raw["moneda"], m_code)] if not df_g_raw.empty and "moneda" in df_g_raw.columns else pd.DataFrame()
+            df_p_m = df_p_raw[es_misma_moneda(df_p_raw["moneda"], m_code)] if not df_p_raw.empty and "moneda" in df_p_raw.columns else pd.DataFrame()
+            df_pb_m = df_pb_raw[es_misma_moneda(df_pb_raw["moneda"], m_code)] if not df_pb_raw.empty and "moneda" in df_pb_raw.columns else pd.DataFrame()
+            df_t_m = df_t_raw[es_misma_moneda(df_t_raw["moneda"], m_code)] if not df_t_raw.empty and "moneda" in df_t_raw.columns else pd.DataFrame()
 
             if not es_sup_o_ag and cajero_id:
                 df_v_m = filtrar_df_por_cajero(df_v_m, cajero_id)

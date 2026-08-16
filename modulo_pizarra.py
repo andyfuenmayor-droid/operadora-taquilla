@@ -78,6 +78,40 @@ def obtener_mapa_cajeros(u_id=None):
 
     return mapa
 
+def obtener_mapa_supervisores(u_id=None):
+    mapa = {}
+    try:
+        query = supabase.table("taquilla_usuarios").select("id, usuario, nombre_cajero, rol").eq("rol", "supervisor")
+        if u_id:
+            query = query.eq("user_id", u_id)
+        res_usr = query.execute()
+        rows = res_usr.data or []
+        if not rows and u_id:
+            rows = supabase.table("taquilla_usuarios").select("id, usuario, nombre_cajero, rol").eq("rol", "supervisor").execute().data or []
+
+        for u in rows:
+            nom = u.get("nombre_cajero") or u.get("usuario") or ""
+            if nom:
+                if u.get("id"):
+                    mapa[str(u["id"]).strip()] = nom
+                if u.get("usuario"):
+                    mapa[str(u["usuario"]).strip()] = nom
+                if u.get("nombre_cajero"):
+                    mapa[str(u["nombre_cajero"]).strip()] = nom
+    except Exception:
+        pass
+
+    cajero_actual = st.session_state.get("cajero_actual", {})
+    if isinstance(cajero_actual, dict) and str(cajero_actual.get("rol", "")).lower() == "supervisor":
+        nom_act = cajero_actual.get("nombre") or cajero_actual.get("usuario")
+        if nom_act:
+            if cajero_actual.get("id"):
+                mapa[str(cajero_actual["id"]).strip()] = nom_act
+            if cajero_actual.get("usuario"):
+                mapa[str(cajero_actual["usuario"]).strip()] = nom_act
+
+    return mapa
+
 def resolver_nombre_cajero(cid_or_user, pago_dict=None, mapa=None):
     """Resuelve el nombre del cajero/usuario para evitar que aparezca como 'Cajero' genérico."""
     if pago_dict and isinstance(pago_dict, dict):
@@ -873,11 +907,17 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
     if not u_id and "user" in st.session_state and hasattr(st.session_state["user"], "id"):
         u_id = str(st.session_state["user"].id).strip()
 
+    rol_usuario = str(cajero_info.get("rol", "")).lower()
+    es_supervisor = (rol_usuario == "supervisor")
+
     # Verificar si existe el rol supervisor en el sistema
     existe_sup = verificar_existe_supervisor(u_id)
 
-    st.markdown("<h3 style='font-size: 22px; font-weight: 700; margin-bottom: 2px;'>📌 Pizarra de Confirmaciones de Pagos y Gastos</h3>", unsafe_allow_html=True)
-    if existe_sup:
+    titulo_principal = "🛡️ Pizarra de Supervisión y Recaudación de Pagos" if es_supervisor else "📌 Pizarra de Confirmaciones de Pagos y Gastos (Administración)"
+    st.markdown(f"<h3 style='font-size: 22px; font-weight: 700; margin-bottom: 2px;'>{titulo_principal}</h3>", unsafe_allow_html=True)
+    if es_supervisor:
+        st.caption("Recepción y validación física de **Efectivo de Cajeros**, **Punto de Venta (POS)**, **Gastos** y **Liquidación a Administración**.")
+    elif existe_sup:
         st.caption("Verificación, auditoría y aprobación de **Transferencias**, **Punto de Venta**, **Gastos** y **Caja de Efectivo (Supervisor ↔ Admin)**.")
     else:
         st.caption("Verificación, auditoría y aprobación de **Transferencias**, **Punto de Venta**, **Gastos** y **Caja de Efectivo (Cajero ↔ Admin)**.")
@@ -913,9 +953,16 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
     # Cargar usuarios cajeros del usuario
     mapa_cajeros = obtener_mapa_cajeros(u_id)
     lista_cajeros = ["Todos"]
-    for unombre in set(mapa_cajeros.values()):
+    for unombre in sorted(set(mapa_cajeros.values())):
         if unombre and unombre not in lista_cajeros:
             lista_cajeros.append(unombre)
+
+    # Cargar supervisores del usuario
+    mapa_supervisores = obtener_mapa_supervisores(u_id)
+    lista_supervisores = ["Todos"]
+    for snombre in sorted(set(mapa_supervisores.values())):
+        if snombre and snombre not in lista_supervisores:
+            lista_supervisores.append(snombre)
 
     # Fetch total data from Supabase
     df_bancarios = pd.DataFrame()
@@ -1046,46 +1093,67 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
                 "comentario_supervisor": com_sup
             })
 
-    # 3. Pagos Efectivo de cda_pagos_diarios
+    # 3. Pagos de cda_pagos_diarios (Efectivo, Premios, Reposiciones, Comerc.)
     if not df_pagos_diarios.empty:
         df_pagos_diarios.columns = [c.lower().strip() for c in df_pagos_diarios.columns]
         for _, r in df_pagos_diarios.iterrows():
-            tipo = str(r.get("tipo_pago") or "").upper()
-            if "EFECTIVO" in tipo or ("REF:" not in tipo and "PUNTO" not in tipo and "TRANSFERENCIA" not in tipo and "ZELLE" not in tipo and "PAGO MÓVIL" not in tipo):
-                r_dict = r.to_dict()
-                cid = str(r.get("cajero_id") or r.get("user_id") or "").strip()
-                c_nombre = resolver_nombre_cajero(cid, pago_dict=r_dict, mapa=mapa_cajeros)
-                ag_nom = str(r.get("agencia") or r.get("nombre_agency") or "").upper()
-                is_conf = bool(r.get("confirmado", False))
-                conf_por = str(r.get("confirmado_por") or r.get("confirmado_usuario") or r.get("usuario_confirmacion") or "").strip()
+            r_dict = r.to_dict()
+            cid = str(r.get("cajero_id") or r.get("user_id") or "").strip()
+            c_nombre = resolver_nombre_cajero(cid, pago_dict=r_dict, mapa=mapa_cajeros)
+            ag_nom = str(r.get("agencia") or r.get("nombre_agency") or "").upper()
+            is_conf = bool(r.get("confirmado", False))
+            conf_por = str(r.get("confirmado_por") or r.get("confirmado_usuario") or r.get("usuario_confirmacion") or "").strip()
 
-                is_conf_sup = bool(r.get("confirmado_supervisor", False))
-                sup_nom = str(r.get("supervisor_nombre") or "").strip()
-                com_sup = str(r.get("comentario_supervisor") or "").strip()
+            is_conf_sup = bool(r.get("confirmado_supervisor", False))
+            sup_nom = str(r.get("supervisor_nombre") or "").strip()
+            com_sup = str(r.get("comentario_supervisor") or "").strip()
 
-                concepto_pago = "Pago de Premios" if "PREMIO" in tipo else (tipo if tipo else "Pago Efectivo")
+            tipo = str(r.get("tipo_pago") or "").strip()
+            tipo_upper = tipo.upper()
 
-                registros.append({
-                    "id": r.get("id"),
-                    "tabla": "cda_pagos_diarios",
-                    "fecha": str(r.get("fecha") or ""),
-                    "agencia": ag_nom,
-                    "cajero_id": cid,
-                    "cajero_nombre": c_nombre,
-                    "categoria": "Efectivo",
-                    "metodo": tipo or "EFECTIVO",
-                    "concepto": concepto_pago,
-                    "referencia": "N/A",
-                    "pagador": "N/A",
-                    "dispositivo": "N/A",
-                    "monto": float(r.get("monto") or 0.0),
-                    "moneda": str(r.get("moneda") or "USD").upper(),
-                    "confirmado": is_conf,
-                    "confirmado_por": conf_por,
-                    "confirmado_supervisor": is_conf_sup,
-                    "supervisor_nombre": sup_nom,
-                    "comentario_supervisor": com_sup
-                })
+            if "PREMIO" in tipo_upper:
+                concepto_pago = tipo if tipo else "Pago de Premios"
+                cat = "Efectivo"
+            elif "COMERCIALIZADOR" in tipo_upper:
+                concepto_pago = tipo
+                cat = "Efectivo"
+            elif "REPOSICION" in tipo_upper or "REPOSICIÓN" in tipo_upper or "ABONO" in tipo_upper:
+                concepto_pago = tipo
+                cat = "Efectivo"
+            elif "EFECTIVO" in tipo_upper:
+                concepto_pago = tipo
+                cat = "Efectivo"
+            else:
+                concepto_pago = tipo if tipo else "Pago Efectivo"
+                cat = "Efectivo"
+
+            registros.append({
+                "id": r.get("id"),
+                "tabla": "cda_pagos_diarios",
+                "fecha": str(r.get("fecha") or ""),
+                "agencia": ag_nom,
+                "cajero_id": cid,
+                "cajero_nombre": c_nombre,
+                "categoria": cat,
+                "metodo": tipo or "EFECTIVO",
+                "concepto": concepto_pago,
+                "referencia": str(r.get("referencia") or "N/A"),
+                "pagador": str(r.get("datos_pagador") or "N/A"),
+                "dispositivo": "N/A",
+                "monto": float(r.get("monto") or 0.0),
+                "moneda": str(r.get("moneda") or "USD").upper(),
+                "confirmado": is_conf,
+                "confirmado_por": conf_por,
+                "confirmado_supervisor": is_conf_sup,
+                "supervisor_nombre": sup_nom,
+                "comentario_supervisor": com_sup
+            })
+
+    # Añadir supervisores encontrados en las transacciones a la lista
+    for reg in registros:
+        s_nom_reg = str(reg.get("supervisor_nombre") or "").strip()
+        if s_nom_reg and s_nom_reg.lower() not in ["none", "nan", "system", "cajero", "desconocido", ""] and s_nom_reg not in lista_supervisores:
+            lista_supervisores.append(s_nom_reg)
 
     df_raw = pd.DataFrame(registros)
 
@@ -1118,11 +1186,24 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
 
     f_desde_str, f_hasta_str = str(f_desde), str(f_hasta)
 
-    col_sel1, col_sel2, col_sel3, col_sel4 = st.columns([2, 2, 2, 2])
+    col_sel1, col_sel2, col_sel3, col_sel4, col_sel5 = st.columns([2, 2, 2, 2, 2])
     sel_agencia = col_sel1.selectbox("🏢 Agencia:", lista_agencias, key="pizarra_agencia_sel_act")
     sel_cajero = col_sel2.selectbox("👤 Cajero:", lista_cajeros, key="pizarra_cajero_sel_act")
-    sel_categoria = col_sel3.selectbox("💳 Categoría:", ["Todas", "Transferencia / Zelle / Pago Móvil", "Punto de Venta (Punde)", "Gastos", "Efectivo"], key="pizarra_cat_sel_act")
-    sel_estado = col_sel4.selectbox("🚦 Estado:", ["⏳ Pendientes", "✅ Confirmados", "Todos"], key="pizarra_est_sel_act")
+    
+    idx_sup_default = 0
+    if es_supervisor:
+        curr_sup_name = obtener_nombre_usuario_actual()
+        if curr_sup_name in lista_supervisores:
+            idx_sup_default = lista_supervisores.index(curr_sup_name)
+    sel_supervisor = col_sel3.selectbox("🛡️ Supervisor:", lista_supervisores, index=idx_sup_default, key="pizarra_sup_sel_act")
+
+    sel_categoria = col_sel4.selectbox("💳 Categoría:", ["Todas", "Transferencia / Zelle / Pago Móvil", "Punto de Venta (Punde)", "Gastos", "Efectivo"], key="pizarra_cat_sel_act")
+    
+    if es_supervisor:
+        opts_estado = ["⏳ Pendientes Supervisor", "🤝 Recibidos Supervisor", "✅ Confirmados Admin", "Todos"]
+    else:
+        opts_estado = ["⏳ Pendientes Admin (Listos)", "⏳ Pendientes Supervisor", "⏳ Todos los Pendientes", "✅ Confirmados", "Todos"]
+    sel_estado = col_sel5.selectbox("🚦 Estado:", opts_estado, key="pizarra_est_sel_act")
 
     df_act_work = df_activo.copy()
 
@@ -1135,26 +1216,53 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
     if sel_cajero != "Todos" and not df_act_work.empty:
         df_act_work = df_act_work[df_act_work["cajero_nombre"] == sel_cajero]
 
+    if sel_supervisor != "Todos" and not df_act_work.empty:
+        df_act_work = df_act_work[df_act_work["supervisor_nombre"] == sel_supervisor]
+
     if sel_categoria != "Todas" and not df_act_work.empty:
         df_act_work = df_act_work[df_act_work["categoria"] == sel_categoria]
 
-    if sel_estado == "⏳ Pendientes" and not df_act_work.empty:
-        if existe_sup:
-            # Pago Móvil y Transferencias pasan directo a la Pizarra del Admin sin requerir recibido previo de supervisor.
-            # Gastos, Punto de Venta y Efectivo requieren recibido por supervisor (confirmado_supervisor == True) para pasar al Admin.
-            is_direct_admin = (df_act_work["categoria"] == "Transferencia / Zelle / Pago Móvil") | df_act_work["metodo"].astype(str).str.upper().str.contains("TRANSFERENCIA|ZELLE|PAGO MÓVIL|PAGOMOVIL", regex=True)
-            is_sup_ready = df_act_work["confirmado_supervisor"] == True
-            df_act_work = df_act_work[(df_act_work["confirmado"] == False) & (is_direct_admin | is_sup_ready)]
+    if not df_act_work.empty:
+        is_direct_admin = (df_act_work["categoria"] == "Transferencia / Zelle / Pago Móvil") | df_act_work["metodo"].astype(str).str.upper().str.contains("TRANSFERENCIA|ZELLE|PAGO MÓVIL|PAGOMOVIL", regex=True)
+        
+        if es_supervisor:
+            if sel_estado == "⏳ Pendientes Supervisor":
+                df_act_work = df_act_work[(~is_direct_admin) & (df_act_work["confirmado_supervisor"] == False)]
+            elif sel_estado == "🤝 Recibidos Supervisor":
+                df_act_work = df_act_work[(df_act_work["confirmado_supervisor"] == True) & (df_act_work["confirmado"] == False)]
+            elif sel_estado == "✅ Confirmados Admin":
+                df_act_work = df_act_work[df_act_work["confirmado"] == True]
         else:
-            # Si no hay supervisor, todo pasa directo a la Pizarra de Confirmaciones del Admin
-            df_act_work = df_act_work[df_act_work["confirmado"] == False]
-    elif sel_estado == "✅ Confirmados" and not df_act_work.empty:
-        df_act_work = df_act_work[df_act_work["confirmado"] == True]
+            if sel_estado == "⏳ Pendientes Admin (Listos)":
+                if existe_sup:
+                    df_act_work = df_act_work[(df_act_work["confirmado"] == False) & (is_direct_admin | (df_act_work["confirmado_supervisor"] == True))]
+                else:
+                    df_act_work = df_act_work[df_act_work["confirmado"] == False]
+            elif sel_estado == "⏳ Pendientes Supervisor":
+                df_act_work = df_act_work[(~is_direct_admin) & (df_act_work["confirmado_supervisor"] == False)]
+            elif sel_estado == "⏳ Todos los Pendientes":
+                df_act_work = df_act_work[df_act_work["confirmado"] == False]
+            elif sel_estado == "✅ Confirmados":
+                df_act_work = df_act_work[df_act_work["confirmado"] == True]
 
     if "fecha" in df_act_work.columns and not df_act_work.empty:
         df_act_work = df_act_work.sort_values(by="fecha", ascending=False)
 
     st.markdown("---")
-    st.markdown("<h4 style='font-size: 16px; font-weight: 700; margin-top: 10px;'>📋 Detalle de Transacciones (Ciclo Activo)</h4>", unsafe_allow_html=True)
-    _renderizar_lista_transacciones(df_act_work, key_prefix="act", es_pizarra_supervisor=False, existe_supervisor=existe_sup)
+
+    # 1. Resumen de Métricas (BS / USD / COP)
+    _renderizar_resumen_metricas(df_act_work)
+
+    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+
+    # 2. Control de Efectivo por Cajas (3 Etapas)
+    _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=existe_sup)
+
+    st.markdown("---")
+
+    # 3. Lista de Transacciones detalladas
+    titulo_detalle = "📋 Detalle de Transacciones (Pizarra de Supervisión)" if es_supervisor else "📋 Detalle de Transacciones (Pizarra de Administración)"
+    st.markdown(f"<h4 style='font-size: 16px; font-weight: 700; margin-top: 10px;'>{titulo_detalle}</h4>", unsafe_allow_html=True)
+    _renderizar_lista_transacciones(df_act_work, key_prefix="act", es_pizarra_supervisor=es_supervisor, existe_supervisor=existe_sup)
+
 

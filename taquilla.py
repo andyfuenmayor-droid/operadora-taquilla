@@ -445,9 +445,43 @@ def sincronizar_confirmaciones_pagos(df_p, df_pb=None, ag_nombre=None):
 
     return df_p
 
+def clasificar_pago_registro(r):
+    """
+    Determina si un registro de pago es:
+    - 'PREMIO': Si es Pago de Premios, Pérdidas, Reposición de Caja o Abono a Taquilla.
+    - 'EFECTIVO': Si es entrega o cobro en efectivo ordinario (no reposición de premios).
+    - 'BANCO': Si es transferencia bancaria, punto de venta, pago móvil o zelle ordinario a la operadora.
+    """
+    if isinstance(r, pd.Series):
+        r_dict = r.to_dict()
+    elif isinstance(r, dict):
+        r_dict = r
+    else:
+        r_dict = {}
+
+    textos = []
+    for k in ["concepto", "tipo_pago", "tipo", "descripcion", "metodo_pago", "metodo", "pos_o_cuenta", "datos_pagador", "referencia", "categoria"]:
+        v = str(r_dict.get(k, "") or "").strip().upper()
+        if v and v not in ["NONE", "NAN", "N/A", "NULL"]:
+            textos.append(v)
+    full_str = " ".join(textos)
+
+    keywords_premios = [
+        "PREMIO", "PREMIOS", "PÉRDIDA", "PERDIDA", "PÉRDIDAS", "PERDIDAS",
+        "ABONO", "REPOSICION", "REPOSICIÓN", "REPOSICION DE CAJA", "REPOSICIÓN DE CAJA"
+    ]
+    if any(kw in full_str for kw in keywords_premios):
+        return "PREMIO"
+
+    if "EFECTIVO" in full_str and not any(kw in full_str for kw in ["BANCO", "PUNTO", "POS", "ZELLE", "TRANSFERENCIA", "MÓVIL", "MOVIL", "BIOPAGO"]):
+        return "EFECTIVO"
+
+    return "BANCO"
+
 def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha_hasta=None, cajero_id=None, es_supervisor=False, u_id=None):
     """
     Retorna tuple: (df_p_total, df_pb)
+    Preserva datos completos de cda_pagos_diarios, cda_pagos_bancarios y pagos_semana con clasificación exacta.
     """
     df_p = cargar_datos_agencia_tabla("cda_pagos_diarios", agencia_nombre, fecha=fecha, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, u_id=u_id)
     df_pb = cargar_datos_agencia_tabla("cda_pagos_bancarios", agencia_nombre, fecha=fecha, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, u_id=u_id)
@@ -457,6 +491,7 @@ def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha
         df_p = filtrar_df_por_cajero(df_p, cajero_id)
         df_pb = filtrar_df_por_cajero(df_pb, cajero_id)
 
+    # 1. Integrar pagos_semana en df_p y df_pb si no existen
     if not df_ps.empty:
         nuevas_ps_p = []
         nuevas_ps_pb = []
@@ -466,6 +501,7 @@ def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha
             tipo_ps = str(r_ps.get("tipo_pago", "Pago")).strip()
             metodo_ps = str(r_ps.get("metodo", "EFECTIVO")).strip().upper()
             ref_ps = str(r_ps.get("referencia", "")).strip()
+            mon_ps = str(r_ps.get("moneda") or "BS").strip().upper()
 
             ya_existe_p = False
             if not df_p.empty and "monto" in df_p.columns:
@@ -489,15 +525,16 @@ def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha
                     "agencia": agencia_nombre,
                     "nombre_agency": agencia_nombre,
                     "tipo_pago": tipo_final,
+                    "concepto": tipo_ps,
+                    "metodo_pago": metodo_ps,
                     "monto": monto_ps,
-                    "moneda": r_ps.get("moneda", "BS"),
+                    "moneda": mon_ps,
                     "referencia": ref_ps,
                     "user_id": r_ps.get("user_id"),
                     "confirmado": True
                 })
 
-            is_prem_ps = any(k in tipo_ps.upper() for k in ["PREMIO", "PÉRDIDA", "PERDIDA", "ABONO", "REPOSICION", "REPOSICIÓN"])
-            if metodo_ps == "BANCO" and not is_prem_ps:
+            if metodo_ps == "BANCO":
                 ya_existe_pb = False
                 if not df_pb.empty and "monto" in df_pb.columns:
                     fechas_pb = df_pb["fecha"].astype(str).str.slice(0, 10)
@@ -514,7 +551,7 @@ def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha
                         "agencia": agencia_nombre,
                         "metodo_pago": "BANCO",
                         "monto": monto_ps,
-                        "moneda": r_ps.get("moneda", "COP"),
+                        "moneda": mon_ps,
                         "referencia": ref_ps,
                         "concepto": tipo_ps,
                         "datos_pagador": ref_ps,
@@ -527,26 +564,10 @@ def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha
             df_p = pd.concat([df_p, pd.DataFrame(nuevas_ps_p)], ignore_index=True)
         if nuevas_ps_pb:
             df_pb = pd.concat([df_pb, pd.DataFrame(nuevas_ps_pb)], ignore_index=True)
-        filas_banco = []
-        for _, r in df_pb.iterrows():
-            metodo = str(r.get("metodo_pago", "Pago Bancario")).strip()
-            ref = str(r.get("referencia", "")).strip()
-            tipo = f"{metodo} (Ref: {ref})" if ref else metodo
-            filas_banco.append({
-                "fecha": r.get("fecha"),
-                "agencia": r.get("agencia"),
-                "nombre_agency": r.get("nombre_agency"),
-                "tipo_pago": tipo,
-                "monto": float(r.get("monto", 0)),
-                "moneda": r.get("moneda", "COP"),
-                "cajero_id": r.get("cajero_id"),
-                "user_id": r.get("user_id"),
-                "confirmado": r.get("confirmado", False)
-            })
-        return pd.DataFrame(filas_banco), df_pb
 
+    # 2. Incorporar registros de df_pb a df_p para vista consolidada
     refs_existentes = set()
-    if "tipo_pago" in df_p.columns:
+    if not df_p.empty and "tipo_pago" in df_p.columns:
         for val in df_p["tipo_pago"].dropna().astype(str):
             if "ref:" in val.lower():
                 partes = val.lower().split("ref:")
@@ -555,40 +576,56 @@ def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha
                     if ref_ext:
                         refs_existentes.add(ref_ext.upper())
 
-    nuevas_filas = []
-    for _, r in df_pb.iterrows():
-        ref_b = str(r.get("referencia", "")).strip().upper()
-        if ref_b and ref_b in refs_existentes:
-            continue
-        
-        metodo = str(r.get("metodo_pago", "Pago Bancario")).strip()
-        tipo = f"{metodo} (Ref: {ref_b})" if ref_b else metodo
-        monto_b = float(r.get("monto", 0))
-        
-        if not ref_b and not df_p.empty and "monto" in df_p.columns:
-            coincide = df_p[
-                (df_p["monto"].astype(float) == monto_b) & 
-                (df_p["tipo_pago"].astype(str).str.contains(metodo, case=False, regex=False))
-            ]
-            if not coincide.empty:
+    if not df_pb.empty:
+        nuevas_filas = []
+        for _, r in df_pb.iterrows():
+            ref_b = str(r.get("referencia", "")).strip().upper()
+            if ref_b and ref_b in refs_existentes:
                 continue
+            
+            metodo = str(r.get("metodo_pago", "Pago Bancario")).strip()
+            concepto_b = str(r.get("concepto", "")).strip()
+            pos_cta = str(r.get("pos_o_cuenta", "")).strip()
+            
+            # Construir descripción completa y legible preservando el concepto original
+            if concepto_b and concepto_b.upper() not in metodo.upper():
+                tipo = f"{concepto_b} - {metodo}"
+            else:
+                tipo = metodo
+            if ref_b:
+                tipo += f" (Ref: {ref_b})"
+                
+            monto_b = float(r.get("monto", 0))
+            mon_b = str(r.get("moneda") or "BS").strip().upper()
+            
+            if not ref_b and not df_p.empty and "monto" in df_p.columns:
+                coincide = df_p[
+                    (df_p["monto"].astype(float) == monto_b) & 
+                    (df_p["tipo_pago"].astype(str).str.contains(metodo, case=False, regex=False))
+                ]
+                if not coincide.empty:
+                    continue
 
-        nuevas_filas.append({
-            "fecha": r.get("fecha"),
-            "agencia": r.get("agencia"),
-            "nombre_agency": r.get("nombre_agency"),
-            "tipo_pago": tipo,
-            "monto": monto_b,
-            "moneda": r.get("moneda", "COP"),
-            "referencia": ref_b if ref_b else r.get("referencia", ""),
-            "cajero_id": r.get("cajero_id"),
-            "user_id": r.get("user_id"),
-            "confirmado": r.get("confirmado", False)
-        })
+            nuevas_filas.append({
+                "fecha": r.get("fecha"),
+                "agencia": r.get("agencia"),
+                "nombre_agency": r.get("nombre_agency", r.get("agencia")),
+                "tipo_pago": tipo,
+                "concepto": concepto_b if concepto_b else metodo,
+                "metodo_pago": metodo,
+                "monto": monto_b,
+                "moneda": mon_b,
+                "referencia": ref_b if ref_b else r.get("referencia", ""),
+                "pos_o_cuenta": pos_cta,
+                "datos_pagador": r.get("datos_pagador", ""),
+                "cajero_id": r.get("cajero_id"),
+                "user_id": r.get("user_id"),
+                "confirmado": r.get("confirmado", False)
+            })
 
-    if nuevas_filas:
-        df_nuevas = pd.DataFrame(nuevas_filas)
-        df_p = pd.concat([df_p, df_nuevas], ignore_index=True)
+        if nuevas_filas:
+            df_nuevas = pd.DataFrame(nuevas_filas)
+            df_p = pd.concat([df_p, df_nuevas], ignore_index=True)
 
     df_p = sincronizar_confirmaciones_pagos(df_p, df_pb, agencia_nombre)
     return df_p, df_pb
@@ -1085,26 +1122,24 @@ def modulo_home(agencia_data):
             t_g_m = float(df_g_m["monto"].sum()) if not df_g_m.empty and "monto" in df_g_m.columns else 0.0
 
             t_pago_efectivo_m = 0.0
-            t_pago_banco_diarios_m = 0.0
+            t_pago_banco_m = 0.0
             t_pago_premios_m = 0.0
+            df_prem_m = pd.DataFrame()
+            df_efec_m = pd.DataFrame()
+            df_banc_m = pd.DataFrame()
 
             if not df_p_m.empty:
-                tipos_str_m = df_p_m["tipo_pago"].astype(str).str.upper() if "tipo_pago" in df_p_m.columns else pd.Series([""]*len(df_p_m))
-                is_premio_m = tipos_str_m.str.contains("PREMIO|PÉRDIDA|PERDIDA|ABONO|REPOSICION|REPOSICIÓN", regex=True)
-                t_pago_premios_m = float(df_p_m[is_premio_m]["monto"].sum())
-                
-                is_efectivo_m = tipos_str_m.str.contains("EFECTIVO") & (~is_premio_m)
-                t_pago_efectivo_m = float(df_p_m[is_efectivo_m]["monto"].sum())
-                
-                is_banco_m = (~is_efectivo_m) & (~is_premio_m)
-                t_pago_banco_diarios_m = float(df_p_m[is_banco_m]["monto"].sum())
-            else:
-                t_pago_efectivo_m = 0.0
-                t_pago_banco_diarios_m = 0.0
-                t_pago_premios_m = 0.0
+                df_p_m_sync = sincronizar_confirmaciones_pagos(df_p_m, df_pb_m, ag_nombre)
+                df_p_m_sync = enriquecer_columna_cajero(df_p_m_sync)
+                df_p_m_sync["tipo_clasif"] = df_p_m_sync.apply(clasificar_pago_registro, axis=1)
 
-            t_pago_banco_bancarios_m = float(df_pb_m["monto"].sum()) if not df_pb_m.empty and "monto" in df_pb_m.columns else 0.0
-            t_pago_banco_m = max(t_pago_banco_diarios_m, t_pago_banco_bancarios_m)
+                df_prem_m = df_p_m_sync[df_p_m_sync["tipo_clasif"] == "PREMIO"].copy()
+                df_efec_m = df_p_m_sync[df_p_m_sync["tipo_clasif"] == "EFECTIVO"].copy()
+                df_banc_m = df_p_m_sync[df_p_m_sync["tipo_clasif"] == "BANCO"].copy()
+
+                t_pago_premios_m = float(df_prem_m["monto"].sum()) if not df_prem_m.empty and "monto" in df_prem_m.columns else 0.0
+                t_pago_efectivo_m = float(df_efec_m["monto"].sum()) if not df_efec_m.empty and "monto" in df_efec_m.columns else 0.0
+                t_pago_banco_m = float(df_banc_m["monto"].sum()) if not df_banc_m.empty and "monto" in df_banc_m.columns else 0.0
 
             saldo_op_m = t_v_m - t_c_m - t_p_m
             saldo_neto_m = saldo_op_m - t_g_m - t_pago_efectivo_m - t_pago_banco_m + t_pago_premios_m
@@ -1182,54 +1217,82 @@ def modulo_home(agencia_data):
                 else:
                     st.info(f"ℹ️ Sin registros de ventas cargados en {m_code} para este ciclo.")
 
+                # Gastos Registrados
+                if not df_g_m.empty:
+                    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+                    render_titulo_seccion(f"💸 Gastos del Ciclo - {m_code}")
+                    df_g_disp = enriquecer_columna_cajero(df_g_m)
+                    if "confirmado" in df_g_disp.columns:
+                        df_g_disp["Conf."] = df_g_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
+                    if "agencia" not in df_g_disp.columns and "nombre_agency" in df_g_disp.columns:
+                        df_g_disp["agencia"] = df_g_disp["nombre_agency"]
+                    elif "nombre_agency" in df_g_disp.columns:
+                        df_g_disp["agencia"] = df_g_disp["agencia"].fillna(df_g_disp["nombre_agency"])
+                    cols_g_show = [c for c in ["fecha", "agencia", "cajero", "concepto", "moneda", "monto", "Conf."] if c in df_g_disp.columns]
+                    st.dataframe(
+                        df_g_disp[cols_g_show],
+                        column_config={"monto": st.column_config.NumberColumn("monto", format=fmt_m_disp)},
+                        use_container_width=True,
+                        hide_index=True
+                    )
+
             with col_t2:
-                render_titulo_seccion(f"💸 Gastos y Pagos del Ciclo - {m_code} ({ciclo_rango_str})")
-                df_p_all_m = df_p_m.copy() if not df_p_m.empty else pd.DataFrame()
+                fmt_m_disp = obtener_formato_moneda(m_code)
+                # 1. Tabla de Pagos a la Operadora (Bancos y Efectivo Ordinarios)
+                df_pagos_ord_m = pd.concat([df_banc_m, df_efec_m], ignore_index=True) if (not df_banc_m.empty or not df_efec_m.empty) else pd.DataFrame()
+                render_titulo_seccion(f"🏦 Pagos a Operadora (Bancos / Efectivo) - {m_code}")
+                if not df_pagos_ord_m.empty:
+                    df_pord_disp = df_pagos_ord_m.copy()
+                    if "confirmado" in df_pord_disp.columns:
+                        df_pord_disp["Conf."] = df_pord_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
+                    if "agencia" not in df_pord_disp.columns and "nombre_agency" in df_pord_disp.columns:
+                        df_pord_disp["agencia"] = df_pord_disp["nombre_agency"]
+                    elif "nombre_agency" in df_pord_disp.columns:
+                        df_pord_disp["agencia"] = df_pord_disp["agencia"].fillna(df_pord_disp["nombre_agency"])
+                    if "tipo_pago" in df_pord_disp.columns:
+                        df_pord_disp = df_pord_disp.rename(columns={"tipo_pago": "pagos registrados", "referencia": "referencia / banco"})
 
-                if not df_g_m.empty or not df_p_all_m.empty:
-                    fmt_m_disp = obtener_formato_moneda(m_code)
-                    if not df_g_m.empty:
-                        st.caption(f"💸 **Gastos Registrados ({m_code}):**")
-                        df_g_disp = enriquecer_columna_cajero(df_g_m)
-                        if "confirmado" in df_g_disp.columns:
-                            df_g_disp["Conf."] = df_g_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
-                        if "agencia" not in df_g_disp.columns and "nombre_agency" in df_g_disp.columns:
-                            df_g_disp["agencia"] = df_g_disp["nombre_agency"]
-                        elif "nombre_agency" in df_g_disp.columns:
-                            df_g_disp["agencia"] = df_g_disp["agencia"].fillna(df_g_disp["nombre_agency"])
-                        cols_g_show = [c for c in ["fecha", "agencia", "cajero", "concepto", "moneda", "monto", "Conf."] if c in df_g_disp.columns]
-                        st.dataframe(
-                            df_g_disp[cols_g_show],
-                            column_config={"monto": st.column_config.NumberColumn("monto", format=fmt_m_disp)},
-                            use_container_width=True,
-                            hide_index=True
-                        )
-                    if not df_p_all_m.empty:
-                        df_p_disp = sincronizar_confirmaciones_pagos(df_p_all_m, df_pb_m, ag_nombre)
-                        df_p_disp = enriquecer_columna_cajero(df_p_disp)
-                        if "confirmado" in df_p_disp.columns:
-                            df_p_disp["Conf."] = df_p_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
-                        if "agencia" not in df_p_disp.columns and "nombre_agency" in df_p_disp.columns:
-                            df_p_disp["agencia"] = df_p_disp["nombre_agency"]
-                        elif "nombre_agency" in df_p_disp.columns:
-                            df_p_disp["agencia"] = df_p_disp["agencia"].fillna(df_p_disp["nombre_agency"])
-                        if "tipo_pago" in df_p_disp.columns:
-                            df_p_disp = df_p_disp.rename(columns={"tipo_pago": "pagos registrados", "referencia": "referencia / banco"})
+                    cols_dup = [c for c in ["fecha", "monto", "moneda", "pagos registrados", "referencia / banco", "cajero"] if c in df_pord_disp.columns]
+                    if cols_dup:
+                        df_pord_disp = df_pord_disp.drop_duplicates(subset=cols_dup)
 
-                        # Desduplicar registros por fecha, monto, moneda y pago/referencia
-                        cols_dup = [c for c in ["fecha", "monto", "moneda", "pagos registrados", "referencia / banco", "cajero"] if c in df_p_disp.columns]
-                        if cols_dup:
-                            df_p_disp = df_p_disp.drop_duplicates(subset=cols_dup)
-
-                        cols_p_show = [c for c in ["fecha", "agencia", "cajero", "pagos registrados", "referencia / banco", "banco", "moneda", "monto", "Conf."] if c in df_p_disp.columns]
-                        st.dataframe(
-                            df_p_disp[cols_p_show],
-                            column_config={"monto": st.column_config.NumberColumn("monto", format=fmt_m_disp)},
-                            use_container_width=True,
-                            hide_index=True
-                        )
+                    cols_pord_show = [c for c in ["fecha", "agencia", "cajero", "pagos registrados", "referencia / banco", "moneda", "monto", "Conf."] if c in df_pord_disp.columns]
+                    st.dataframe(
+                        df_pord_disp[cols_pord_show],
+                        column_config={"monto": st.column_config.NumberColumn("monto", format=fmt_m_disp)},
+                        use_container_width=True,
+                        hide_index=True
+                    )
                 else:
-                    st.info(f"ℹ️ Sin gastos ni pagos registrados en {m_code} para este ciclo.")
+                    st.info(f"ℹ️ Sin pagos ordinarios a la operadora en {m_code}.")
+
+                # 2. TABLA DEDICADA DE PAGO DE PREMIOS / REPOSICIÓN DE PÉRDIDAS
+                st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+                render_titulo_seccion(f"🏆 Pagos de Premios / Reposición de Pérdidas - {m_code}")
+                if not df_prem_m.empty:
+                    df_prem_disp = df_prem_m.copy()
+                    if "confirmado" in df_prem_disp.columns:
+                        df_prem_disp["Conf."] = df_prem_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
+                    if "agencia" not in df_prem_disp.columns and "nombre_agency" in df_prem_disp.columns:
+                        df_prem_disp["agencia"] = df_prem_disp["nombre_agency"]
+                    elif "nombre_agency" in df_prem_disp.columns:
+                        df_prem_disp["agencia"] = df_prem_disp["agencia"].fillna(df_prem_disp["nombre_agency"])
+                    if "tipo_pago" in df_prem_disp.columns:
+                        df_prem_disp = df_prem_disp.rename(columns={"tipo_pago": "detalle / concepto", "referencia": "referencia / cuenta"})
+
+                    cols_dup = [c for c in ["fecha", "monto", "moneda", "detalle / concepto", "referencia / cuenta", "cajero"] if c in df_prem_disp.columns]
+                    if cols_dup:
+                        df_prem_disp = df_prem_disp.drop_duplicates(subset=cols_dup)
+
+                    cols_prem_show = [c for c in ["fecha", "agencia", "cajero", "detalle / concepto", "referencia / cuenta", "moneda", "monto", "Conf."] if c in df_prem_disp.columns]
+                    st.dataframe(
+                        df_prem_disp[cols_prem_show],
+                        column_config={"monto": st.column_config.NumberColumn("monto", format=fmt_m_disp)},
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                else:
+                    st.caption(f"ℹ️ No hay reposiciones ni pagos de premios registrados en {m_code} para este ciclo.")
 
     if es_supervisor:
         try:
@@ -1265,17 +1328,22 @@ def modulo_home(agencia_data):
                     g_item = float(df_g_c["monto"].sum()) if not df_g_c.empty and "monto" in df_g_c.columns else 0.0
 
                     if not df_pg_c.empty:
-                        is_efectivo_c = df_pg_c["tipo_pago"].astype(str).str.lower().str.contains("efectivo") if "tipo_pago" in df_pg_c.columns else pd.Series([True]*len(df_pg_c))
-                        pg_efectivo_item = float(df_pg_c[is_efectivo_c]["monto"].sum()) if not df_pg_c.empty else 0.0
-                        pg_banco_diarios_c = float(df_pg_c[~is_efectivo_c]["monto"].sum()) if not df_pg_c.empty else 0.0
+                        df_pg_c_sync = sincronizar_confirmaciones_pagos(df_pg_c, df_pb_c, ag_nombre)
+                        df_pg_c_sync["tipo_clasif"] = df_pg_c_sync.apply(clasificar_pago_registro, axis=1)
+
+                        df_prem_c = df_pg_c_sync[df_pg_c_sync["tipo_clasif"] == "PREMIO"]
+                        df_efec_c = df_pg_c_sync[df_pg_c_sync["tipo_clasif"] == "EFECTIVO"]
+                        df_banc_c = df_pg_c_sync[df_pg_c_sync["tipo_clasif"] == "BANCO"]
+
+                        pg_premios_item = float(df_prem_c["monto"].sum()) if not df_prem_c.empty else 0.0
+                        pg_efectivo_item = float(df_efec_c["monto"].sum()) if not df_efec_c.empty else 0.0
+                        pg_banco_item = float(df_banc_c["monto"].sum()) if not df_banc_c.empty else 0.0
                     else:
+                        pg_premios_item = 0.0
                         pg_efectivo_item = 0.0
-                        pg_banco_diarios_c = 0.0
+                        pg_banco_item = 0.0
 
-                    pg_banco_bancarios_c = float(df_pb_c["monto"].sum()) if not df_pb_c.empty and "monto" in df_pb_c.columns else 0.0
-                    pg_banco_item = max(pg_banco_diarios_c, pg_banco_bancarios_c)
-
-                    s_dia_item = v_item - c_item - p_item - g_item - pg_efectivo_item - pg_banco_item
+                    s_dia_item = v_item - c_item - p_item - g_item - pg_efectivo_item - pg_banco_item + pg_premios_item
                     s_ant_item = obtener_saldo_anterior(ag_nombre, fecha_operativa, cajero_id=c_id_item)
                     s_final_item = s_ant_item + s_dia_item
 
@@ -1289,6 +1357,7 @@ def modulo_home(agencia_data):
                             <div style="display: flex; justify-content: space-between;"><span>Gastos:</span> <b>${g_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between;"><span>Pago Efectivo:</span> <b>${pg_efectivo_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between;"><span>Pagos Bancos / Puntos:</span> <b>${pg_banco_item:,.2f}</b></div>
+                            <div style="display: flex; justify-content: space-between;"><span>Pago Pérdidas / Premios:</span> <b style="color: #34d399;">${pg_premios_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 4px; margin-top: 4px;"><span>Resultado Día:</span> <b style="color: {'#34d399' if s_dia_item >= 0 else '#ef4444'};">${s_dia_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 4px; margin-top: 4px;"><span>Saldo Actual:</span> <b style="color: #00c853; font-size: 0.88rem;">${s_final_item:,.2f}</b></div>
                         </div>
@@ -2376,26 +2445,24 @@ def modulo_reporte_rango(agencia_data):
             tg = float(df_g_m['monto'].sum()) if not df_g_m.empty and 'monto' in df_g_m.columns else 0.0
 
             t_pago_efectivo_m = 0.0
-            t_pago_banco_diarios_m = 0.0
+            t_pago_banco_m = 0.0
             t_pago_premios_m = 0.0
+            df_prem_rep = pd.DataFrame()
+            df_efec_rep = pd.DataFrame()
+            df_banc_rep = pd.DataFrame()
 
             if not df_p_m.empty:
-                tipos_str_m = df_p_m["tipo_pago"].astype(str).str.upper() if "tipo_pago" in df_p_m.columns else pd.Series([""]*len(df_p_m))
-                is_premio_m = tipos_str_m.str.contains("PREMIO|PÉRDIDA|PERDIDA|ABONO|REPOSICION|REPOSICIÓN", regex=True)
-                t_pago_premios_m = float(df_p_m[is_premio_m]["monto"].sum())
-                
-                is_efectivo_m = tipos_str_m.str.contains("EFECTIVO") & (~is_premio_m)
-                t_pago_efectivo_m = float(df_p_m[is_efectivo_m]["monto"].sum())
-                
-                is_banco_m = (~is_efectivo_m) & (~is_premio_m)
-                t_pago_banco_diarios_m = float(df_p_m[is_banco_m]["monto"].sum())
-            else:
-                t_pago_efectivo_m = 0.0
-                t_pago_banco_diarios_m = 0.0
-                t_pago_premios_m = 0.0
+                df_p_m_sync = sincronizar_confirmaciones_pagos(df_p_m, df_pb_m, agencia_data['nombre_agencia'])
+                df_p_m_sync = enriquecer_columna_cajero(df_p_m_sync)
+                df_p_m_sync["tipo_clasif"] = df_p_m_sync.apply(clasificar_pago_registro, axis=1)
 
-            t_pago_banco_bancarios_m = float(df_pb_m["monto"].sum()) if not df_pb_m.empty and "monto" in df_pb_m.columns else 0.0
-            t_pago_banco_m = max(t_pago_banco_diarios_m, t_pago_banco_bancarios_m)
+                df_prem_rep = df_p_m_sync[df_p_m_sync["tipo_clasif"] == "PREMIO"].copy()
+                df_efec_rep = df_p_m_sync[df_p_m_sync["tipo_clasif"] == "EFECTIVO"].copy()
+                df_banc_rep = df_p_m_sync[df_p_m_sync["tipo_clasif"] == "BANCO"].copy()
+
+                t_pago_premios_m = float(df_prem_rep["monto"].sum()) if not df_prem_rep.empty and "monto" in df_prem_rep.columns else 0.0
+                t_pago_efectivo_m = float(df_efec_rep["monto"].sum()) if not df_efec_rep.empty and "monto" in df_efec_rep.columns else 0.0
+                t_pago_banco_m = float(df_banc_rep["monto"].sum()) if not df_banc_rep.empty and "monto" in df_banc_rep.columns else 0.0
 
             saldo_op_m = tv - tc - tp
             saldo_neto_m = saldo_op_m - tg - t_pago_efectivo_m - t_pago_banco_m + t_pago_premios_m
@@ -2466,21 +2533,43 @@ def modulo_reporte_rango(agencia_data):
                         use_container_width=True,
                         hide_index=True
                     )
-            if not df_p_m.empty:
-                with st.expander(f"💰 Pagos ({m_code})"):
-                    df_p_disp = sincronizar_confirmaciones_pagos(df_p_m, df_pb_m, agencia_data['nombre_agencia'])
-                    df_p_disp = enriquecer_columna_cajero(df_p_disp)
-                    if "confirmado" in df_p_disp.columns:
-                        df_p_disp["Conf."] = df_p_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
-                    if "agencia" not in df_p_disp.columns and "nombre_agency" in df_p_disp.columns:
-                        df_p_disp["agencia"] = df_p_disp["nombre_agency"]
-                    elif "nombre_agency" in df_p_disp.columns:
-                        df_p_disp["agencia"] = df_p_disp["agencia"].fillna(df_p_disp["nombre_agency"])
-                    df_p_disp = df_p_disp.rename(columns={"tipo_pago": "pagos registrados"})
-                    cols_p = ["agencia", "cajero", "pagos registrados", "moneda", "monto", "Conf.", "fecha"]
-                    cols_existentes_p = [c for c in cols_p if c in df_p_disp.columns]
+
+            df_pagos_ord_rep = pd.concat([df_banc_rep, df_efec_rep], ignore_index=True) if (not df_banc_rep.empty or not df_efec_rep.empty) else pd.DataFrame()
+            if not df_pagos_ord_rep.empty:
+                with st.expander(f"🏦 Pagos a la Operadora (Bancos / Efectivo) ({m_code})"):
+                    df_pord_disp = df_pagos_ord_rep.copy()
+                    if "confirmado" in df_pord_disp.columns:
+                        df_pord_disp["Conf."] = df_pord_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
+                    if "agencia" not in df_pord_disp.columns and "nombre_agency" in df_pord_disp.columns:
+                        df_pord_disp["agencia"] = df_pord_disp["nombre_agency"]
+                    elif "nombre_agency" in df_pord_disp.columns:
+                        df_pord_disp["agencia"] = df_pord_disp["agencia"].fillna(df_pord_disp["nombre_agency"])
+                    if "tipo_pago" in df_pord_disp.columns:
+                        df_pord_disp = df_pord_disp.rename(columns={"tipo_pago": "pagos registrados", "referencia": "referencia / banco"})
+                    cols_p = ["agencia", "cajero", "pagos registrados", "referencia / banco", "moneda", "monto", "Conf.", "fecha"]
+                    cols_existentes_p = [c for c in cols_p if c in df_pord_disp.columns]
                     st.dataframe(
-                        df_p_disp[cols_existentes_p],
+                        df_pord_disp[cols_existentes_p],
+                        column_config={"monto": st.column_config.NumberColumn("monto", format=fmt_curr_r)},
+                        use_container_width=True,
+                        hide_index=True
+                    )
+
+            if not df_prem_rep.empty:
+                with st.expander(f"🏆 Pagos de Premios / Reposición de Pérdidas ({m_code})"):
+                    df_prem_disp = df_prem_rep.copy()
+                    if "confirmado" in df_prem_disp.columns:
+                        df_prem_disp["Conf."] = df_prem_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
+                    if "agencia" not in df_prem_disp.columns and "nombre_agency" in df_prem_disp.columns:
+                        df_prem_disp["agencia"] = df_prem_disp["nombre_agency"]
+                    elif "nombre_agency" in df_prem_disp.columns:
+                        df_prem_disp["agencia"] = df_prem_disp["agencia"].fillna(df_prem_disp["nombre_agency"])
+                    if "tipo_pago" in df_prem_disp.columns:
+                        df_prem_disp = df_prem_disp.rename(columns={"tipo_pago": "detalle / concepto", "referencia": "referencia / cuenta"})
+                    cols_prem = ["agencia", "cajero", "detalle / concepto", "referencia / cuenta", "moneda", "monto", "Conf.", "fecha"]
+                    cols_existentes_prem = [c for c in cols_prem if c in df_prem_disp.columns]
+                    st.dataframe(
+                        df_prem_disp[cols_existentes_prem],
                         column_config={"monto": st.column_config.NumberColumn("monto", format=fmt_curr_r)},
                         use_container_width=True,
                         hide_index=True
@@ -2612,15 +2701,15 @@ def modulo_cierre_diario(agencia_data):
     abonos_recibidos = 0.0
     if not df_pg.empty and 'monto' in df_pg.columns:
         for _, r_pg in df_pg.iterrows():
-            t_pg_tipo = str(r_pg.get("tipo_pago", "") or r_pg.get("metodo", "")).upper()
             m_pg = float(r_pg.get("monto", 0.0))
-            if any(k in t_pg_tipo for k in ["PREMIO", "PREMIOS", "PERDIDA", "PÉRDIDA", "ABONO", "REPOSICION", "REPOSICIÓN", "ENTRADA"]):
+            if clasificar_pago_registro(r_pg) == "PREMIO":
                 abonos_recibidos += m_pg
             else:
                 pagos_entregados += m_pg
 
-    t_pagos = pagos_entregados - abonos_recibidos
-    t_saldo_dia = t_venta - t_comis - t_premios - t_gastos - t_pagos
+    t_pagos = pagos_entregados
+    t_pago_premios = abonos_recibidos
+    t_saldo_dia = t_venta - t_comis - t_premios - t_gastos - t_pagos + t_pago_premios
 
     # Calcular Saldo Anterior y Saldo Final
     saldo_ant = obtener_saldo_anterior(nom, fecha_sel, cajero_id=c_target_id)
@@ -2656,6 +2745,8 @@ def modulo_cierre_diario(agencia_data):
             <span style="color: #94a3b8;">Gastos:</span> <b style="color: #ffffff;">${t_gastos:,.2f}</b>
             <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
             <span style="color: #94a3b8;">Pagos:</span> <b style="color: #ffffff;">${t_pagos:,.2f}</b>
+            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">+</span>
+            <span style="color: #94a3b8;">Pago Pérdidas / Premios:</span> <b style="color: #34d399;">${t_pago_premios:,.2f}</b>
             <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">=</span>
             <span style="color: #94a3b8;">Saldo Actual:</span> <b style="font-size: 1.1rem; color: #00c853;">${t_saldo_final:,.2f}</b>
         </div>
@@ -2734,17 +2825,22 @@ def modulo_cierre_diario(agencia_data):
                     g_item = float(df_g_c["monto"].sum()) if not df_g_c.empty and "monto" in df_g_c.columns else 0.0
 
                     if not df_pg_c.empty:
-                        is_efectivo = df_pg_c["tipo_pago"].astype(str).str.lower().str.contains("efectivo") if "tipo_pago" in df_pg_c.columns else pd.Series([True]*len(df_pg_c))
-                        pg_efectivo_item = float(df_pg_c[is_efectivo]["monto"].sum()) if not df_pg_c.empty else 0.0
-                        pg_banco_diarios = float(df_pg_c[~is_efectivo]["monto"].sum()) if not df_pg_c.empty else 0.0
+                        df_pg_c_sync = sincronizar_confirmaciones_pagos(df_pg_c, df_pb_c, nom)
+                        df_pg_c_sync["tipo_clasif"] = df_pg_c_sync.apply(clasificar_pago_registro, axis=1)
+
+                        df_prem_c = df_pg_c_sync[df_pg_c_sync["tipo_clasif"] == "PREMIO"]
+                        df_efec_c = df_pg_c_sync[df_pg_c_sync["tipo_clasif"] == "EFECTIVO"]
+                        df_banc_c = df_pg_c_sync[df_pg_c_sync["tipo_clasif"] == "BANCO"]
+
+                        pg_premios_item = float(df_prem_c["monto"].sum()) if not df_prem_c.empty else 0.0
+                        pg_efectivo_item = float(df_efec_c["monto"].sum()) if not df_efec_c.empty else 0.0
+                        pg_banco_item = float(df_banc_c["monto"].sum()) if not df_banc_c.empty else 0.0
                     else:
+                        pg_premios_item = 0.0
                         pg_efectivo_item = 0.0
-                        pg_banco_diarios = 0.0
+                        pg_banco_item = 0.0
 
-                    pg_banco_bancarios = float(df_pb_c["monto"].sum()) if not df_pb_c.empty and "monto" in df_pb_c.columns else 0.0
-                    pg_banco_item = max(pg_banco_diarios, pg_banco_bancarios)
-
-                    s_dia_item = v_item - c_item - p_item - g_item - pg_efectivo_item - pg_banco_item
+                    s_dia_item = v_item - c_item - p_item - g_item - pg_efectivo_item - pg_banco_item + pg_premios_item
                     s_ant_item = obtener_saldo_anterior(nom, fecha_sel, cajero_id=c_id_item)
                     s_final_item = s_ant_item + s_dia_item
 
@@ -2758,6 +2854,7 @@ def modulo_cierre_diario(agencia_data):
                             <div style="display: flex; justify-content: space-between;"><span>Gastos:</span> <b>${g_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between;"><span>Pago Efectivo:</span> <b>${pg_efectivo_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between;"><span>Pagos Bancos / Puntos:</span> <b>${pg_banco_item:,.2f}</b></div>
+                            <div style="display: flex; justify-content: space-between;"><span>Pago Pérdidas / Premios:</span> <b style="color: #34d399;">${pg_premios_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 4px; margin-top: 4px;"><span>Resultado Día:</span> <b style="color: {'#34d399' if s_dia_item >= 0 else '#ef4444'};">${s_dia_item:,.2f}</b></div>
                             <div style="display: flex; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 4px; margin-top: 4px;"><span>Saldo Actual:</span> <b style="color: #00c853; font-size: 0.88rem;">${s_final_item:,.2f}</b></div>
                         </div>
@@ -3199,8 +3296,23 @@ def modulo_reporte_diario(agencia_data):
     t_comis = float(df_v['comision'].sum()) if not df_v.empty else 0.0
     t_premios = float(df_v['monto_premios'].sum()) if not df_v.empty else 0.0
     t_gastos = float(df_g['monto'].sum()) if not df_g.empty else 0.0
-    t_pagos = float(df_p['monto'].sum()) if not df_p.empty else 0.0
-    t_saldo = t_venta - t_comis - t_premios - t_gastos - t_pagos
+    
+    t_pagos = 0.0
+    t_pago_premios = 0.0
+    df_prem_dia = pd.DataFrame()
+    df_pagos_dia = pd.DataFrame()
+
+    if not df_p.empty:
+        df_p_dia_sync = sincronizar_confirmaciones_pagos(df_p, df_pb, agencia_data['nombre_agencia'])
+        df_p_dia_sync["tipo_clasif"] = df_p_dia_sync.apply(clasificar_pago_registro, axis=1)
+
+        df_prem_dia = df_p_dia_sync[df_p_dia_sync["tipo_clasif"] == "PREMIO"].copy()
+        df_pagos_dia = df_p_dia_sync[df_p_dia_sync["tipo_clasif"] != "PREMIO"].copy()
+
+        t_pago_premios = float(df_prem_dia["monto"].sum()) if not df_prem_dia.empty else 0.0
+        t_pagos = float(df_pagos_dia["monto"].sum()) if not df_pagos_dia.empty else 0.0
+
+    t_saldo = t_venta - t_comis - t_premios - t_gastos - t_pagos + t_pago_premios
 
     # Calcular Saldo Anterior y Saldo Final
     nom = agencia_data['nombre_agencia']
@@ -3220,6 +3332,8 @@ def modulo_reporte_diario(agencia_data):
             <span style="color: #94a3b8;">Gastos:</span> <b style="color: #ffffff;">${t_gastos:,.2f}</b>
             <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">-</span>
             <span style="color: #94a3b8;">Pagos:</span> <b style="color: #ffffff;">${t_pagos:,.2f}</b>
+            <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">+</span>
+            <span style="color: #94a3b8;">Pago Pérdidas / Premios:</span> <b style="color: #34d399;">${t_pago_premios:,.2f}</b>
             <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">=</span>
             <span style="color: #94a3b8;">Saldo Actual:</span> <b style="font-size: 1.1rem; color: #00c853;">${t_saldo_final:,.2f}</b>
         </div>
@@ -3259,14 +3373,27 @@ def modulo_reporte_diario(agencia_data):
                 hide_index=True
             )
 
-    if not df_p.empty:
-        with st.expander("💳 Ver Detalle de Pagos", expanded=False):
-            df_p_disp = df_p.copy()
+    if not df_pagos_dia.empty:
+        with st.expander("💳 Ver Detalle de Pagos a Operadora", expanded=False):
+            df_p_disp = df_pagos_dia.copy()
             if "confirmado" in df_p_disp.columns:
                 df_p_disp["Conf."] = df_p_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
             cols_p_show = [c for c in ["tipo_pago", "monto", "moneda", "Conf.", "fecha"] if c in df_p_disp.columns]
             st.dataframe(
                 df_p_disp[cols_p_show],
+                column_config={"monto": st.column_config.NumberColumn("monto", format="$%,.2f")},
+                use_container_width=True,
+                hide_index=True
+            )
+
+    if not df_prem_dia.empty:
+        with st.expander("🏆 Ver Detalle de Pagos de Premios / Reposición", expanded=False):
+            df_prem_disp = df_prem_dia.copy()
+            if "confirmado" in df_prem_disp.columns:
+                df_prem_disp["Conf."] = df_prem_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
+            cols_prem_show = [c for c in ["tipo_pago", "monto", "moneda", "Conf.", "fecha"] if c in df_prem_disp.columns]
+            st.dataframe(
+                df_prem_disp[cols_prem_show],
                 column_config={"monto": st.column_config.NumberColumn("monto", format="$%,.2f")},
                 use_container_width=True,
                 hide_index=True

@@ -535,7 +535,11 @@ def _renderizar_lista_transacciones(df_list, key_prefix="act"):
         conf_por = str(row.get("confirmado_por") or row.get("supervisor_nombre") or "").strip()
         
         cat_str = str(row.get("categoria", "")).upper()
-        if "GASTO" in cat_str:
+        conc_str = str(row.get("concepto", "")).upper()
+        if "PREMIO" in cat_str or "PREMIO" in conc_str or "PÉRDIDA" in cat_str or "PERDIDA" in conc_str or "REPOSICION" in cat_str or "REPOSICIÓN" in cat_str or "ABONO" in cat_str or "ABONO" in conc_str:
+            color_monto = "#34d399"
+            icon_cat = "🏆"
+        elif "GASTO" in cat_str:
             color_monto = "#f43f5e"
             icon_cat = "💸"
         elif "EFECTIVO" in cat_str:
@@ -979,8 +983,11 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
             metodo = "TRANSFERENCIA" if "TRANSFERENCIA" in metodo_raw else metodo_raw
             
             cat_db = str(r.get("categoria") or "").strip()
+            conc_str = str(r.get("concepto") or "").upper()
             if cat_db:
                 cat = cat_db
+            elif any(k in conc_str for k in ["PREMIO", "PÉRDIDA", "PERDIDA", "ABONO", "REPOSICION", "REPOSICIÓN"]):
+                cat = "Pago de Premios / Reposición"
             elif "PUNTO" in metodo:
                 cat = "Punto de Venta"
             else:
@@ -1056,6 +1063,12 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
             conf_por = str(r.get("confirmado_por") or r.get("supervisor_nombre") or "").strip()
 
             tipo = str(r.get("tipo_pago") or "").strip()
+            tipo_u = tipo.upper()
+            if any(k in tipo_u for k in ["PREMIO", "PÉRDIDA", "PERDIDA", "ABONO", "REPOSICION", "REPOSICIÓN"]):
+                cat_dia = "Pago de Premios / Reposición"
+            else:
+                cat_dia = "Efectivo"
+
             registros.append({
                 "id": r.get("id"),
                 "tabla": "cda_pagos_diarios",
@@ -1063,7 +1076,7 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
                 "agencia": ag_nom,
                 "cajero_id": cid,
                 "cajero_nombre": c_nombre,
-                "categoria": "Efectivo",
+                "categoria": cat_dia,
                 "metodo": tipo or "EFECTIVO",
                 "concepto": tipo if tipo else "Pago Efectivo",
                 "referencia": str(r.get("referencia") or "N/A"),
@@ -1098,7 +1111,7 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
     with col_f4:
         sel_cajero = st.selectbox("👤 Cajero:", lista_cajeros, key="pizarra_cajero_sel_compact")
     with col_f5:
-        sel_tipo = st.selectbox("💳 Tipo:", ["Todas", "Bancos (Transferencias/POS/Zelle)", "Gastos", "Efectivo"], key="pizarra_tipo_sel_compact")
+        sel_tipo = st.selectbox("💳 Tipo:", ["Todas", "Bancos (Transferencias/POS/Zelle)", "Gastos", "Efectivo", "Pago de Premios / Reposición"], key="pizarra_tipo_sel_compact")
     with col_f6:
         sel_estado = st.selectbox("🚦 Estado:", ["⏳ Pendientes", "✅ Confirmados", "Todos"], key="pizarra_estado_sel_compact")
 
@@ -1120,6 +1133,8 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
             df_act_work = df_act_work[df_act_work["categoria"] == "Gastos"]
         elif sel_tipo == "Efectivo":
             df_act_work = df_act_work[df_act_work["categoria"] == "Efectivo"]
+        elif sel_tipo == "Pago de Premios / Reposición":
+            df_act_work = df_act_work[df_act_work["categoria"] == "Pago de Premios / Reposición"]
         else: # Bancos
             df_act_work = df_act_work[df_act_work["categoria"].isin(["Bancos (Transferencia/POS/Zelle)", "Punto de Venta", "Transferencia / Zelle / Pago Móvil"])]
 

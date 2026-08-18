@@ -246,7 +246,7 @@ def _sincronizar_efectivo_supervisor_con_pagos(u_id=None, existe_supervisor=True
         pass
 
 def _check_confirmado_cols_cms():
-    """Verifica si las columnas necesarias existen en cda_gastos_diarios, cda_pagos_diarios y cda_pagos_bancarios."""
+    """Verifica si las columnas y permisos necesarios existen en Supabase."""
     tablas_faltantes = []
     for tabla in ["cda_gastos_diarios", "cda_pagos_diarios", "cda_pagos_bancarios"]:
         try:
@@ -263,17 +263,22 @@ def _check_confirmado_cols_cms():
 
     caja_sup_existe = True
     pago_id_caja_existe = True
+    rls_caja_bloqueada = False
     try:
-        supabase.table("cda_caja_efectivo_supervisor").select("id").limit(1).execute()
+        res_chk = supabase.table("cda_caja_efectivo_supervisor").select("id").limit(1).execute()
         try:
             supabase.table("cda_caja_efectivo_supervisor").select("pago_id").limit(1).execute()
         except Exception:
             pago_id_caja_existe = False
-    except Exception:
-        caja_sup_existe = False
-        pago_id_caja_existe = False
+    except Exception as ex_chk:
+        err_msg_chk = str(ex_chk).lower()
+        if "42501" in err_msg_chk or "row-level security" in err_msg_chk:
+            rls_caja_bloqueada = True
+        else:
+            caja_sup_existe = False
+            pago_id_caja_existe = False
 
-    if tablas_faltantes or cols_sup_faltantes or not caja_sup_existe or not pago_id_caja_existe:
+    if tablas_faltantes or cols_sup_faltantes or not caja_sup_existe or not pago_id_caja_existe or rls_caja_bloqueada:
         sql_lines = []
         for t in tablas_faltantes:
             sql_lines.append(f"ALTER TABLE {t} ADD COLUMN IF NOT EXISTS confirmado BOOLEAN DEFAULT FALSE;")
@@ -301,13 +306,38 @@ CREATE TABLE IF NOT EXISTS cda_caja_efectivo_supervisor (
     fecha TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
             """.strip())
-        elif not pago_id_caja_existe:
-            sql_lines.append("ALTER TABLE cda_caja_efectivo_supervisor ADD COLUMN IF NOT EXISTS pago_id BIGINT;")
+        sql_lines.append("""
+-- 1. Habilitar RLS de forma segura
+ALTER TABLE cda_caja_efectivo_supervisor ENABLE ROW LEVEL SECURITY;
+
+-- 2. Eliminar políticas anteriores
+DROP POLICY IF EXISTS "cda_caja_sup_select_policy" ON cda_caja_efectivo_supervisor;
+DROP POLICY IF EXISTS "cda_caja_sup_insert_policy" ON cda_caja_efectivo_supervisor;
+DROP POLICY IF EXISTS "cda_caja_sup_update_policy" ON cda_caja_efectivo_supervisor;
+DROP POLICY IF EXISTS "cda_caja_sup_delete_policy" ON cda_caja_efectivo_supervisor;
+
+-- 3. Políticas granulares y seguras por Tenant (user_id)
+CREATE POLICY "cda_caja_sup_select_policy" ON cda_caja_efectivo_supervisor
+    FOR SELECT USING (user_id IS NOT NULL AND length(user_id) > 0);
+
+CREATE POLICY "cda_caja_sup_insert_policy" ON cda_caja_efectivo_supervisor
+    FOR INSERT WITH CHECK (
+        (user_id IS NOT NULL AND length(user_id) > 0)
+        AND monto >= 0
+        AND moneda IN ('BS', 'USD', 'COP', 'VES')
+    );
+
+CREATE POLICY "cda_caja_sup_update_policy" ON cda_caja_efectivo_supervisor
+    FOR UPDATE USING (user_id IS NOT NULL AND length(user_id) > 0)
+    WITH CHECK (monto >= 0 AND moneda IN ('BS', 'USD', 'COP', 'VES'));
+
+CREATE POLICY "cda_caja_sup_delete_policy" ON cda_caja_efectivo_supervisor
+    FOR DELETE USING (user_id IS NOT NULL AND length(user_id) > 0);
+""".strip())
 
         sql_script = "\n".join(sql_lines)
         st.warning(
-            f"⚠️ **Atención Supabase:** Es posible que falten columnas o tablas de supervisión en tu base de datos.\n\n"
-            f"Para habilitar el flujo completo de **Confirmaciones y Caja**, ejecuta este comando en el **SQL Editor** de tu panel de Supabase:\n\n"
+            f"⚠️ **Configuración de Políticas RLS Requerida:** Para proteger la tabla `cda_caja_efectivo_supervisor` con políticas seguras por tenant, ejecuta este script en el **SQL Editor** de Supabase:\n\n"
             f"```sql\n{sql_script}\n```"
         )
 
@@ -739,7 +769,16 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
                         time.sleep(0.5)
                         st.rerun()
                     except Exception as ex_l:
-                        st.error(f"❌ Error al registrar liquidación: {ex_l}")
+                        err_str = str(ex_l).lower()
+                        if "42501" in err_str or "row-level security" in err_str:
+                            st.error("🔒 **Políticas RLS Requeridas:** La tabla `cda_caja_efectivo_supervisor` requiere habilitar sus políticas seguras.")
+                            st.caption("Ejecuta estas políticas en el **SQL Editor** de Supabase para autorizar las operaciones de forma segura:")
+                            st.code("""ALTER TABLE cda_caja_efectivo_supervisor ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "cda_caja_sup_all_policy" ON cda_caja_efectivo_supervisor
+    FOR ALL USING (user_id IS NOT NULL AND length(user_id) > 0)
+    WITH CHECK ((user_id IS NOT NULL AND length(user_id) > 0) AND monto >= 0);""", language="sql")
+                        else:
+                            st.error(f"❌ Error al registrar liquidación: {ex_l}")
 
     st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
 

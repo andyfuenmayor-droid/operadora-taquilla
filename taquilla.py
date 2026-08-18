@@ -487,21 +487,28 @@ def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha
     df_pb = cargar_datos_agencia_tabla("cda_pagos_bancarios", agencia_nombre, fecha=fecha, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, u_id=u_id)
     df_ps = cargar_datos_agencia_tabla("pagos_semana", agencia_nombre, fecha=fecha, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, u_id=u_id)
 
+    if df_ps.empty and fecha_desde:
+        df_ps = cargar_datos_agencia_tabla("pagos_semana", agencia_nombre, fecha_desde=fecha_desde, u_id=u_id)
+    if df_ps.empty:
+        df_ps = cargar_datos_agencia_tabla("pagos_semana", agencia_nombre, u_id=u_id)
+
     if cajero_id:
         df_p = filtrar_df_por_cajero(df_p, cajero_id)
         df_pb = filtrar_df_por_cajero(df_pb, cajero_id)
 
-    # 1. Integrar pagos_semana en df_p y df_pb si no existen
+    # 1. Integrar pagos_semana en df_p de forma limpia
     if not df_ps.empty:
         nuevas_ps_p = []
-        nuevas_ps_pb = []
         for _, r_ps in df_ps.iterrows():
             monto_ps = float(r_ps.get("monto", 0))
             fecha_ps_str = str(r_ps.get("fecha", ""))[:10]
             tipo_ps = str(r_ps.get("tipo_pago", "Pago")).strip()
-            metodo_ps = str(r_ps.get("metodo", "EFECTIVO")).strip().upper()
+            metodo_ps = str(r_ps.get("metodo", "BANCO")).strip().upper()
             ref_ps = str(r_ps.get("referencia", "")).strip()
             mon_ps = str(r_ps.get("moneda") or "BS").strip().upper()
+            is_conf_ps = bool(r_ps.get("confirmado", False))
+
+            is_prem_ps = any(k in (tipo_ps + " " + metodo_ps + " " + ref_ps).upper() for k in ["PREMIO", "PÉRDIDA", "PERDIDA", "ABONO", "REPOSICION", "REPOSICIÓN"])
 
             ya_existe_p = False
             if not df_p.empty and "monto" in df_p.columns:
@@ -513,57 +520,40 @@ def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha
                 if not coincides.empty:
                     ya_existe_p = True
 
-            if not ya_existe_p:
-                tipo_final = tipo_ps
-                if metodo_ps == "BANCO":
-                    ref_t = ref_ps if ref_ps else "BANCO"
-                    if "ref" not in tipo_ps.lower():
-                        tipo_final = f"{tipo_ps} - BANCO (Ref: {ref_t})"
+            if not ya_existe_p and not df_pb.empty and "monto" in df_pb.columns:
+                fechas_pb = df_pb["fecha"].astype(str).str.slice(0, 10)
+                coincides_pb = df_pb[
+                    (fechas_pb == fecha_ps_str) & 
+                    (abs(df_pb["monto"].astype(float) - monto_ps) < 0.01)
+                ]
+                if not coincides_pb.empty:
+                    ya_existe_p = True
+
+            if not ya_existe_p and monto_ps > 0:
+                tipo_final = "Pago de Premios" if is_prem_ps else tipo_ps
+                if metodo_ps and metodo_ps not in tipo_final.upper():
+                    tipo_final = f"{tipo_final} ({metodo_ps})"
+                if ref_ps and "REF:" not in tipo_final.upper():
+                    tipo_final = f"{tipo_final} - Ref: {ref_ps}"
                 
                 nuevas_ps_p.append({
                     "fecha": fecha_ps_str,
                     "agencia": agencia_nombre,
                     "nombre_agency": agencia_nombre,
                     "tipo_pago": tipo_final,
-                    "concepto": tipo_ps,
+                    "concepto": "Pago de Premios" if is_prem_ps else tipo_ps,
                     "metodo_pago": metodo_ps,
+                    "metodo": metodo_ps,
                     "monto": monto_ps,
                     "moneda": mon_ps,
                     "referencia": ref_ps,
+                    "pos_o_cuenta": ref_ps,
                     "user_id": r_ps.get("user_id"),
-                    "confirmado": True
+                    "confirmado": is_conf_ps
                 })
-
-            if metodo_ps == "BANCO":
-                ya_existe_pb = False
-                if not df_pb.empty and "monto" in df_pb.columns:
-                    fechas_pb = df_pb["fecha"].astype(str).str.slice(0, 10)
-                    coincides_pb = df_pb[
-                        (fechas_pb == fecha_ps_str) & 
-                        (abs(df_pb["monto"].astype(float) - monto_ps) < 0.01)
-                    ]
-                    if not coincides_pb.empty:
-                        ya_existe_pb = True
-                
-                if not ya_existe_pb:
-                    nuevas_ps_pb.append({
-                        "fecha": fecha_ps_str,
-                        "agencia": agencia_nombre,
-                        "metodo_pago": "BANCO",
-                        "monto": monto_ps,
-                        "moneda": mon_ps,
-                        "referencia": ref_ps,
-                        "concepto": tipo_ps,
-                        "datos_pagador": ref_ps,
-                        "pos_o_cuenta": ref_ps,
-                        "user_id": r_ps.get("user_id"),
-                        "confirmado": True
-                    })
 
         if nuevas_ps_p:
             df_p = pd.concat([df_p, pd.DataFrame(nuevas_ps_p)], ignore_index=True)
-        if nuevas_ps_pb:
-            df_pb = pd.concat([df_pb, pd.DataFrame(nuevas_ps_pb)], ignore_index=True)
 
     # 2. Incorporar registros de df_pb a df_p para vista consolidada
     refs_existentes = set()
@@ -587,7 +577,6 @@ def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha
             concepto_b = str(r.get("concepto", "")).strip()
             pos_cta = str(r.get("pos_o_cuenta", "")).strip()
             
-            # Construir descripción completa y legible preservando el concepto original
             if concepto_b and concepto_b.upper() not in metodo.upper():
                 tipo = f"{concepto_b} - {metodo}"
             else:
@@ -613,6 +602,7 @@ def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha
                 "tipo_pago": tipo,
                 "concepto": concepto_b if concepto_b else metodo,
                 "metodo_pago": metodo,
+                "metodo": metodo,
                 "monto": monto_b,
                 "moneda": mon_b,
                 "referencia": ref_b if ref_b else r.get("referencia", ""),
@@ -935,14 +925,16 @@ def modulo_home(agencia_data):
 
     f_desde_admin = str(ciclo_admin.get("desde"))
     f_hasta_admin = str(ciclo_admin.get("hasta"))
+    hoy_str = str(datetime.now().date())
+    f_hasta_efectivo = max(f_hasta_admin, hoy_str) if f_hasta_admin else hoy_str
     f_desde_carga = f_desde_admin if (f_desde_admin and f_desde_admin.lower() != "none") else str_operativa
     if f_desde_carga > str_operativa:
         f_desde_carga = str_operativa
 
     try:
-        df_v_hoy = cargar_datos_agencia_tabla("cda_reportes_diarios", ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_admin, u_id=u_id_admin)
+        df_v_hoy = cargar_datos_agencia_tabla("cda_reportes_diarios", ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_efectivo, u_id=u_id_admin)
         if df_v_hoy.empty or "monto_venta" not in df_v_hoy.columns or float(pd.to_numeric(df_v_hoy["monto_venta"], errors="coerce").fillna(0).sum()) == 0:
-            df_ofic = cargar_datos_agencia_tabla("carga_actual", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_admin, u_id=u_id_admin)
+            df_ofic = cargar_datos_agencia_tabla("carga_actual", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_efectivo, u_id=u_id_admin)
             if df_ofic.empty:
                 df_ofic = cargar_datos_agencia_tabla("carga_actual", ag_nombre, u_id=u_id_admin)
             if not df_ofic.empty:
@@ -952,24 +944,24 @@ def modulo_home(agencia_data):
                 df_ofic["neto"] = pd.to_numeric(df_ofic.get("neto", 0), errors="coerce").fillna(0.0)
                 df_v_hoy = df_ofic
 
-        df_g_hoy = cargar_datos_agencia_tabla("cda_gastos_diarios", ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_admin, u_id=u_id_admin)
+        df_g_hoy = cargar_datos_agencia_tabla("cda_gastos_diarios", ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_efectivo, u_id=u_id_admin)
         if df_g_hoy.empty or "monto" not in df_g_hoy.columns or float(pd.to_numeric(df_g_hoy["monto"], errors="coerce").fillna(0).sum()) == 0:
-            df_g_ofic = cargar_datos_agencia_tabla("gastos", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_admin, u_id=u_id_admin)
+            df_g_ofic = cargar_datos_agencia_tabla("gastos", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_efectivo, u_id=u_id_admin)
             if df_g_ofic.empty:
                 df_g_ofic = cargar_datos_agencia_tabla("gastos", ag_nombre, u_id=u_id_admin)
             if not df_g_ofic.empty:
                 df_g_ofic["concepto"] = df_g_ofic.get("concepto", df_g_ofic.get("descripcion", "Gasto General"))
                 df_g_hoy = df_g_ofic
 
-        df_p_hoy, df_pb_hoy = obtener_pagos_unificados(ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_admin, cajero_id=c_id_target, es_supervisor=es_sup_o_ag, u_id=u_id_admin)
+        df_p_hoy, df_pb_hoy = obtener_pagos_unificados(ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_efectivo, cajero_id=c_id_target, es_supervisor=es_sup_o_ag, u_id=u_id_admin)
         if df_p_hoy.empty or "monto" not in df_p_hoy.columns or float(pd.to_numeric(df_p_hoy["monto"], errors="coerce").fillna(0).sum()) == 0:
-            df_p_sem = cargar_datos_agencia_tabla("pagos_semana", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_admin, u_id=u_id_admin)
+            df_p_sem = cargar_datos_agencia_tabla("pagos_semana", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_efectivo, u_id=u_id_admin)
             if df_p_sem.empty:
                 df_p_sem = cargar_datos_agencia_tabla("pagos_semana", ag_nombre, u_id=u_id_admin)
             if df_p_sem.empty:
-                df_p_sem = cargar_datos_agencia_tabla("pagos", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_admin, u_id=u_id_admin)
+                df_p_sem = cargar_datos_agencia_tabla("pagos", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_efectivo, u_id=u_id_admin)
             if not df_p_sem.empty:
-                df_p_sem["tipo_pago"] = df_p_sem.get("metodo", df_p_sem.get("tipo", df_p_sem.get("tipo_pago", "EFECTIVO")))
+                df_p_sem["concepto"] = df_p_sem.get("tipo_pago", "Pago")
                 df_p_hoy = df_p_sem
 
         if df_p_hoy.empty and not df_pb_hoy.empty:

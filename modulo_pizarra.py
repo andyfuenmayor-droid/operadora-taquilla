@@ -927,6 +927,7 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
     df_bancarios = pd.DataFrame()
     df_gastos = pd.DataFrame()
     df_pagos_diarios = pd.DataFrame()
+    df_pagos_semana = pd.DataFrame()
 
     try:
         q_pb = supabase.table("cda_pagos_bancarios").select("*")
@@ -961,6 +962,18 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
                 pass
         res_pd = q_pd.execute()
         df_pagos_diarios = pd.DataFrame(res_pd.data or [])
+    except Exception:
+        pass
+
+    try:
+        q_ps = supabase.table("pagos_semana").select("*")
+        if u_id:
+            try:
+                q_ps = q_ps.eq("user_id", u_id)
+            except Exception:
+                pass
+        res_ps = q_ps.execute()
+        df_pagos_semana = pd.DataFrame(res_ps.data or [])
     except Exception:
         pass
 
@@ -1083,6 +1096,50 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
                 "pagador": str(r.get("datos_pagador") or "N/A"),
                 "monto": float(r.get("monto") or 0.0),
                 "moneda": normalizar_moneda(r.get("moneda") or "USD"),
+                "confirmado": is_conf,
+                "confirmado_por": conf_por
+            })
+
+    # 4. Pagos de pagos_semana
+    if not df_pagos_semana.empty:
+        df_pagos_semana.columns = [c.lower().strip() for c in df_pagos_semana.columns]
+        for _, r in df_pagos_semana.iterrows():
+            ag_nom = str(r.get("agencia") or "").upper().strip()
+            if agencias_paraguas and ag_nom not in agencias_paraguas:
+                continue
+
+            r_dict = r.to_dict()
+            cid = str(r.get("user_id") or "").strip()
+            c_nombre = "Admin / Cobranza"
+            is_conf = bool(r.get("confirmado", False))
+            conf_por = str(r.get("confirmado_por") or "").strip()
+
+            tipo = str(r.get("tipo_pago") or "").strip()
+            metodo_val = str(r.get("metodo") or "BANCO").upper().strip()
+            ref_val = str(r.get("referencia") or "N/A").strip()
+            
+            tipo_u = tipo.upper()
+            if any(k in (tipo_u + " " + metodo_val + " " + ref_val.upper()) for k in ["PREMIO", "PÉRDIDA", "PERDIDA", "ABONO", "REPOSICION", "REPOSICIÓN"]):
+                cat_ps = "Pago de Premios / Reposición"
+            elif "EFECTIVO" in metodo_val:
+                cat_ps = "Efectivo"
+            else:
+                cat_ps = "Bancos (Transferencia/POS/Zelle)"
+
+            registros.append({
+                "id": r.get("id"),
+                "tabla": "pagos_semana",
+                "fecha": str(r.get("fecha") or ""),
+                "agencia": ag_nom,
+                "cajero_id": cid,
+                "cajero_nombre": c_nombre,
+                "categoria": cat_ps,
+                "metodo": metodo_val,
+                "concepto": tipo if tipo else "Pago Semanal",
+                "referencia": ref_val,
+                "pagador": "N/A",
+                "monto": float(r.get("monto") or 0.0),
+                "moneda": normalizar_moneda(r.get("moneda") or "BS"),
                 "confirmado": is_conf,
                 "confirmado_por": conf_por
             })

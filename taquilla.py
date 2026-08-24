@@ -8,6 +8,7 @@ from utils import supabase, obtener_periodo_trabajo, obtener_whatsapp_agencia_lo
 
 from datetime import datetime, timedelta, timezone
 from modulo_pizarra import modulo_pizarra
+from modulo_auditoria import modulo_auditoria_hibrida
 
 st.set_page_config(
     page_title="Taquilla POS",
@@ -932,26 +933,28 @@ def modulo_home(agencia_data):
         f_desde_carga = str_operativa
 
     try:
-        df_v_hoy = cargar_datos_agencia_tabla("cda_reportes_diarios", ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_efectivo, u_id=u_id_admin)
-        if df_v_hoy.empty or "monto_venta" not in df_v_hoy.columns or float(pd.to_numeric(df_v_hoy["monto_venta"], errors="coerce").fillna(0).sum()) == 0:
-            df_ofic = cargar_datos_agencia_tabla("carga_actual", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_efectivo, u_id=u_id_admin)
-            if df_ofic.empty:
-                df_ofic = cargar_datos_agencia_tabla("carga_actual", ag_nombre, u_id=u_id_admin)
-            if not df_ofic.empty:
-                df_ofic["monto_venta"] = pd.to_numeric(df_ofic.get("venta", 0), errors="coerce").fillna(0.0)
-                df_ofic["comision"] = pd.to_numeric(df_ofic.get("comision", 0), errors="coerce").fillna(0.0)
-                df_ofic["monto_premios"] = pd.to_numeric(df_ofic.get("premios", 0), errors="coerce").fillna(0.0)
-                df_ofic["neto"] = pd.to_numeric(df_ofic.get("neto", 0), errors="coerce").fillna(0.0)
-                df_v_hoy = df_ofic
+        # 1. Ventas oficiales del Administrador (carga_actual) como fuente primordial de saldos
+        df_ofic = cargar_datos_agencia_tabla("carga_actual", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_efectivo, u_id=u_id_admin)
+        if df_ofic.empty:
+            df_ofic = cargar_datos_agencia_tabla("carga_actual", ag_nombre, u_id=u_id_admin)
+        if not df_ofic.empty:
+            df_ofic["monto_venta"] = pd.to_numeric(df_ofic.get("venta", 0), errors="coerce").fillna(0.0)
+            df_ofic["comision"] = pd.to_numeric(df_ofic.get("comision", 0), errors="coerce").fillna(0.0)
+            df_ofic["monto_premios"] = pd.to_numeric(df_ofic.get("premios", 0), errors="coerce").fillna(0.0)
+            df_ofic["neto"] = pd.to_numeric(df_ofic.get("neto", 0), errors="coerce").fillna(0.0)
+            df_v_hoy = df_ofic
+        else:
+            df_v_hoy = cargar_datos_agencia_tabla("cda_reportes_diarios", ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_efectivo, u_id=u_id_admin)
 
-        df_g_hoy = cargar_datos_agencia_tabla("cda_gastos_diarios", ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_efectivo, u_id=u_id_admin)
-        if df_g_hoy.empty or "monto" not in df_g_hoy.columns or float(pd.to_numeric(df_g_hoy["monto"], errors="coerce").fillna(0).sum()) == 0:
-            df_g_ofic = cargar_datos_agencia_tabla("gastos", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_efectivo, u_id=u_id_admin)
-            if df_g_ofic.empty:
-                df_g_ofic = cargar_datos_agencia_tabla("gastos", ag_nombre, u_id=u_id_admin)
-            if not df_g_ofic.empty:
-                df_g_ofic["concepto"] = df_g_ofic.get("concepto", df_g_ofic.get("descripcion", "Gasto General"))
-                df_g_hoy = df_g_ofic
+        # 2. Gastos oficiales del Administrador (gastos) como fuente primordial
+        df_g_ofic = cargar_datos_agencia_tabla("gastos", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_efectivo, u_id=u_id_admin)
+        if df_g_ofic.empty:
+            df_g_ofic = cargar_datos_agencia_tabla("gastos", ag_nombre, u_id=u_id_admin)
+        if not df_g_ofic.empty:
+            df_g_ofic["concepto"] = df_g_ofic.get("concepto", df_g_ofic.get("descripcion", "Gasto General"))
+            df_g_hoy = df_g_ofic
+        else:
+            df_g_hoy = cargar_datos_agencia_tabla("cda_gastos_diarios", ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_efectivo, u_id=u_id_admin)
 
         df_p_hoy, df_pb_hoy = obtener_pagos_unificados(ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_efectivo, cajero_id=c_id_target, es_supervisor=es_sup_o_ag, u_id=u_id_admin)
         if df_p_hoy.empty or "monto" not in df_p_hoy.columns or float(pd.to_numeric(df_p_hoy["monto"], errors="coerce").fillna(0).sum()) == 0:
@@ -1383,7 +1386,8 @@ def modulo_home(agencia_data):
 
 # ? módulos de la taquilla ?
 def modulo_registro_taquilla(agencia_data):
-    render_encabezado_principal(f"🎰 Carga de Ventas: {agencia_data['nombre_agencia']}")
+    render_encabezado_principal(f"🎰 Carga Manual de Ventas (Auditoría): {agencia_data['nombre_agencia']}")
+    st.info("ℹ️ **Carga de Auditoría:** Este registro manual es utilizado exclusivamente para auditar y contrastar las ventas reportadas en taquilla contra la carga oficial del sistema en el **Módulo de Auditoría**, sin alterar los saldos oficiales del administrador.")
     cajero_info = st.session_state.get("cajero_actual", {})
     rol_usuario = cajero_info.get("rol", "cajero")
     cajero_id = cajero_info.get("id")
@@ -1446,11 +1450,13 @@ def modulo_registro_taquilla(agencia_data):
             render_titulo_seccion(f"📍 Sistema: {sist}")
             existe_en_db = False
             v_val, c_val, p_val = 0.0, 0.0, 0.0
+            match = pd.DataFrame()
             if not df_existentes.empty:
-                if not es_supervisor and cajero_id and "cajero_id" in df_existentes.columns:
-                    match = df_existentes[(df_existentes["sistema"] == sist) & (df_existentes["cajero_id"].astype(str) == str(cajero_id))]
+                df_mon_match = df_existentes[df_existentes["moneda"].astype(str).str.strip().str.upper() == moneda_sel.upper()] if "moneda" in df_existentes.columns else df_existentes
+                if not es_supervisor and cajero_id and "cajero_id" in df_mon_match.columns:
+                    match = df_mon_match[(df_mon_match["sistema"] == sist) & (df_mon_match["cajero_id"].astype(str) == str(cajero_id))]
                 else:
-                    match = df_existentes[df_existentes["sistema"] == sist]
+                    match = df_mon_match[df_mon_match["sistema"] == sist]
                 if not match.empty:
                     existe_en_db = True
                     row = match.iloc[0]
@@ -1459,36 +1465,63 @@ def modulo_registro_taquilla(agencia_data):
                     p_val = float(row.get("monto_premios", 0))
 
             c1, c2, c3 = st.columns(3)
-            venta = c1.number_input("Venta", min_value=0.0, format="%.2f", key=f"v_{sist}_{fecha_carga_iso}", value=v_val)
-            comision = c2.number_input("Comisión", min_value=0.0, format="%.2f", key=f"c_{sist}_{fecha_carga_iso}", value=c_val)
-            premios_vista = c3.number_input("Premios (solo vista)", format="%.2f", value=p_val, disabled=True, key=f"p_{sist}_{fecha_carga_iso}_view")
+            venta = c1.number_input("Venta", min_value=0.0, format="%.2f", key=f"v_{sist}_{fecha_carga_iso}_{moneda_sel}", value=v_val)
+            comision = c2.number_input("Comisión", min_value=0.0, format="%.2f", key=f"c_{sist}_{fecha_carga_iso}_{moneda_sel}", value=c_val)
+            premios_vista = c3.number_input("Premios (solo vista)", format="%.2f", value=p_val, disabled=True, key=f"p_{sist}_{fecha_carga_iso}_{moneda_sel}_view")
 
             texto_boton = "💾 Guardar Cambios" if existe_en_db else "🚀 Guardar"
-            if st.button(f"{texto_boton} {sist}", key=f"btn_{sist}"):
-                try:
-                    monto_premios_existente = p_val if existe_en_db else 0
-                    data = {
-                        "sistema": sist,
-                        "monto_venta": venta,
-                        "monto_premios": monto_premios_existente,
-                        "comision": comision,
-                        "neto": venta - comision - monto_premios_existente,
-                        "moneda": moneda_sel,
-                        "user_id": agencia_data['user_id'],
-                        "cajero_id": cajero_id
-                    }
-                    if existe_en_db and not match.empty and "id" in match.iloc[0]:
-                        row_id = match.iloc[0]["id"]
-                        supabase.table("cda_reportes_diarios").update(data).eq("id", row_id).execute()
-                        st.success(f"✅ {sist} guardado!")
-                    else:
-                        data["nombre_agency"] = agencia_data['nombre_agencia']
-                        data["fecha"] = fecha_carga_iso
+            
+            if existe_en_db:
+                col_btn_guardar, col_btn_del = st.columns([1, 1])
+                with col_btn_guardar:
+                    if st.button(f"{texto_boton} {sist}", key=f"btn_{sist}_{moneda_sel}"):
+                        try:
+                            monto_premios_existente = p_val if existe_en_db else 0
+                            data = {
+                                "sistema": sist,
+                                "monto_venta": venta,
+                                "monto_premios": monto_premios_existente,
+                                "comision": comision,
+                                "neto": venta - comision - monto_premios_existente,
+                                "moneda": moneda_sel,
+                                "user_id": agencia_data['user_id'],
+                                "cajero_id": cajero_id
+                            }
+                            row_id = match.iloc[0]["id"]
+                            supabase.table("cda_reportes_diarios").update(data).eq("id", row_id).execute()
+                            st.success(f"✅ {sist} ({moneda_sel}) guardado!")
+                            time.sleep(1.0); st.rerun()
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+                with col_btn_del:
+                    if st.button(f"🗑️ Limpiar / Eliminar {sist}", key=f"btn_del_{sist}_{moneda_sel}", type="secondary"):
+                        try:
+                            row_id = match.iloc[0]["id"]
+                            supabase.table("cda_reportes_diarios").delete().eq("id", row_id).execute()
+                            st.success(f"🗑️ Registro de {sist} ({moneda_sel}) eliminado!")
+                            time.sleep(1.0); st.rerun()
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+            else:
+                if st.button(f"{texto_boton} {sist}", key=f"btn_{sist}_{moneda_sel}"):
+                    try:
+                        data = {
+                            "sistema": sist,
+                            "monto_venta": venta,
+                            "monto_premios": 0.0,
+                            "comision": comision,
+                            "neto": venta - comision,
+                            "moneda": moneda_sel,
+                            "user_id": agencia_data['user_id'],
+                            "cajero_id": cajero_id,
+                            "nombre_agency": agencia_data['nombre_agencia'],
+                            "fecha": fecha_carga_iso
+                        }
                         supabase.table("cda_reportes_diarios").insert(data).execute()
-                        st.success(f"✅ {sist} registrado para el {fecha_carga_iso}!")
-                    time.sleep(1.2); st.rerun()
-                except Exception as e:
-                    st.error(f"Error: {e}")
+                        st.success(f"✅ {sist} ({moneda_sel}) registrado para el {fecha_carga_iso}!")
+                        time.sleep(1.0); st.rerun()
+                    except Exception as e:
+                        st.error(f"Error: {e}")
 
 
 def modulo_gastos(agencia_data):
@@ -2368,24 +2401,26 @@ def modulo_reporte_rango(agencia_data):
     c_target_id = cajero_filtro_target if es_supervisor else (None if es_agencia else cajero_id)
 
     try:
-        df_v = cargar_datos_agencia_tabla("cda_reportes_diarios", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
-        if df_v.empty or "monto_venta" not in df_v.columns or float(pd.to_numeric(df_v["monto_venta"], errors="coerce").fillna(0).sum()) == 0:
-            df_ofic = cargar_datos_agencia_tabla("carga_actual", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
-            if df_ofic.empty:
-                df_ofic = cargar_datos_agencia_tabla("carga_actual", agencia_data['nombre_agencia'])
-            if not df_ofic.empty:
-                df_ofic["monto_venta"] = pd.to_numeric(df_ofic.get("venta", 0), errors="coerce").fillna(0.0)
-                df_ofic["comision"] = pd.to_numeric(df_ofic.get("comision", 0), errors="coerce").fillna(0.0)
-                df_ofic["monto_premios"] = pd.to_numeric(df_ofic.get("premios", 0), errors="coerce").fillna(0.0)
-                df_ofic["neto"] = pd.to_numeric(df_ofic.get("neto", 0), errors="coerce").fillna(0.0)
-                df_v = df_ofic
+        # 1. Ventas oficiales del Administrador (carga_actual) como fuente primordial
+        df_ofic = cargar_datos_agencia_tabla("carga_actual", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
+        if df_ofic.empty:
+            df_ofic = cargar_datos_agencia_tabla("carga_actual", agencia_data['nombre_agencia'])
+        if not df_ofic.empty:
+            df_ofic["monto_venta"] = pd.to_numeric(df_ofic.get("venta", 0), errors="coerce").fillna(0.0)
+            df_ofic["comision"] = pd.to_numeric(df_ofic.get("comision", 0), errors="coerce").fillna(0.0)
+            df_ofic["monto_premios"] = pd.to_numeric(df_ofic.get("premios", 0), errors="coerce").fillna(0.0)
+            df_ofic["neto"] = pd.to_numeric(df_ofic.get("neto", 0), errors="coerce").fillna(0.0)
+            df_v = df_ofic
+        else:
+            df_v = cargar_datos_agencia_tabla("cda_reportes_diarios", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
 
-        df_g = cargar_datos_agencia_tabla("cda_gastos_diarios", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
-        if df_g.empty or "monto" not in df_g.columns or float(pd.to_numeric(df_g["monto"], errors="coerce").fillna(0).sum()) == 0:
-            df_g_ofic = cargar_datos_agencia_tabla("gastos", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
-            if not df_g_ofic.empty:
-                df_g_ofic["concepto"] = df_g_ofic.get("concepto", df_g_ofic.get("descripcion", "Gasto General"))
-                df_g = df_g_ofic
+        # 2. Gastos oficiales del Administrador (gastos) como fuente primordial
+        df_g_ofic = cargar_datos_agencia_tabla("gastos", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
+        if not df_g_ofic.empty:
+            df_g_ofic["concepto"] = df_g_ofic.get("concepto", df_g_ofic.get("descripcion", "Gasto General"))
+            df_g = df_g_ofic
+        else:
+            df_g = cargar_datos_agencia_tabla("cda_gastos_diarios", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
 
         df_t = cargar_datos_agencia_tabla("cda_premios_tickets", agencia_data['nombre_agencia'], fecha_desde=d, fecha_hasta=h)
 
@@ -4245,6 +4280,7 @@ else:
             ("🏠 Inicio", "Inicio"),
             ("📌 Pizarra", "Pizarra"),
             ("📊 Reporte", "Reporte por Rango"),
+            ("🛡️ Auditoría", "Auditoría Híbrida"),
             ("🔒 Cierre Diario", "Cierre Diario"),
             ("🚪 Cerrar Sesión", "Cerrar Sesión")
         ]
@@ -4252,6 +4288,7 @@ else:
         menu_items = [
             ("🏠 Inicio", "Inicio"),
             ("📊 Reporte", "Reporte por Rango"),
+            ("🛡️ Auditoría", "Auditoría Híbrida"),
             ("💵 Pago Efectivo", "Gestión de Pagos"),
             ("🏦 Gestión Bancaria", "Gestión Bancaria"),
             ("🚪 Cerrar Sesión", "Cerrar Sesión")
@@ -4260,7 +4297,7 @@ else:
         menu_items = [
             ("🏠 Inicio", "Inicio"),
             ("📊 Reporte", "Reporte por Rango"),
-            ("🎰 Carga de Ventas", "Carga de Ventas"),
+            ("🎰 Carga de Auditoría", "Carga de Ventas"),
             ("🎟️ Tickets Premiados", "Tickets Premiados"),
             ("💸 Gastos Agencias", "Gestión de Gastos"),
             ("💵 Pago Efectivo", "Gestión de Pagos"),
@@ -4417,6 +4454,7 @@ else:
     elif opcion == "Inicio": modulo_home(ag)
     elif opcion == "Pizarra": modulo_pizarra(ag)
     elif opcion == "Carga de Ventas": modulo_registro_taquilla(ag)
+    elif opcion == "Auditoría Híbrida": modulo_auditoria_hibrida(ag)
     elif opcion == "Gestión de Gastos": modulo_gastos(ag)
     elif opcion == "Gestión de Pagos": modulo_pagos(ag)
     elif opcion == "Gestión Bancaria": modulo_gestion_bancaria(ag)

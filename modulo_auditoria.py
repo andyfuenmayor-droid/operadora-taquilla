@@ -2,14 +2,25 @@ import streamlit as st
 import pandas as pd
 from utils import supabase, obtener_periodo_trabajo
 
-def modulo_auditoria_hibrida():
+def modulo_auditoria_hibrida(agencia_data=None):
     st.header("🛡️ Panel de Auditoría Híbrida (Taquilla vs Carga Oficial)")
     st.caption("Comparativa por **ciclo completo**: Oficial vs Taquilla, incluyendo gestión multiusuario integrada.")
 
     try:
-        if "user" not in st.session_state:
+        u_id = None
+        if agencia_data and "user_id" in agencia_data and agencia_data["user_id"]:
+            u_id = str(agencia_data["user_id"]).strip()
+        elif "user" in st.session_state and hasattr(st.session_state["user"], "id"):
+            u_id = str(st.session_state["user"].id).strip()
+        elif "user" in st.session_state and isinstance(st.session_state["user"], dict):
+            u_id = str(st.session_state["user"].get("id", "")).strip()
+        elif "agencia_actual" in st.session_state:
+            u_id = str(st.session_state["agencia_actual"].get("user_id", "")).strip()
+
+        if not u_id:
+            st.warning("⚠️ No se pudo determinar el ID de usuario administrador para la auditoría.")
             return
-        u_id = str(st.session_state["user"].id).strip()
+
         ciclo = obtener_periodo_trabajo(u_id)
         f_desde_str, f_hasta_str = ciclo['desde'], ciclo['hasta']
 

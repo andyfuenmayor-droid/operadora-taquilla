@@ -333,30 +333,49 @@ def modulo_auditoria_hibrida(agencia_data=None):
             df_g_moneda = df_gastos_periodo[df_gastos_periodo["moneda"].astype(str).str.upper().str.strip() == m_search].copy() if not df_gastos_periodo.empty and "moneda" in df_gastos_periodo.columns else pd.DataFrame()
             df_p_moneda = df_pagos_periodo[df_pagos_periodo["moneda"].astype(str).str.upper().str.strip() == m_search].copy() if not df_pagos_periodo.empty and "moneda" in df_pagos_periodo.columns else pd.DataFrame()
 
-            st.subheader("Reporte Detallado del Periodo")
-            st.markdown(f"**Terminal:** MAXIMA CDA 02 | **Ciclo:** {f_desde_str} al {f_hasta_str} | **Moneda:** {m_search}")
+            fmt_mon = "Bs. %,.2f" if m_search == "BS" else ("$%,.2f" if m_search == "USD" else "COP %,.2f")
+            simbolo_mon = "Bs. " if m_search == "BS" else ("$" if m_search == "USD" else "COP ")
 
-            t_v_total = float(df_v_moneda['monto_venta'].sum()) if not df_v_moneda.empty else 0.0
-            t_c_total = float(df_v_moneda['comision'].sum()) if not df_v_moneda.empty else 0.0
-            t_p_total = float(df_v_moneda['monto_premios'].sum()) if not df_v_moneda.empty else 0.0
-            t_g_total = float(df_g_moneda['monto'].sum()) if not df_g_moneda.empty else 0.0
-            t_pg_total = float(df_p_moneda['monto'].sum()) if not df_p_moneda.empty else 0.0
+            nombre_terminal = "General"
+            if agencia_data and isinstance(agencia_data, dict) and "nombre_agencia" in agencia_data:
+                nombre_terminal = agencia_data["nombre_agencia"]
+            elif "agencia_actual" in st.session_state and isinstance(st.session_state["agencia_actual"], dict):
+                nombre_terminal = st.session_state["agencia_actual"].get("nombre_agencia", "General")
+
+            st.subheader("Reporte Detallado del Periodo")
+            st.markdown(f"**Terminal:** {nombre_terminal} | **Ciclo:** {f_desde_str} al {f_hasta_str} | **Moneda:** {m_search}")
+
+            t_v_total = float(df_v_moneda['monto_venta'].sum()) if not df_v_moneda.empty and 'monto_venta' in df_v_moneda.columns else 0.0
+            t_c_total = float(df_v_moneda['comision'].sum()) if not df_v_moneda.empty and 'comision' in df_v_moneda.columns else 0.0
+            t_p_total = float(df_v_moneda['monto_premios'].sum()) if not df_v_moneda.empty and 'monto_premios' in df_v_moneda.columns else 0.0
+            t_g_total = float(df_g_moneda['monto'].sum()) if not df_g_moneda.empty and 'monto' in df_g_moneda.columns else 0.0
+            t_pg_total = float(df_p_moneda['monto'].sum()) if not df_p_moneda.empty and 'monto' in df_p_moneda.columns else 0.0
             saldo_f = (t_v_total - t_c_total - t_p_total - t_g_total - t_pg_total)
 
             m1, m2, m3, m4, m5, m6 = st.columns(6)
-            m1.metric("Total Ventas", f"${t_v_total:,.2f}")
-            m2.metric("Total Comision", f"${t_c_total:,.2f}")
-            m3.metric("Total Premios", f"${t_p_total:,.2f}")
-            m4.metric("Total Gastos", f"${t_g_total:,.2f}")
-            m5.metric("Total Pagos", f"${t_pg_total:,.2f}")
-            m6.metric("Saldo Final", f"${saldo_f:,.2f}")
+            m1.metric("Total Ventas", f"{simbolo_mon}{t_v_total:,.2f}")
+            m2.metric("Total Comision", f"{simbolo_mon}{t_c_total:,.2f}")
+            m3.metric("Total Premios", f"{simbolo_mon}{t_p_total:,.2f}")
+            m4.metric("Total Gastos", f"{simbolo_mon}{t_g_total:,.2f}")
+            m5.metric("Total Pagos", f"{simbolo_mon}{t_pg_total:,.2f}")
+            m6.metric("Saldo Final", f"{simbolo_mon}{saldo_f:,.2f}")
 
             tab1, tab2, tab3 = st.tabs(["Ventas", "Gastos", "Pagos"])
             with tab1:
                 cols_v = ["id", "agencia", "nombre_agency", "sistema", "moneda", "monto_venta", "comision", "monto_premios", "neto", "fecha"]
                 cols_v_existentes = [c for c in cols_v if c in df_v_moneda.columns]
                 if not df_v_moneda.empty:
-                    st.dataframe(df_v_moneda[cols_v_existentes], use_container_width=True, hide_index=True)
+                    st.dataframe(
+                        df_v_moneda[cols_v_existentes],
+                        column_config={
+                            "monto_venta": st.column_config.NumberColumn("Venta", format=fmt_mon),
+                            "comision": st.column_config.NumberColumn("Comisión", format=fmt_mon),
+                            "monto_premios": st.column_config.NumberColumn("Premios", format=fmt_mon),
+                            "neto": st.column_config.NumberColumn("Neto", format=fmt_mon),
+                        },
+                        use_container_width=True,
+                        hide_index=True
+                    )
                 else:
                     st.info("No hay ventas registradas en el periodo.")
             with tab2:
@@ -368,7 +387,6 @@ def modulo_auditoria_hibrida(agencia_data=None):
                         df_g_disp["agencia"] = df_g_disp["nombre_agency"]
                     elif "nombre_agency" in df_g_disp.columns:
                         df_g_disp["agencia"] = df_g_disp["agencia"].fillna(df_g_disp["nombre_agency"])
-                    fmt_mon = "Bs. %,.2f" if m_search == "BS" else ("$%,.2f" if m_search == "USD" else "COP %,.2f")
                     cols_g = ["agencia", "concepto", "moneda", "monto", "Conf.", "fecha"]
                     cols_g_existentes = [c for c in cols_g if c in df_g_disp.columns]
                     st.dataframe(

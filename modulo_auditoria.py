@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from utils import supabase, obtener_periodo_trabajo
+from utils import supabase, obtener_periodo_trabajo, obtener_etiqueta_confirmacion
 
 def modulo_auditoria_hibrida(agencia_data=None):
     st.header("🛡️ Panel de Auditoría Híbrida (Taquilla vs Carga Oficial)")
@@ -381,17 +381,23 @@ def modulo_auditoria_hibrida(agencia_data=None):
             with tab2:
                 if not df_g_moneda.empty:
                     df_g_disp = df_g_moneda.copy()
-                    if "confirmado" in df_g_disp.columns:
-                        df_g_disp["Conf."] = df_g_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
+                    df_g_disp["Conf."] = df_g_disp.apply(obtener_etiqueta_confirmacion, axis=1)
                     if "agencia" not in df_g_disp.columns and "nombre_agency" in df_g_disp.columns:
                         df_g_disp["agencia"] = df_g_disp["nombre_agency"]
                     elif "nombre_agency" in df_g_disp.columns:
                         df_g_disp["agencia"] = df_g_disp["agencia"].fillna(df_g_disp["nombre_agency"])
-                    cols_g = ["agencia", "concepto", "moneda", "monto", "Conf.", "fecha"]
+                    cols_g = ["agencia", "concepto", "moneda", "monto", "Conf."]
+                    if "motivo_rechazo" in df_g_disp.columns and df_g_disp["motivo_rechazo"].dropna().astype(str).str.strip().ne("").any():
+                        df_g_disp["motivo_rechazo"] = df_g_disp["motivo_rechazo"].fillna("")
+                        cols_g.append("motivo_rechazo")
+                    cols_g.append("fecha")
                     cols_g_existentes = [c for c in cols_g if c in df_g_disp.columns]
                     st.dataframe(
                         df_g_disp[cols_g_existentes],
-                        column_config={"monto": st.column_config.NumberColumn("monto", format=fmt_mon)},
+                        column_config={
+                            "monto": st.column_config.NumberColumn("monto", format=fmt_mon),
+                            "motivo_rechazo": st.column_config.TextColumn("Motivo Rechazo")
+                        },
                         use_container_width=True,
                         hide_index=True
                     )
@@ -400,18 +406,24 @@ def modulo_auditoria_hibrida(agencia_data=None):
             with tab3:
                 if not df_p_moneda.empty:
                     df_p_disp = df_p_moneda.copy()
-                    if "confirmado" in df_p_disp.columns:
-                        df_p_disp["Conf."] = df_p_disp["confirmado"].apply(lambda c: "✅ C" if c else "⏳ Pendiente")
+                    df_p_disp["Conf."] = df_p_disp.apply(obtener_etiqueta_confirmacion, axis=1)
                     if "agencia" not in df_p_disp.columns and "nombre_agency" in df_p_disp.columns:
                         df_p_disp["agencia"] = df_p_disp["nombre_agency"]
                     elif "nombre_agency" in df_p_disp.columns:
                         df_p_disp["agencia"] = df_p_disp["agencia"].fillna(df_p_disp["nombre_agency"])
                     df_p_disp = df_p_disp.rename(columns={"tipo_pago": "pagos registrados"})
-                    cols_p = ["agencia", "pagos registrados", "moneda", "monto", "Conf.", "fecha"]
+                    cols_p = ["agencia", "pagos registrados", "moneda", "monto", "Conf."]
+                    if "motivo_rechazo" in df_p_disp.columns and df_p_disp["motivo_rechazo"].dropna().astype(str).str.strip().ne("").any():
+                        df_p_disp["motivo_rechazo"] = df_p_disp["motivo_rechazo"].fillna("")
+                        cols_p.append("motivo_rechazo")
+                    cols_p.append("fecha")
                     cols_p_existentes = [c for c in cols_p if c in df_p_disp.columns]
                     st.dataframe(
                         df_p_disp[cols_p_existentes],
-                        column_config={"monto": st.column_config.NumberColumn("monto", format=fmt_mon)},
+                        column_config={
+                            "monto": st.column_config.NumberColumn("monto", format=fmt_mon),
+                            "motivo_rechazo": st.column_config.TextColumn("Motivo Rechazo")
+                        },
                         use_container_width=True,
                         hide_index=True
                     )

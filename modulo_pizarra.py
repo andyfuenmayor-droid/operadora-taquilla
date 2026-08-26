@@ -194,6 +194,8 @@ def _sincronizar_efectivo_supervisor_con_pagos(u_id=None, existe_supervisor=True
         mapa_cajeros = obtener_mapa_cajeros(u_id)
 
         for pago in res_pd.data:
+            if bool(pago.get("rechazado", False)):
+                continue
             pid = pago.get("id")
             ag_pago = str(pago.get("agencia") or "").upper().strip()
             
@@ -457,7 +459,7 @@ def _renderizar_resumen_metricas(df_target, df_pendientes_lote=None):
         df_pend = pd.DataFrame()
         df_conf = pd.DataFrame()
     else:
-        df_pend = df_target[df_target["confirmado"] == False]
+        df_pend = df_target[(df_target["confirmado"] == False) & (df_target.get("rechazado", False) != True)]
         df_conf = df_target[df_target["confirmado"] == True]
 
     # Cálculos agrupados por moneda para Pendientes
@@ -517,7 +519,7 @@ def _renderizar_resumen_metricas(df_target, df_pendientes_lote=None):
                 if st.button("🚀 Sí, Confirmar Todo Ahora", key="btn_confirmar_lote_action", type="primary", use_container_width=True):
                     mapa_c = obtener_mapa_cajeros()
                     target_lote = df_pend if df_pendientes_lote is None else df_pendientes_lote
-                    _confirmar_lote(target_lote, mapa_cajeros=mapa_c)
+                    _confirmar_lote(target_lote, mapa_c=mapa_c)
         else:
             st.button("✅ Todo Confirmado", disabled=True, use_container_width=True, help="No hay transacciones pendientes bajo este filtro")
 
@@ -532,7 +534,10 @@ def _renderizar_lista_transacciones(df_list, key_prefix="act"):
 
     for idx_pos, (_, row) in enumerate(df_list.iterrows(), start=1):
         is_c = bool(row.get("confirmado", False))
+        is_r = bool(row.get("rechazado", False))
+        motivo_r = str(row.get("motivo_rechazo", "") or "").strip()
         conf_por = str(row.get("confirmado_por") or row.get("supervisor_nombre") or "").strip()
+        rech_por = str(row.get("rechazado_por") or "").strip()
         
         cat_str = str(row.get("categoria", "")).upper()
         conc_str = str(row.get("concepto", "")).upper()
@@ -549,14 +554,22 @@ def _renderizar_lista_transacciones(df_list, key_prefix="act"):
             color_monto = "#38bdf8"
             icon_cat = "💳"
 
-        if is_c:
+        if is_r:
+            motivo_badge_txt = f": {motivo_r}" if motivo_r else ""
+            badge_estado = f"<span style='background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 800;'>❌ RECHAZADO{motivo_badge_txt}</span>"
+        elif is_c:
             badge_estado = "<span style='background: rgba(34, 197, 94, 0.15); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 800;'>✅ CONFIRMADO</span>"
         else:
             badge_estado = "<span style='background: rgba(234, 179, 8, 0.15); color: #eab308; border: 1px solid rgba(234, 179, 8, 0.3); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 800;'>⏳ PENDIENTE</span>"
 
         num_badge = f"<span style='background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.25); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 800; margin-right: 6px;'>#{idx_pos}</span>"
 
-        conf_info_text = f"<br><small style='color: #22c55e; font-weight: 600;'>👤 Confirmado por: <b>{conf_por}</b></small>" if (is_c and conf_por) else ""
+        if is_r and rech_por:
+            estado_info_text = f"<br><small style='color: #ef4444; font-weight: 600;'>❌ Rechazado por: <b>{rech_por}</b></small>"
+        elif is_c and conf_por:
+            estado_info_text = f"<br><small style='color: #22c55e; font-weight: 600;'>👤 Confirmado por: <b>{conf_por}</b></small>"
+        else:
+            estado_info_text = ""
 
         with st.container(border=True):
             col_info, col_monto, col_action = st.columns([5, 3, 2])
@@ -566,7 +579,7 @@ def _renderizar_lista_transacciones(df_list, key_prefix="act"):
                     f"{num_badge} 🏢 **{row['agencia']}** | 👤 Cajero: **{row['cajero_nombre']}** | 📅 {row['fecha']}<br>"
                     f"<small style='color: #94a3b8;'>{icon_cat} <b>{row['categoria']}</b> | Método: <b>{row['metodo']}</b></small><br>"
                     f"<small>Concepto: <b>{row['concepto']}</b> | Ref: <b>{row['referencia']}</b> | Pagador: <b>{row['pagador']}</b></small>"
-                    f"{conf_info_text}",
+                    f"{estado_info_text}",
                     unsafe_allow_html=True
                 )
 
@@ -581,7 +594,9 @@ def _renderizar_lista_transacciones(df_list, key_prefix="act"):
 
             with col_action:
                 btn_key = f"btn_conf_{key_prefix}_{row['tabla']}_{row['id']}"
-                if not is_c:
+                if is_r:
+                    st.button("❌ Rechazado", key=btn_key, disabled=True, use_container_width=True)
+                elif not is_c:
                     if st.button("✅ Confirmar", key=btn_key, type="primary", use_container_width=True):
                         ok, err = _confirmar_registro_individual(row, current_usr, mapa_cajeros)
                         if ok:
@@ -676,6 +691,8 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
 
     if mapa_pd:
         for pid, pago in mapa_pd.items():
+            if bool(pago.get("rechazado", False)):
+                continue
             ag_p = str(pago.get("agencia") or "").upper().strip()
             if agencias_permitidas and ag_p not in agencias_permitidas:
                 continue
@@ -1008,6 +1025,9 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
 
             is_conf = bool(r.get("confirmado", False)) or bool(r.get("confirmado_supervisor", False))
             conf_por = str(r.get("confirmado_por") or r.get("supervisor_nombre") or "").strip()
+            is_rech = bool(r.get("rechazado", False))
+            motivo_rech = str(r.get("motivo_rechazo", "") or "").strip()
+            rech_por = str(r.get("rechazado_por", "") or "").strip()
 
             registros.append({
                 "id": r.get("id"),
@@ -1024,7 +1044,10 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
                 "monto": float(r.get("monto") or 0.0),
                 "moneda": normalizar_moneda(r.get("moneda") or "USD"),
                 "confirmado": is_conf,
-                "confirmado_por": conf_por
+                "confirmado_por": conf_por,
+                "rechazado": is_rech,
+                "motivo_rechazo": motivo_rech,
+                "rechazado_por": rech_por
             })
 
     # 2. Gastos
@@ -1041,6 +1064,9 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
             c_nombre = resolver_nombre_cajero(cid, pago_dict=r_dict, mapa=mapa_cajeros)
             is_conf = bool(r.get("confirmado", False)) or bool(r.get("confirmado_supervisor", False))
             conf_por = str(r.get("confirmado_por") or r.get("supervisor_nombre") or "").strip()
+            is_rech = bool(r.get("rechazado", False))
+            motivo_rech = str(r.get("motivo_rechazo", "") or "").strip()
+            rech_por = str(r.get("rechazado_por", "") or "").strip()
 
             registros.append({
                 "id": r.get("id"),
@@ -1057,7 +1083,10 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
                 "monto": float(r.get("monto") or 0.0),
                 "moneda": normalizar_moneda(r.get("moneda") or "USD"),
                 "confirmado": is_conf,
-                "confirmado_por": conf_por
+                "confirmado_por": conf_por,
+                "rechazado": is_rech,
+                "motivo_rechazo": motivo_rech,
+                "rechazado_por": rech_por
             })
 
     # 3. Pagos de cda_pagos_diarios (Efectivo)
@@ -1074,6 +1103,9 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
             c_nombre = resolver_nombre_cajero(cid, pago_dict=r_dict, mapa=mapa_cajeros)
             is_conf = bool(r.get("confirmado", False)) or bool(r.get("confirmado_supervisor", False))
             conf_por = str(r.get("confirmado_por") or r.get("supervisor_nombre") or "").strip()
+            is_rech = bool(r.get("rechazado", False))
+            motivo_rech = str(r.get("motivo_rechazo", "") or "").strip()
+            rech_por = str(r.get("rechazado_por", "") or "").strip()
 
             tipo = str(r.get("tipo_pago") or "").strip()
             tipo_u = tipo.upper()
@@ -1097,7 +1129,10 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
                 "monto": float(r.get("monto") or 0.0),
                 "moneda": normalizar_moneda(r.get("moneda") or "USD"),
                 "confirmado": is_conf,
-                "confirmado_por": conf_por
+                "confirmado_por": conf_por,
+                "rechazado": is_rech,
+                "motivo_rechazo": motivo_rech,
+                "rechazado_por": rech_por
             })
 
     # 4. Pagos de pagos_semana
@@ -1113,6 +1148,9 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
             c_nombre = "Admin / Cobranza"
             is_conf = bool(r.get("confirmado", False))
             conf_por = str(r.get("confirmado_por") or "").strip()
+            is_rech = bool(r.get("rechazado", False))
+            motivo_rech = str(r.get("motivo_rechazo", "") or "").strip()
+            rech_por = str(r.get("rechazado_por", "") or "").strip()
 
             tipo = str(r.get("tipo_pago") or "").strip()
             metodo_val = str(r.get("metodo") or "BANCO").upper().strip()
@@ -1141,7 +1179,10 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
                 "monto": float(r.get("monto") or 0.0),
                 "moneda": normalizar_moneda(r.get("moneda") or "BS"),
                 "confirmado": is_conf,
-                "confirmado_por": conf_por
+                "confirmado_por": conf_por,
+                "rechazado": is_rech,
+                "motivo_rechazo": motivo_rech,
+                "rechazado_por": rech_por
             })
 
     df_raw = pd.DataFrame(registros)
@@ -1170,7 +1211,7 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
     with col_f5:
         sel_tipo = st.selectbox("💳 Tipo:", ["Todas", "Bancos (Transferencias/POS/Zelle)", "Gastos", "Efectivo", "Pago de Premios / Reposición"], key="pizarra_tipo_sel_compact")
     with col_f6:
-        sel_estado = st.selectbox("🚦 Estado:", ["⏳ Pendientes", "✅ Confirmados", "Todos"], key="pizarra_estado_sel_compact")
+        sel_estado = st.selectbox("🚦 Estado:", ["⏳ Pendientes", "✅ Confirmados", "❌ Rechazados", "Todos"], key="pizarra_estado_sel_compact")
 
     f_desde_str, f_hasta_str = str(f_desde), str(f_hasta)
 
@@ -1196,9 +1237,11 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
             df_act_work = df_act_work[df_act_work["categoria"].isin(["Bancos (Transferencia/POS/Zelle)", "Punto de Venta", "Transferencia / Zelle / Pago Móvil"])]
 
     if sel_estado == "⏳ Pendientes" and not df_act_work.empty:
-        df_act_work = df_act_work[df_act_work["confirmado"] == False]
+        df_act_work = df_act_work[(df_act_work["confirmado"] == False) & (df_act_work.get("rechazado", False) != True)]
     elif sel_estado == "✅ Confirmados" and not df_act_work.empty:
         df_act_work = df_act_work[df_act_work["confirmado"] == True]
+    elif sel_estado == "❌ Rechazados" and not df_act_work.empty:
+        df_act_work = df_act_work[df_act_work.get("rechazado", False) == True]
 
     if "fecha" in df_act_work.columns and not df_act_work.empty:
         df_act_work = df_act_work.sort_values(by="fecha", ascending=False)

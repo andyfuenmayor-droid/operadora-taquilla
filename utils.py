@@ -124,3 +124,27 @@ def obtener_gastos_locales_agencia(u_id: str, agencia_nombre: str) -> list:
     return []
 
 
+def obtener_etiqueta_confirmacion(row):
+    """
+    Retorna la etiqueta legible del estado de confirmación:
+    - ❌ Rechazado (con motivo si existe)
+    - ✅ C (si confirmado)
+    - ⏳ Pendiente (si no confirmado ni rechazado)
+    """
+    if isinstance(row, dict):
+        rechazado = bool(row.get("rechazado", False))
+        confirmado = bool(row.get("confirmado", False))
+        motivo = str(row.get("motivo_rechazo", "") or "").strip()
+    else:
+        rechazado = bool(row.get("rechazado", False)) if hasattr(row, "get") else False
+        confirmado = bool(row.get("confirmado", False)) if hasattr(row, "get") else False
+        motivo = str(row.get("motivo_rechazo", "") or "").strip() if hasattr(row, "get") else ""
+
+    if rechazado:
+        return f"❌ Rechazado ({motivo})" if motivo else "❌ Rechazado"
+    if confirmado:
+        return "✅ C"
+    return "⏳ Pendiente"
+
+
+

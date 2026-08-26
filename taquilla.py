@@ -2450,15 +2450,24 @@ def modulo_gestion_bancaria(agencia_data):
         es_supervisor_b = (rol_usuario_b == 'supervisor')
         es_agencia_b = (rol_usuario_b == 'agencia')
 
+        monedas_asig_b = [normalizar_moneda(m) for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip() and m.strip().upper() not in ["NONE", "NAN", ""]]
+        if not monedas_asig_b:
+            monedas_asig_b = ["BS"]
+
         try:
-            res_pb = supabase.table("cda_pagos_bancarios").select("*").eq("fecha", str(fecha_hist)).execute()
+            res_pb = supabase.table("cda_pagos_bancarios").select("*").eq("fecha", str(fecha_hist)).ilike("agencia", ag_nombre).execute()
             df_pb = pd.DataFrame(res_pb.data or [])
+            if df_pb.empty:
+                res_pb = supabase.table("cda_pagos_bancarios").select("*").eq("fecha", str(fecha_hist)).ilike("nombre_agency", ag_nombre).execute()
+                df_pb = pd.DataFrame(res_pb.data or [])
             if not df_pb.empty:
                 df_pb.columns = [c.lower() for c in df_pb.columns]
                 if not es_supervisor_b and not es_agencia_b and cajero_id_b:
                     col_pb = "cajero_id" if "cajero_id" in df_pb.columns else ("user_id" if "user_id" in df_pb.columns else None)
                     if col_pb and col_pb in df_pb.columns:
                         df_pb = df_pb[df_pb[col_pb].astype(str) == str(cajero_id_b)]
+                if "moneda" in df_pb.columns:
+                    df_pb = df_pb[df_pb["moneda"].astype(str).str.strip().str.upper().apply(normalizar_moneda).isin(monedas_asig_b)]
         except Exception:
             df_pb = pd.DataFrame()
 

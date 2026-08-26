@@ -1086,20 +1086,16 @@ def modulo_home(agencia_data):
     df_pb_raw = df_pb_hoy.copy()
     df_t_raw = df_t_hoy.copy()
 
-    # Multimoneda: Monedas asignadas a la agencia + cualquier moneda con movimientos en el ciclo
-    monedas_conf = [m.strip().upper() for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip()]
-    todas_monedas_set = {normalizar_moneda(m) for m in monedas_conf if m and m.lower() not in ["none", "nan", ""]}
-    for df_chk in [df_v_raw, df_g_raw, df_p_raw, df_pb_raw, df_t_raw]:
-        if not df_chk.empty and "moneda" in df_chk.columns:
-            for mon_val in df_chk["moneda"].dropna().astype(str):
-                norm_m = normalizar_moneda(mon_val)
-                if norm_m and norm_m.lower() not in ["none", "nan", ""]:
-                    todas_monedas_set.add(norm_m)
-
-    orden_pref = ["BS", "USD", "COP"]
-    todas_monedas = [m for m in orden_pref if m in todas_monedas_set] + [m for m in sorted(todas_monedas_set) if m not in orden_pref]
+    # Multimoneda: Solo las monedas asignadas por el admin a la agencia
+    monedas_conf = [m.strip().upper() for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip() and m.strip().upper() not in ["NONE", "NAN", ""]]
+    todas_monedas = [normalizar_moneda(m) for m in monedas_conf if m]
     if not todas_monedas:
         todas_monedas = ["BS"]
+
+    # Sistemas asignados por el admin a la agencia
+    sistemas_conf = [s.strip().upper() for s in str(agencia_data.get("sistemas", "BETM3")).split(",") if s.strip() and s.strip().upper() not in ["NONE", "NAN", ""]]
+    if not sistemas_conf:
+        sistemas_conf = ["BETM3"]
 
     # BANNER PRINCIPAL DE BIENVENIDA
     badge_estado = '<span style="background-color: rgba(0, 200, 83, 0.2); color: #00c853; font-weight: 700; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; border: 1px solid rgba(0, 200, 83, 0.4);">🟢 DÍA OPERATIVO ABIERTO</span>' if not dia_cerrado_hoy else '<span style="background-color: rgba(244, 63, 94, 0.2); color: #f43f5e; font-weight: 700; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; border: 1px solid rgba(244, 63, 94, 0.4);">🔒 DÍA CERRADO</span>'
@@ -1193,8 +1189,11 @@ def modulo_home(agencia_data):
         with tabs_m[idx_m]:
             sym_curr = "Bs." if m_code == "BS" else ("$" if m_code == "USD" else "COP$")
             
-            # Filtrar dataframes exclusivamente para la moneda m_code
+            # Filtrar dataframes exclusivamente para la moneda m_code y sistemas asignados
             df_v_m = df_v_raw[es_misma_moneda(df_v_raw["moneda"], m_code)] if not df_v_raw.empty and "moneda" in df_v_raw.columns else pd.DataFrame()
+            if not df_v_m.empty and "sistema" in df_v_m.columns:
+                df_v_m = df_v_m[df_v_m["sistema"].astype(str).str.strip().str.upper().isin(sistemas_conf)]
+
             df_g_m = df_g_raw[es_misma_moneda(df_g_raw["moneda"], m_code)] if not df_g_raw.empty and "moneda" in df_g_raw.columns else pd.DataFrame()
             df_p_m = df_p_raw[es_misma_moneda(df_p_raw["moneda"], m_code)] if not df_p_raw.empty and "moneda" in df_p_raw.columns else pd.DataFrame()
             df_pb_m = df_pb_raw[es_misma_moneda(df_pb_raw["moneda"], m_code)] if not df_pb_raw.empty and "moneda" in df_pb_raw.columns else pd.DataFrame()
@@ -1530,7 +1529,9 @@ def modulo_registro_taquilla(agencia_data):
     rol_usuario = cajero_info.get("rol", "cajero")
     cajero_id = cajero_info.get("id")
     es_supervisor = (rol_usuario == 'supervisor')
-    sistemas_lista = [s.strip() for s in str(agencia_data.get("sistemas", "BETM3")).split(",")]
+    sistemas_lista = [s.strip().upper() for s in str(agencia_data.get("sistemas", "BETM3")).split(",") if s.strip() and s.strip().upper() not in ["NONE", "NAN", ""]]
+    if not sistemas_lista:
+        sistemas_lista = ["BETM3"]
 
     ult_fecha = obtener_ultimo_dia_cerrado(agencia_data['nombre_agencia'], cajero_id=cajero_id if not es_supervisor else None)
     fecha_defecto = ult_fecha if ult_fecha else datetime.now().date()
@@ -1539,8 +1540,10 @@ def modulo_registro_taquilla(agencia_data):
         st.session_state["fecha_carga_actual"] = fecha_defecto
         st.session_state["last_carga_cajero"] = str(cajero_id)
 
-    monedas_lista = [m.strip().upper() for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip()]
-    moneda_def_ag = monedas_lista[0] if monedas_lista else "BS"
+    monedas_lista = [normalizar_moneda(m) for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip() and m.strip().upper() not in ["NONE", "NAN", ""]]
+    if not monedas_lista:
+        monedas_lista = ["BS"]
+    moneda_def_ag = monedas_lista[0]
 
     col_f, col_m = st.columns([2, 2])
     with col_f:

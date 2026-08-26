@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import time
-from utils import supabase, obtener_periodo_trabajo
+from utils import supabase, obtener_periodo_trabajo, normalizar_moneda, obtener_etiqueta_confirmacion
 
 def obtener_nombre_usuario_actual():
     if "cajero_actual" in st.session_state and st.session_state["cajero_actual"]:

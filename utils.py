@@ -147,4 +147,16 @@ def obtener_etiqueta_confirmacion(row):
     return "⏳ Pendiente"
 
 
+def normalizar_moneda(mon):
+    """Normaliza cadenas de monedas a códigos estándar BS, USD, COP."""
+    m = str(mon or "").upper().strip()
+    if m in ["BS", "VES", "BOLIVARES", "BOLÍVARES", "BS.", "BOLIVAR", "VES."]:
+        return "BS"
+    if m in ["USD", "DOLARES", "DÓLARES", "$", "DOLAR", "USD."]:
+        return "USD"
+    if m in ["COP", "PESOS", "PESO", "COP."]:
+        return "COP"
+    return m or "BS"
+
+
 

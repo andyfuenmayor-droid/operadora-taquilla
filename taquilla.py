@@ -4,7 +4,7 @@ import time
 import os
 import urllib.parse
 import textwrap
-from utils import supabase, obtener_periodo_trabajo, obtener_whatsapp_agencia_local, obtener_pagos_locales_agencia, obtener_gastos_locales_agencia
+from utils import supabase, obtener_periodo_trabajo, obtener_whatsapp_agencia_local, obtener_pagos_locales_agencia, obtener_gastos_locales_agencia, obtener_etiqueta_confirmacion, normalizar_moneda
 
 from datetime import datetime, timedelta, timezone
 from modulo_pizarra import modulo_pizarra
@@ -1049,7 +1049,7 @@ def modulo_home(agencia_data):
             df_g_hoy = cargar_datos_agencia_tabla("cda_gastos_diarios", ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_efectivo, u_id=u_id_admin)
 
         df_p_hoy, df_pb_hoy = obtener_pagos_unificados(ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_efectivo, cajero_id=c_id_target, es_supervisor=es_sup_o_ag, u_id=u_id_admin)
-        if df_p_hoy.empty or "monto" not in df_p_hoy.columns or float(pd.to_numeric(df_p_hoy["monto"], errors="coerce").fillna(0).sum()) == 0:
+        if df_p_hoy.empty:
             df_p_sem = cargar_datos_agencia_tabla("pagos_semana", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_efectivo, u_id=u_id_admin)
             if df_p_sem.empty:
                 df_p_sem = cargar_datos_agencia_tabla("pagos_semana", ag_nombre, u_id=u_id_admin)
@@ -1086,9 +1086,18 @@ def modulo_home(agencia_data):
     df_pb_raw = df_pb_hoy.copy()
     df_t_raw = df_t_hoy.copy()
 
-    # Multimoneda: Solo las monedas asignadas a la agencia
+    # Multimoneda: Monedas asignadas a la agencia + cualquier moneda con movimientos en el ciclo
     monedas_conf = [m.strip().upper() for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip()]
-    todas_monedas = [m for m in monedas_conf if m and m.lower() not in ["none", "nan", ""]]
+    todas_monedas_set = {normalizar_moneda(m) for m in monedas_conf if m and m.lower() not in ["none", "nan", ""]}
+    for df_chk in [df_v_raw, df_g_raw, df_p_raw, df_pb_raw, df_t_raw]:
+        if not df_chk.empty and "moneda" in df_chk.columns:
+            for mon_val in df_chk["moneda"].dropna().astype(str):
+                norm_m = normalizar_moneda(mon_val)
+                if norm_m and norm_m.lower() not in ["none", "nan", ""]:
+                    todas_monedas_set.add(norm_m)
+
+    orden_pref = ["BS", "USD", "COP"]
+    todas_monedas = [m for m in orden_pref if m in todas_monedas_set] + [m for m in sorted(todas_monedas_set) if m not in orden_pref]
     if not todas_monedas:
         todas_monedas = ["BS"]
 
@@ -2605,9 +2614,18 @@ def modulo_reporte_rango(agencia_data):
     except Exception as e:
         st.error(f"Error: {e}"); return
 
-    # Multimoneda en Reporte (solo monedas asignadas)
+    # Multimoneda en Reporte: Monedas asignadas + cualquier moneda con registros en el rango
     monedas_conf = [m.strip().upper() for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip()]
-    todas_monedas = [m for m in monedas_conf if m and m.lower() not in ["none", "nan", ""]]
+    todas_monedas_set = {normalizar_moneda(m) for m in monedas_conf if m and m.lower() not in ["none", "nan", ""]}
+    for df_chk in [df_v, df_g, df_p, df_pb, df_t]:
+        if not df_chk.empty and "moneda" in df_chk.columns:
+            for mon_val in df_chk["moneda"].dropna().astype(str):
+                norm_m = normalizar_moneda(mon_val)
+                if norm_m and norm_m.lower() not in ["none", "nan", ""]:
+                    todas_monedas_set.add(norm_m)
+
+    orden_pref = ["BS", "USD", "COP"]
+    todas_monedas = [m for m in orden_pref if m in todas_monedas_set] + [m for m in sorted(todas_monedas_set) if m not in orden_pref]
     if not todas_monedas:
         todas_monedas = ["BS"]
 

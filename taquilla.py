@@ -988,6 +988,284 @@ def obtener_saldo_anterior(agencia_nombre, fecha_sel, cajero_id=None, moneda="BS
 
     return 0.0
 
+def calcular_resumen_saldos_monedas(agencia_data, cajero_target_id=None):
+    """
+    Calcula de forma exacta y unificada el saldo actual / deuda pendiente
+    para cada una de las monedas asignadas a la agencia.
+    """
+    ag_nombre = agencia_data.get('nombre_agencia', '')
+    u_id_admin = agencia_data.get('user_id')
+    ciclo_admin = obtener_periodo_trabajo(u_id_admin)
+
+    cajero_info = st.session_state.get("cajero_actual", {})
+    rol_user = str(cajero_info.get("rol") or "cajero").lower()
+    cajero_id = cajero_info.get("id")
+    es_supervisor = (rol_user == 'supervisor')
+    es_agencia = (rol_user == 'agencia')
+    es_sup_o_ag = es_supervisor or es_agencia
+
+    c_id_calc = cajero_target_id if cajero_target_id is not None else (None if es_sup_o_ag else cajero_id)
+
+    fecha_operativa = obtener_fecha_inicial_operativa(ag_nombre, cajero_id=c_id_calc, u_id=u_id_admin)
+    str_operativa = str(fecha_operativa)
+
+    f_desde_admin = str(ciclo_admin.get("desde"))
+    f_hasta_admin = str(ciclo_admin.get("hasta"))
+    hoy_str = str(datetime.now().date())
+    f_hasta_efectivo = max(f_hasta_admin, hoy_str) if f_hasta_admin else hoy_str
+    f_desde_carga = f_desde_admin if (f_desde_admin and f_desde_admin.lower() != "none") else str_operativa
+    if f_desde_carga > str_operativa:
+        f_desde_carga = str_operativa
+
+    df_v_hoy, df_g_hoy, df_p_hoy, df_pb_hoy, df_t_hoy = pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+
+    try:
+        df_ofic = cargar_datos_agencia_tabla("carga_actual", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_efectivo, u_id=u_id_admin)
+        if df_ofic.empty:
+            df_ofic = cargar_datos_agencia_tabla("carga_actual", ag_nombre, u_id=u_id_admin)
+        if not df_ofic.empty:
+            df_ofic["monto_venta"] = pd.to_numeric(df_ofic.get("venta", 0), errors="coerce").fillna(0.0)
+            df_ofic["comision"] = pd.to_numeric(df_ofic.get("comision", 0), errors="coerce").fillna(0.0)
+            df_ofic["monto_premios"] = pd.to_numeric(df_ofic.get("premios", 0), errors="coerce").fillna(0.0)
+            df_ofic["neto"] = pd.to_numeric(df_ofic.get("neto", 0), errors="coerce").fillna(0.0)
+            df_v_hoy = df_ofic
+        else:
+            df_v_hoy = cargar_datos_agencia_tabla("cda_reportes_diarios", ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_efectivo, u_id=u_id_admin)
+
+        df_g_ofic = cargar_datos_agencia_tabla("gastos", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_efectivo, u_id=u_id_admin)
+        if df_g_ofic.empty:
+            df_g_ofic = cargar_datos_agencia_tabla("gastos", ag_nombre, u_id=u_id_admin)
+        if not df_g_ofic.empty:
+            df_g_ofic["concepto"] = df_g_ofic.get("concepto", df_g_ofic.get("descripcion", "Gasto General"))
+            df_g_hoy = df_g_ofic
+        else:
+            df_g_hoy = cargar_datos_agencia_tabla("cda_gastos_diarios", ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_efectivo, u_id=u_id_admin)
+
+        df_p_hoy, df_pb_hoy = obtener_pagos_unificados(ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_efectivo, cajero_id=c_id_calc, es_supervisor=es_sup_o_ag, u_id=u_id_admin)
+        if df_p_hoy.empty:
+            df_p_sem = cargar_datos_agencia_tabla("pagos_semana", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_efectivo, u_id=u_id_admin)
+            if df_p_sem.empty:
+                df_p_sem = cargar_datos_agencia_tabla("pagos_semana", ag_nombre, u_id=u_id_admin)
+            if df_p_sem.empty:
+                df_p_sem = cargar_datos_agencia_tabla("pagos", ag_nombre, fecha_desde=f_desde_admin, fecha_hasta=f_hasta_efectivo, u_id=u_id_admin)
+            if not df_p_sem.empty:
+                df_p_sem["concepto"] = df_p_sem.get("tipo_pago", "Pago")
+                df_p_hoy = df_p_sem
+
+        if df_p_hoy.empty and not df_pb_hoy.empty:
+            df_pb_tmp = df_pb_hoy.copy()
+            df_pb_tmp["tipo_pago"] = df_pb_tmp.get("metodo_pago", df_pb_tmp.get("concepto", "PAGO BANCO"))
+            df_p_hoy = df_pb_tmp
+
+        loc_pagos = obtener_pagos_locales_agencia(u_id_admin, ag_nombre)
+        if loc_pagos:
+            df_p_loc = pd.DataFrame(loc_pagos)
+            if "tipo_pago" not in df_p_loc.columns:
+                df_p_loc["tipo_pago"] = df_p_loc.get("metodo", df_p_loc.get("tipo", "EFECTIVO"))
+            df_p_hoy = pd.concat([df_p_hoy, df_p_loc], ignore_index=True) if not df_p_hoy.empty else df_p_loc
+
+        loc_gastos = obtener_gastos_locales_agencia(u_id_admin, ag_nombre)
+        if loc_gastos:
+            df_g_loc = pd.DataFrame(loc_gastos)
+            df_g_hoy = pd.concat([df_g_hoy, df_g_loc], ignore_index=True) if not df_g_hoy.empty else df_g_loc
+
+        df_t_hoy = cargar_datos_agencia_tabla("cda_premios_tickets", ag_nombre, fecha_desde=f_desde_carga, fecha_hasta=f_hasta_admin, u_id=u_id_admin)
+    except Exception:
+        pass
+
+    df_v_raw = df_v_hoy.copy()
+    df_g_raw = df_g_hoy.copy()
+    df_p_raw = df_p_hoy.copy()
+    df_pb_raw = df_pb_hoy.copy()
+    df_t_raw = df_t_hoy.copy()
+
+    monedas_conf = [m.strip().upper() for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip() and m.strip().upper() not in ["NONE", "NAN", ""]]
+    todas_monedas = [normalizar_moneda(m) for m in monedas_conf if m]
+    if not todas_monedas:
+        todas_monedas = ["BS"]
+
+    sistemas_conf = [s.strip().upper() for s in str(agencia_data.get("sistemas", "BETM3")).split(",") if s.strip() and s.strip().upper() not in ["NONE", "NAN", ""]]
+    if not sistemas_conf:
+        sistemas_conf = ["BETM3"]
+
+    resumen = {}
+    for m_code in todas_monedas:
+        sym_curr = "Bs. " if m_code == "BS" else ("$" if m_code == "USD" else "COP$ ")
+        
+        df_v_m = df_v_raw[es_misma_moneda(df_v_raw["moneda"], m_code)] if not df_v_raw.empty and "moneda" in df_v_raw.columns else pd.DataFrame()
+        if not df_v_m.empty and "sistema" in df_v_m.columns:
+            df_v_m = df_v_m[df_v_m["sistema"].astype(str).str.strip().str.upper().isin(sistemas_conf)]
+        df_g_m = df_g_raw[es_misma_moneda(df_g_raw["moneda"], m_code)] if not df_g_raw.empty and "moneda" in df_g_raw.columns else pd.DataFrame()
+        df_p_m = df_p_raw[es_misma_moneda(df_p_raw["moneda"], m_code)] if not df_p_raw.empty and "moneda" in df_p_raw.columns else pd.DataFrame()
+        df_pb_m = df_pb_raw[es_misma_moneda(df_pb_raw["moneda"], m_code)] if not df_pb_raw.empty and "moneda" in df_pb_raw.columns else pd.DataFrame()
+        df_t_m = df_t_raw[es_misma_moneda(df_t_raw["moneda"], m_code)] if not df_t_raw.empty and "moneda" in df_t_raw.columns else pd.DataFrame()
+
+        if not es_sup_o_ag and c_id_calc:
+            df_v_m = filtrar_df_por_cajero(df_v_m, c_id_calc)
+            df_g_m = filtrar_df_por_cajero(df_g_m, c_id_calc)
+            df_p_m = filtrar_df_por_cajero(df_p_m, c_id_calc)
+            df_pb_m = filtrar_df_por_cajero(df_pb_m, c_id_calc)
+            df_t_m = filtrar_df_por_cajero(df_t_m, c_id_calc)
+
+        t_v_m = float(df_v_m["monto_venta"].sum()) if not df_v_m.empty and "monto_venta" in df_v_m.columns else 0.0
+        t_c_m = float(df_v_m["comision"].sum()) if not df_v_m.empty and "comision" in df_v_m.columns else 0.0
+
+        p_rep_m = float(df_v_m["monto_premios"].sum()) if not df_v_m.empty and "monto_premios" in df_v_m.columns else 0.0
+        p_tick_m = float(df_t_m["monto"].sum()) if not df_t_m.empty and "monto" in df_t_m.columns else 0.0
+        t_p_m = max(p_rep_m, p_tick_m)
+
+        df_g_m_val = df_g_m[df_g_m.get("rechazado", False) != True] if not df_g_m.empty else df_g_m
+        t_g_m = float(df_g_m_val["monto"].sum()) if not df_g_m_val.empty and "monto" in df_g_m_val.columns else 0.0
+
+        t_pago_efectivo_m = 0.0
+        t_pago_banco_m = 0.0
+        t_pago_premios_m = 0.0
+
+        if not df_p_m.empty:
+            df_p_m_sync = sincronizar_confirmaciones_pagos(df_p_m, df_pb_m, ag_nombre)
+            df_p_m_sync = enriquecer_columna_cajero(df_p_m_sync)
+            df_p_m_sync["tipo_clasif"] = df_p_m_sync.apply(clasificar_pago_registro, axis=1)
+
+            df_prem_m = df_p_m_sync[df_p_m_sync["tipo_clasif"] == "PREMIO"].copy()
+            df_efec_m = df_p_m_sync[df_p_m_sync["tipo_clasif"] == "EFECTIVO"].copy()
+            df_banc_m = df_p_m_sync[df_p_m_sync["tipo_clasif"] == "BANCO"].copy()
+
+            df_prem_val = df_prem_m[df_prem_m.get("rechazado", False) != True] if not df_prem_m.empty else df_prem_m
+            df_efec_val = df_efec_m[df_efec_m.get("rechazado", False) != True] if not df_efec_m.empty else df_efec_m
+            df_banc_val = df_banc_m[df_banc_m.get("rechazado", False) != True] if not df_banc_m.empty else df_banc_m
+
+            t_pago_premios_m = float(df_prem_val["monto"].sum()) if not df_prem_val.empty and "monto" in df_prem_val.columns else 0.0
+            t_pago_efectivo_m = float(df_efec_val["monto"].sum()) if not df_efec_val.empty and "monto" in df_efec_val.columns else 0.0
+            t_pago_banco_m = float(df_banc_val["monto"].sum()) if not df_banc_val.empty and "monto" in df_banc_val.columns else 0.0
+
+        saldo_op_m = t_v_m - t_c_m - t_p_m
+        saldo_neto_m = saldo_op_m - t_g_m - t_pago_efectivo_m - t_pago_banco_m + t_pago_premios_m
+        saldo_ant_m = obtener_saldo_anterior(ag_nombre, fecha_operativa, cajero_id=c_id_calc, moneda=m_code)
+        saldo_fin_m = saldo_ant_m + saldo_neto_m
+
+        resumen[m_code] = {
+            "moneda": m_code,
+            "sym": sym_curr,
+            "saldo_anterior": saldo_ant_m,
+            "ventas": t_v_m,
+            "comisiones": t_c_m,
+            "premios": t_p_m,
+            "resultado_op": saldo_op_m,
+            "gastos": t_g_m,
+            "pago_efectivo": t_pago_efectivo_m,
+            "pago_banco": t_pago_banco_m,
+            "pago_premios": t_pago_premios_m,
+            "pagos_totales": t_pago_efectivo_m + t_pago_banco_m,
+            "saldo_neto": saldo_neto_m,
+            "saldo_actual": saldo_fin_m,
+        }
+    return resumen
+
+def render_tarjetas_deuda_monedas(resumen_saldos, titulo="💳 Estado de Deuda / Saldo Pendiente por Moneda", subtitulo=None):
+    """
+    Renderiza tarjetas elegantes para visualizar lo que debe o el saldo a favor en cada moneda asignada.
+    """
+    if not resumen_saldos:
+        return
+    
+    is_dark = st.session_state.get("tema_oscuro", True)
+    
+    if titulo:
+        render_titulo_seccion(titulo)
+    if subtitulo:
+        st.caption(subtitulo)
+
+    items = list(resumen_saldos.values())
+    n = len(items)
+    cols = st.columns(n if n <= 4 else 4)
+
+    flag_map = {
+        "BS": "🇻🇪",
+        "USD": "🇺🇸",
+        "COP": "🇨🇴",
+        "EUR": "🇪🇺",
+        "BRL": "🇧🇷"
+    }
+
+    for idx, data in enumerate(items):
+        col_target = cols[idx % len(cols)]
+        m_code = data["moneda"]
+        sym = data["sym"]
+        saldo_ant = data["saldo_anterior"]
+        saldo_op = data["resultado_op"]
+        gastos = data["gastos"]
+        pagos_tot = data["pagos_totales"]
+        saldo_act = data["saldo_actual"]
+        flag = flag_map.get(m_code, "💱")
+
+        if saldo_act > 0.005:
+            badge_bg = "rgba(239, 68, 68, 0.15)" if is_dark else "rgba(239, 68, 68, 0.12)"
+            badge_border = "rgba(239, 68, 68, 0.35)" if is_dark else "rgba(239, 68, 68, 0.3)"
+            badge_text = "#fb7185" if is_dark else "#dc2626"
+            badge_lbl = "🔴 DEUDA PENDIENTE"
+            val_color = "#f43f5e" if is_dark else "#dc2626"
+            val_str = f"{sym}{saldo_act:,.2f}"
+            desc_str = "Monto que debes pagar"
+        elif saldo_act < -0.005:
+            badge_bg = "rgba(16, 185, 129, 0.15)" if is_dark else "rgba(16, 185, 129, 0.12)"
+            badge_border = "rgba(16, 185, 129, 0.35)" if is_dark else "rgba(16, 185, 129, 0.3)"
+            badge_text = "#34d399" if is_dark else "#16a34a"
+            badge_lbl = "🟢 SALDO A FAVOR"
+            val_color = "#34d399" if is_dark else "#16a34a"
+            val_str = f"{sym}{abs(saldo_act):,.2f}"
+            desc_str = "Saldo a favor de la Taquilla"
+        else:
+            badge_bg = "rgba(148, 163, 184, 0.15)" if is_dark else "rgba(148, 163, 184, 0.12)"
+            badge_border = "rgba(148, 163, 184, 0.35)" if is_dark else "rgba(148, 163, 184, 0.3)"
+            badge_text = "#94a3b8" if is_dark else "#64748b"
+            badge_lbl = "⚪ AL DÍA / SOLVENTE"
+            val_color = "#94a3b8" if is_dark else "#64748b"
+            val_str = f"{sym}0.00"
+            desc_str = "Sin deuda pendiente"
+
+        card_bg = "linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.9) 100%)" if is_dark else "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)"
+        card_border = "rgba(255, 255, 255, 0.1)" if is_dark else "rgba(15, 23, 42, 0.12)"
+        label_col = "#94a3b8" if is_dark else "#64748b"
+        val_sub_col = "#f1f5f9" if is_dark else "#1e293b"
+        divider_col = "rgba(255, 255, 255, 0.08)" if is_dark else "rgba(15, 23, 42, 0.08)"
+        shadow = "0 4px 14px rgba(0,0,0,0.2)" if is_dark else "0 2px 8px rgba(0,0,0,0.06)"
+
+        card_html = f"""
+        <div style="background: {card_bg}; border: 1px solid {card_border}; border-radius: 12px; padding: 14px 16px; margin-bottom: 1rem; box-shadow: {shadow};">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div style="font-weight: 800; font-size: 1rem; color: {val_sub_col};">
+                    {flag} {m_code}
+                </div>
+                <div style="background: {badge_bg}; color: {badge_text}; border: 1px solid {badge_border}; border-radius: 20px; padding: 2px 8px; font-size: 0.72rem; font-weight: 700;">
+                    {badge_lbl}
+                </div>
+            </div>
+            <div style="margin: 6px 0;">
+                <div style="font-size: 0.75rem; color: {label_col}; text-transform: uppercase; letter-spacing: 0.04em;">{desc_str}</div>
+                <div style="font-size: 1.55rem; font-weight: 800; color: {val_color}; line-height: 1.2;">{val_str}</div>
+            </div>
+            <div style="border-top: 1px solid {divider_col}; margin-top: 10px; padding-top: 8px; font-size: 0.78rem; display: flex; flex-direction: column; gap: 3px;">
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: {label_col};">Saldo Anterior:</span>
+                    <b style="color: {val_sub_col};">{sym}{saldo_ant:,.2f}</b>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: {label_col};">Resultado Operativo:</span>
+                    <b style="color: {val_sub_col};">{sym}{saldo_op:,.2f}</b>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: {label_col};">Gastos:</span>
+                    <b style="color: {val_sub_col};">{sym}{gastos:,.2f}</b>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: {label_col};">Pagos Abonados:</span>
+                    <b style="color: {val_sub_col};">{sym}{pagos_tot:,.2f}</b>
+                </div>
+            </div>
+        </div>
+        """
+        col_target.markdown(card_html, unsafe_allow_html=True)
+
 def modulo_home(agencia_data):
     ag_nombre = agencia_data['nombre_agencia']
     u_id_admin = agencia_data.get('user_id')
@@ -1874,6 +2152,14 @@ def modulo_pagos(agencia_data):
 
     c_target_id = cajero_filtro_target if es_supervisor else (None if es_agencia else cajero_id)
 
+    # VISUALIZACIÓN DE DEUDA / SALDO PENDIENTE POR MONEDAS ASIGNADAS
+    saldos_monedas_p = calcular_resumen_saldos_monedas(agencia_data, cajero_target_id=c_target_id)
+    render_tarjetas_deuda_monedas(
+        saldos_monedas_p,
+        titulo="💳 Estado de Deuda / Saldo Pendiente por Moneda",
+        subtitulo="Consulta en tiempo real cuánto debes en cada moneda asignada para este periodo operativo antes de registrar tu pago."
+    )
+
     cerrado = dia_esta_cerrado(ag_nombre, fecha_filtro, cajero_id=c_target_id)
     if cerrado:
         st.info(f"🔒 El día {fecha_filtro} está cerrado para este usuario. No se pueden registrar nuevos pagos.")
@@ -2269,6 +2555,14 @@ def modulo_gestion_bancaria(agencia_data):
     # ==================== TAB 3: REGISTRAR PAGO ====================
     with tabs_map["registrar"]:
         render_titulo_seccion("💸 Registrar Pago Recibido")
+
+        # MOSTRAR DEUDA / SALDO PENDIENTE POR MONEDA ASIGNADA
+        saldos_monedas_b = calcular_resumen_saldos_monedas(agencia_data, cajero_target_id=c_id_ref)
+        render_tarjetas_deuda_monedas(
+            saldos_monedas_b,
+            titulo="💳 Estado de Deuda / Saldo Pendiente por Moneda",
+            subtitulo="Consulta en tiempo real cuánto debes en cada moneda asignada antes de registrar tu transferencia o pago bancario."
+        )
 
         metodos_bancarios_opciones = [
             "Punto de Venta", 

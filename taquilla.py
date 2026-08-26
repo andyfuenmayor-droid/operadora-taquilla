@@ -1736,8 +1736,14 @@ def modulo_gastos(agencia_data):
     if cerrado:
         st.info(f"🔒 El día {fecha_filtro} está cerrado para este usuario. No se pueden registrar nuevos gastos.")
 
+    monedas_asig = [normalizar_moneda(m) for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip() and m.strip().upper() not in ["NONE", "NAN", ""]]
+    if not monedas_asig:
+        monedas_asig = ["BS"]
+
     try:
         df_g = cargar_datos_agencia_tabla("cda_gastos_diarios", ag_nombre, fecha=fecha_filtro)
+        if not df_g.empty and "moneda" in df_g.columns:
+            df_g = df_g[df_g["moneda"].astype(str).str.strip().str.upper().apply(normalizar_moneda).isin(monedas_asig)]
         if c_target_id:
             df_g = filtrar_df_por_cajero(df_g, c_target_id)
     except Exception:
@@ -1872,8 +1878,14 @@ def modulo_pagos(agencia_data):
     if cerrado:
         st.info(f"🔒 El día {fecha_filtro} está cerrado para este usuario. No se pueden registrar nuevos pagos.")
 
+    monedas_asig = [normalizar_moneda(m) for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip() and m.strip().upper() not in ["NONE", "NAN", ""]]
+    if not monedas_asig:
+        monedas_asig = ["BS"]
+
     try:
         df_p = cargar_datos_agencia_tabla("cda_pagos_diarios", ag_nombre, fecha=fecha_filtro)
+        if not df_p.empty and "moneda" in df_p.columns:
+            df_p = df_p[df_p["moneda"].astype(str).str.strip().str.upper().apply(normalizar_moneda).isin(monedas_asig)]
         if c_target_id:
             df_p = filtrar_df_por_cajero(df_p, c_target_id)
     except Exception:
@@ -2617,20 +2629,16 @@ def modulo_reporte_rango(agencia_data):
     except Exception as e:
         st.error(f"Error: {e}"); return
 
-    # Multimoneda en Reporte: Monedas asignadas + cualquier moneda con registros en el rango
-    monedas_conf = [m.strip().upper() for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip()]
-    todas_monedas_set = {normalizar_moneda(m) for m in monedas_conf if m and m.lower() not in ["none", "nan", ""]}
-    for df_chk in [df_v, df_g, df_p, df_pb, df_t]:
-        if not df_chk.empty and "moneda" in df_chk.columns:
-            for mon_val in df_chk["moneda"].dropna().astype(str):
-                norm_m = normalizar_moneda(mon_val)
-                if norm_m and norm_m.lower() not in ["none", "nan", ""]:
-                    todas_monedas_set.add(norm_m)
-
-    orden_pref = ["BS", "USD", "COP"]
-    todas_monedas = [m for m in orden_pref if m in todas_monedas_set] + [m for m in sorted(todas_monedas_set) if m not in orden_pref]
+    # Multimoneda en Reporte: Solo monedas asignadas por el admin a la agencia
+    monedas_conf = [m.strip().upper() for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip() and m.strip().upper() not in ["NONE", "NAN", ""]]
+    todas_monedas = [normalizar_moneda(m) for m in monedas_conf if m]
     if not todas_monedas:
         todas_monedas = ["BS"]
+
+    # Sistemas asignados por el admin a la agencia
+    sistemas_conf = [s.strip().upper() for s in str(agencia_data.get("sistemas", "BETM3")).split(",") if s.strip() and s.strip().upper() not in ["NONE", "NAN", ""]]
+    if not sistemas_conf:
+        sistemas_conf = ["BETM3"]
 
     if len(todas_monedas) > 1:
         tabs_m = st.tabs([f"💱 REPORTES {m}" for m in todas_monedas])
@@ -2642,6 +2650,8 @@ def modulo_reporte_rango(agencia_data):
             sym_curr = "Bs." if m_code == "BS" else ("$" if m_code == "USD" else "COP$")
             
             df_v_m = df_v[es_misma_moneda(df_v["moneda"], m_code)] if not df_v.empty and "moneda" in df_v.columns else pd.DataFrame()
+            if not df_v_m.empty and "sistema" in df_v_m.columns:
+                df_v_m = df_v_m[df_v_m["sistema"].astype(str).str.strip().str.upper().isin(sistemas_conf)]
             df_g_m = df_g[es_misma_moneda(df_g["moneda"], m_code)] if not df_g.empty and "moneda" in df_g.columns else pd.DataFrame()
             df_p_m = df_p[es_misma_moneda(df_p["moneda"], m_code)] if not df_p.empty and "moneda" in df_p.columns else pd.DataFrame()
             df_pb_m = df_pb[es_misma_moneda(df_pb["moneda"], m_code)] if not df_pb.empty and "moneda" in df_pb.columns else pd.DataFrame()
@@ -3273,7 +3283,13 @@ def modulo_premios_tickets(agencia_data):
             render_titulo_seccion("📝 Registrar Nuevo Premio")
             c1, c2 = st.columns(2)
             fecha_p = c1.date_input("Fecha del Sorteo", value=fecha_filtro)
-            sistema_p = c2.selectbox("Sistema", ["BETM3", "GATOWEB", "KENO", "OTRO"], index=0)
+            sistemas_asig = [s.strip().upper() for s in str(agencia_data.get("sistemas", "BETM3")).split(",") if s.strip() and s.strip().upper() not in ["NONE", "NAN", ""]]
+            if not sistemas_asig:
+                sistemas_asig = ["BETM3"]
+            sistema_p = c2.selectbox("Sistema", sistemas_asig, index=0)
+
+            monedas_asig = [normalizar_moneda(m) for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip() and m.strip().upper() not in ["NONE", "NAN", ""]]
+            moneda_prem_def = monedas_asig[0] if monedas_asig else "BS"
 
             usar_lote = st.checkbox("📦 Ingresar últimos 3 dígitos del ticket")
 
@@ -3321,7 +3337,6 @@ def modulo_premios_tickets(agencia_data):
                                         "cajero_id": u_id_real,
                                     }).eq("id", d_row["id"]).execute()
                                 else:
-                                    moneda_prem_def = [m.strip().upper() for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip()][0] if agencia_data.get("monedas") else "BS"
                                     supabase.table("cda_reportes_diarios").insert({
                                         "nombre_agency": ag_nombre, "fecha": str(fecha_p),
                                         "sistema": sistema_p, "monto_venta": 0, "comision": 0,
@@ -3378,7 +3393,6 @@ def modulo_premios_tickets(agencia_data):
                                         "cajero_id": u_id_real,
                                     }).eq("id", d_row["id"]).execute()
                                 else:
-                                    moneda_prem_def = [m.strip().upper() for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip()][0] if agencia_data.get("monedas") else "BS"
                                     supabase.table("cda_reportes_diarios").insert({
                                         "nombre_agency": ag_nombre, "fecha": str(fecha_p),
                                         "sistema": sistema_p, "monto_venta": 0, "comision": 0,
@@ -3424,7 +3438,6 @@ def modulo_premios_tickets(agencia_data):
                                             "cajero_id": u_id_real,
                                         }).eq("id", d_row["id"]).execute()
                                     else:
-                                        moneda_prem_def = [m.strip().upper() for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip()][0] if agencia_data.get("monedas") else "BS"
                                         supabase.table("cda_reportes_diarios").insert({
                                             "nombre_agency": ag_nombre, "fecha": str(fecha_p),
                                             "sistema": sistema_p, "monto_venta": 0, "comision": 0,
@@ -3517,10 +3530,30 @@ def modulo_reporte_diario(agencia_data):
 
     c_target_id = cajero_filtro_target if es_supervisor else cajero_id
 
+    monedas_asig = [normalizar_moneda(m) for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip() and m.strip().upper() not in ["NONE", "NAN", ""]]
+    if not monedas_asig:
+        monedas_asig = ["BS"]
+
+    sistemas_asig = [s.strip().upper() for s in str(agencia_data.get("sistemas", "BETM3")).split(",") if s.strip() and s.strip().upper() not in ["NONE", "NAN", ""]]
+    if not sistemas_asig:
+        sistemas_asig = ["BETM3"]
+
     try:
         df_v = cargar_datos_agencia_tabla("cda_reportes_diarios", agencia_data['nombre_agencia'], fecha=fecha_sel)
         df_g = cargar_datos_agencia_tabla("cda_gastos_diarios", agencia_data['nombre_agencia'], fecha=fecha_sel)
         df_t = cargar_datos_agencia_tabla("cda_premios_tickets", agencia_data['nombre_agencia'], fecha=fecha_sel)
+
+        if not df_v.empty:
+            if "sistema" in df_v.columns:
+                df_v = df_v[df_v["sistema"].astype(str).str.strip().str.upper().isin(sistemas_asig)]
+            if "moneda" in df_v.columns:
+                df_v = df_v[df_v["moneda"].astype(str).str.strip().str.upper().apply(normalizar_moneda).isin(monedas_asig)]
+
+        if not df_g.empty and "moneda" in df_g.columns:
+            df_g = df_g[df_g["moneda"].astype(str).str.strip().str.upper().apply(normalizar_moneda).isin(monedas_asig)]
+
+        if not df_t.empty and "sistema" in df_t.columns:
+            df_t = df_t[df_t["sistema"].astype(str).str.strip().str.upper().isin(sistemas_asig)]
 
         if c_target_id:
             df_v = filtrar_df_por_cajero(df_v, c_target_id)
@@ -3533,6 +3566,8 @@ def modulo_reporte_diario(agencia_data):
             cajero_id=c_target_id,
             es_supervisor=(not bool(c_target_id))
         )
+        if not df_p.empty and "moneda" in df_p.columns:
+            df_p = df_p[df_p["moneda"].astype(str).str.strip().str.upper().apply(normalizar_moneda).isin(monedas_asig)]
     except Exception as e:
         st.error(f"Error: {e}"); return
 

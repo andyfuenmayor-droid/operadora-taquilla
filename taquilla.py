@@ -461,7 +461,7 @@ def clasificar_pago_registro(r):
         r_dict = {}
 
     textos = []
-    for k in ["concepto", "tipo_pago", "tipo", "descripcion", "metodo_pago", "metodo", "pos_o_cuenta", "datos_pagador", "referencia", "categoria"]:
+    for k in ["concepto", "tipo_pago", "tipo", "descripcion", "metodo_pago", "metodo", "pos_o_cuenta", "datos_pagador", "referencia", "categoria", "tabla", "origen"]:
         v = str(r_dict.get(k, "") or "").strip().upper()
         if v and v not in ["NONE", "NAN", "N/A", "NULL"]:
             textos.append(v)
@@ -474,10 +474,15 @@ def clasificar_pago_registro(r):
     if any(kw in full_str for kw in keywords_premios):
         return "PREMIO"
 
-    if "EFECTIVO" in full_str and not any(kw in full_str for kw in ["BANCO", "PUNTO", "POS", "ZELLE", "TRANSFERENCIA", "MÓVIL", "MOVIL", "BIOPAGO"]):
-        return "EFECTIVO"
+    # Si proviene de pagos bancarios o contiene métodos bancarios explícitos
+    keywords_banco = ["BANCO", "PUNTO", "POS", "ZELLE", "TRANSFERENCIA", "MÓVIL", "MOVIL", "BIOPAGO", "DEPOSITO", "DEPÓSITO", "CUENTA"]
+    es_origen_banco = (r_dict.get("origen") == "cda_pagos_bancarios" or r_dict.get("tabla") == "cda_pagos_bancarios")
+    tiene_kw_banco = any(kw in full_str for kw in keywords_banco)
 
-    return "BANCO"
+    if es_origen_banco or tiene_kw_banco:
+        return "BANCO"
+
+    return "EFECTIVO"
 
 def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha_hasta=None, cajero_id=None, es_supervisor=False, u_id=None):
     """
@@ -487,6 +492,26 @@ def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha
     df_p = cargar_datos_agencia_tabla("cda_pagos_diarios", agencia_nombre, fecha=fecha, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, u_id=u_id)
     df_pb = cargar_datos_agencia_tabla("cda_pagos_bancarios", agencia_nombre, fecha=fecha, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, u_id=u_id)
     df_ps = cargar_datos_agencia_tabla("pagos_semana", agencia_nombre, fecha=fecha, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, u_id=u_id)
+
+    if not df_p.empty:
+        df_p["origen"] = "cda_pagos_diarios"
+        df_p["tabla"] = "cda_pagos_diarios"
+        if "metodo" not in df_p.columns:
+            df_p["metodo"] = "EFECTIVO"
+        else:
+            df_p["metodo"] = df_p["metodo"].fillna("EFECTIVO")
+        if "metodo_pago" not in df_p.columns:
+            df_p["metodo_pago"] = "EFECTIVO"
+        else:
+            df_p["metodo_pago"] = df_p["metodo_pago"].fillna("EFECTIVO")
+        if "referencia" not in df_p.columns:
+            df_p["referencia"] = "Efectivo"
+        else:
+            df_p["referencia"] = df_p["referencia"].fillna("Efectivo")
+
+    if not df_pb.empty:
+        df_pb["origen"] = "cda_pagos_bancarios"
+        df_pb["tabla"] = "cda_pagos_bancarios"
 
     if df_ps.empty and fecha_desde:
         df_ps = cargar_datos_agencia_tabla("pagos_semana", agencia_nombre, fecha_desde=fecha_desde, u_id=u_id)
@@ -994,10 +1019,9 @@ def modulo_home(agencia_data):
     df_pb_raw = df_pb_hoy.copy()
     df_t_raw = df_t_hoy.copy()
 
-    # Multimoneda: Identificar monedas asociadas a la agencia y sus registros
+    # Multimoneda: Solo las monedas asignadas a la agencia
     monedas_conf = [m.strip().upper() for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip()]
-    monedas_data = df_v_raw["moneda"].astype(str).str.strip().str.upper().unique().tolist() if not df_v_raw.empty and "moneda" in df_v_raw.columns else []
-    todas_monedas = [m for m in sorted(list(set(monedas_conf + monedas_data))) if m and m.lower() not in ["none", "nan", ""]]
+    todas_monedas = [m for m in monedas_conf if m and m.lower() not in ["none", "nan", ""]]
     if not todas_monedas:
         todas_monedas = ["BS"]
 
@@ -1246,6 +1270,13 @@ def modulo_home(agencia_data):
                         df_pord_disp["agencia"] = df_pord_disp["agencia"].fillna(df_pord_disp["nombre_agency"])
                     if "tipo_pago" in df_pord_disp.columns:
                         df_pord_disp = df_pord_disp.rename(columns={"tipo_pago": "pagos registrados", "referencia": "referencia / banco"})
+                    elif "referencia" in df_pord_disp.columns:
+                        df_pord_disp = df_pord_disp.rename(columns={"referencia": "referencia / banco"})
+
+                    if "referencia / banco" not in df_pord_disp.columns:
+                        df_pord_disp["referencia / banco"] = "Efectivo"
+                    else:
+                        df_pord_disp["referencia / banco"] = df_pord_disp["referencia / banco"].fillna("Efectivo")
 
                     cols_dup = [c for c in ["fecha", "monto", "moneda", "pagos registrados", "referencia / banco", "cajero"] if c in df_pord_disp.columns]
                     if cols_dup:
@@ -1629,7 +1660,10 @@ def modulo_gastos(agencia_data):
             render_titulo_seccion("📝 Registrar Nuevo Gasto")
             c1, c2, c3 = st.columns([2, 2, 3])
             fecha_g = c1.date_input("Fecha", value=fecha_filtro)
-            moneda_g = c2.selectbox("Moneda", ["COP", "USD", "BS"], index=0)
+            monedas_asig = [m.strip().upper() for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip() and m.strip().upper() not in ["NONE", "NAN", ""]]
+            if not monedas_asig:
+                monedas_asig = ["BS"]
+            moneda_g = c2.selectbox("Moneda", monedas_asig, index=0)
             monto_g = c3.number_input("Monto", min_value=0.0, format="%.2f")
             concepto_g = st.text_input("Concepto:", placeholder="Ej. Pago de servicios, papelería, mantenimiento...")
             if st.form_submit_button("💾 GUARDAR GASTO", use_container_width=True):
@@ -1759,7 +1793,10 @@ def modulo_pagos(agencia_data):
             render_titulo_seccion("📝 Registrar Nuevo Pago")
             c1, c2, c3, c4 = st.columns([2, 2, 3, 3])
             fecha_pg = c1.date_input("Fecha", value=fecha_filtro)
-            moneda_pg = c2.selectbox("Moneda", ["COP", "USD", "BS"], index=0)
+            monedas_asig = [m.strip().upper() for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip() and m.strip().upper() not in ["NONE", "NAN", ""]]
+            if not monedas_asig:
+                monedas_asig = ["BS"]
+            moneda_pg = c2.selectbox("Moneda", monedas_asig, index=0)
             monto_pg = c3.number_input("Monto", min_value=0.0, format="%.2f")
             if es_agencia:
                 opts_tipo_pg = ["Pago a Comercializador"]
@@ -2444,10 +2481,9 @@ def modulo_reporte_rango(agencia_data):
     except Exception as e:
         st.error(f"Error: {e}"); return
 
-    # Multimoneda en Reporte
+    # Multimoneda en Reporte (solo monedas asignadas)
     monedas_conf = [m.strip().upper() for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip()]
-    monedas_data = df_v["moneda"].astype(str).str.strip().str.upper().unique().tolist() if not df_v.empty and "moneda" in df_v.columns else []
-    todas_monedas = [m for m in sorted(list(set(monedas_conf + monedas_data))) if m and m.lower() not in ["none", "nan", ""]]
+    todas_monedas = [m for m in monedas_conf if m and m.lower() not in ["none", "nan", ""]]
     if not todas_monedas:
         todas_monedas = ["BS"]
 
@@ -2460,15 +2496,17 @@ def modulo_reporte_rango(agencia_data):
         with tabs_m[idx_m]:
             sym_curr = "Bs." if m_code == "BS" else ("$" if m_code == "USD" else "COP$")
             
-            df_v_m = df_v[df_v["moneda"].astype(str).str.strip().str.upper() == m_code] if not df_v.empty and "moneda" in df_v.columns else (df_v if len(todas_monedas) == 1 else pd.DataFrame())
-            df_g_m = df_g[df_g["moneda"].astype(str).str.strip().str.upper() == m_code] if not df_g.empty and "moneda" in df_g.columns else (df_g if len(todas_monedas) == 1 else pd.DataFrame())
-            df_p_m = df_p[df_p["moneda"].astype(str).str.strip().str.upper() == m_code] if not df_p.empty and "moneda" in df_p.columns else (df_p if len(todas_monedas) == 1 else pd.DataFrame())
-            df_pb_m = df_pb[df_pb["moneda"].astype(str).str.strip().str.upper() == m_code] if not df_pb.empty and "moneda" in df_pb.columns else (df_pb if len(todas_monedas) == 1 else pd.DataFrame())
+            df_v_m = df_v[es_misma_moneda(df_v["moneda"], m_code)] if not df_v.empty and "moneda" in df_v.columns else pd.DataFrame()
+            df_g_m = df_g[es_misma_moneda(df_g["moneda"], m_code)] if not df_g.empty and "moneda" in df_g.columns else pd.DataFrame()
+            df_p_m = df_p[es_misma_moneda(df_p["moneda"], m_code)] if not df_p.empty and "moneda" in df_p.columns else pd.DataFrame()
+            df_pb_m = df_pb[es_misma_moneda(df_pb["moneda"], m_code)] if not df_pb.empty and "moneda" in df_pb.columns else pd.DataFrame()
 
             render_titulo_seccion(f"📈 Resumen General ({m_code})")
             tv = float(df_v_m['monto_venta'].sum()) if not df_v_m.empty and 'monto_venta' in df_v_m.columns else 0.0
             tc = float(df_v_m['comision'].sum()) if not df_v_m.empty and 'comision' in df_v_m.columns else 0.0
-            tp = float(df_v_m['monto_premios'].sum()) if not df_v_m.empty and 'monto_premios' in df_v_m.columns else 0.0
+            tp_rep = float(df_v_m['monto_premios'].sum()) if not df_v_m.empty and 'monto_premios' in df_v_m.columns else 0.0
+            tp_tick = float(df_t[es_misma_moneda(df_t["moneda"], m_code)]['monto'].sum()) if not df_t.empty and 'moneda' in df_t.columns and 'monto' in df_t.columns else 0.0
+            tp = max(tp_rep, tp_tick)
             tg = float(df_g_m['monto'].sum()) if not df_g_m.empty and 'monto' in df_g_m.columns else 0.0
 
             t_pago_efectivo_m = 0.0
@@ -2503,7 +2541,7 @@ def modulo_reporte_rango(agencia_data):
             cur_sf_color_m = '#34d399' if t_saldo_final >= 0 else '#fb7185'
             st.markdown(
                 f"""
-                <div style="background-color: rgba(13, 27, 34, 0.5); padding: 0.85rem 1.25rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); margin-top: 0.75rem; margin-bottom: 1.25rem; text-align: center; font-size: 0.85rem;">
+                <div style="background-color: rgba(13, 27, 34, 0.5); padding: 0.85rem 12px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); margin-top: 0.75rem; margin-bottom: 1.25rem; text-align: center; font-size: 0.85rem;">
                     <span style="color: #94a3b8;">Saldo Anterior ({m_code}):</span> <b style="color: #ffffff;">{sym_curr} {saldo_ant:,.2f}</b>
                     <span style="margin: 0 0.4rem; color: rgba(255,255,255,0.4);">+</span>
                     <span style="color: #94a3b8;">Resultado Hoy / Periodo:</span> <b style="color: {'#34d399' if saldo_op_m >= 0 else '#fb7185'};">{sym_curr} {saldo_op_m:,.2f}</b>
@@ -2528,14 +2566,12 @@ def modulo_reporte_rango(agencia_data):
             if not df_v_m.empty:
                 cols = ["fecha", "sistema", "moneda", "monto_venta", "comision", "monto_premios"]
                 cols = [c for c in cols if c in df_v_m.columns]
-                df_v_disp = df_v_m[cols].sort_values(["fecha", "sistema"]).copy()
-                df_v_disp = df_v_disp.rename(columns={"monto_venta": "venta", "monto_premios": "premios"})
                 st.dataframe(
-                    df_v_disp,
+                    df_v_m[cols],
                     column_config={
-                        "venta": st.column_config.NumberColumn("Venta", format=fmt_curr_r),
+                        "monto_venta": st.column_config.NumberColumn("Ventas", format=fmt_curr_r),
                         "comision": st.column_config.NumberColumn("Comisión", format=fmt_curr_r),
-                        "premios": st.column_config.NumberColumn("Premios", format=fmt_curr_r),
+                        "monto_premios": st.column_config.NumberColumn("Premios", format=fmt_curr_r),
                     },
                     use_container_width=True,
                     hide_index=True
@@ -2573,6 +2609,14 @@ def modulo_reporte_rango(agencia_data):
                         df_pord_disp["agencia"] = df_pord_disp["agencia"].fillna(df_pord_disp["nombre_agency"])
                     if "tipo_pago" in df_pord_disp.columns:
                         df_pord_disp = df_pord_disp.rename(columns={"tipo_pago": "pagos registrados", "referencia": "referencia / banco"})
+                    elif "referencia" in df_pord_disp.columns:
+                        df_pord_disp = df_pord_disp.rename(columns={"referencia": "referencia / banco"})
+
+                    if "referencia / banco" not in df_pord_disp.columns:
+                        df_pord_disp["referencia / banco"] = "Efectivo"
+                    else:
+                        df_pord_disp["referencia / banco"] = df_pord_disp["referencia / banco"].fillna("Efectivo")
+
                     cols_p = ["agencia", "cajero", "pagos registrados", "referencia / banco", "moneda", "monto", "Conf.", "fecha"]
                     cols_existentes_p = [c for c in cols_p if c in df_pord_disp.columns]
                     st.dataframe(

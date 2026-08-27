@@ -11,6 +11,7 @@ from utils import supabase, obtener_periodo_trabajo, obtener_whatsapp_agencia_lo
 from datetime import datetime, timedelta, timezone
 from modulo_pizarra import modulo_pizarra
 from modulo_auditoria import modulo_auditoria_hibrida
+from modulo_cobradores import modulo_portal_cobrador
 
 st.set_page_config(
     page_title="Taquilla POS",
@@ -4347,27 +4348,64 @@ if not st.session_state.taquilla_autenticada:
                                                 "activo": True
                                             }
                                             break
+                                    if not matched_user and ag_data:
+                                        # Password didn't match agency
+                                        pass
+                                except Exception:
+                                    pass
+
+                            # 3. Search in cda_cobradores table for Cobrador de Ruta access
+                            if not matched_user:
+                                try:
+                                    res_cob = supabase.table("cda_cobradores").select("*").ilike("usuario", u_clean).execute()
+                                    cob_data = res_cob.data or []
+                                    for cob_rec in cob_data:
+                                        if str(cob_rec.get("clave", "")).strip() == p_clean:
+                                            if not bool(cob_rec.get("activo", True)):
+                                                status_placeholder.error("Este cobrador se encuentra inactivo. Contacte al Administrador.")
+                                                matched_user = None
+                                                break
+                                            matched_user = {
+                                                "id": cob_rec["id"],
+                                                "usuario": str(cob_rec.get("usuario", u_clean)).strip(),
+                                                "clave": p_clean,
+                                                "agencia_id": "cobrador",
+                                                "nombre_cajero": cob_rec.get("nombre", u_clean),
+                                                "rol": "cobrador",
+                                                "user_id": cob_rec.get("user_id"),
+                                                "cedula_identidad": cob_rec.get("cedula_identidad"),
+                                                "telefono": cob_rec.get("telefono"),
+                                                "activo": True
+                                            }
+                                            break
                                 except Exception:
                                     pass
                     
                     if matched_user:
                         user_data = matched_user
-                        res_agencia = supabase.table("agencias").select("*").execute()
-                        df_todas = pd.DataFrame(res_agencia.data or [])
-                        raw_id = str(user_data.get("agencia_id", "")).strip()
-
                         match = pd.DataFrame()
-                        if matched_agency:
+                        if user_data.get("rol") == "cobrador":
+                            match = pd.DataFrame([{
+                                "id": 0,
+                                "nombre_agencia": "Ruta de Cobranza",
+                                "user_id": str(user_data.get("user_id", ""))
+                            }])
+                        elif matched_agency:
                             match = pd.DataFrame([matched_agency])
-                        elif not df_todas.empty:
-                            if raw_id and raw_id.lower() != "none":
-                                match = df_todas[df_todas["id"].astype(str) == raw_id]
-                            if match.empty and "nombre_cajero" in user_data:
-                                caj_nom = str(user_data.get("nombre_cajero", "")).strip().upper()
-                                if caj_nom:
-                                    match = df_todas[df_todas["nombre_agencia"].astype(str).str.upper().str.strip() == caj_nom]
-                            if match.empty and len(df_todas) == 1:
-                                match = df_todas.iloc[[0]]
+                        else:
+                            res_agencia = supabase.table("agencias").select("*").execute()
+                            df_todas = pd.DataFrame(res_agencia.data or [])
+                            raw_id = str(user_data.get("agencia_id", "")).strip()
+
+                            if not df_todas.empty:
+                                if raw_id and raw_id.lower() != "none":
+                                    match = df_todas[df_todas["id"].astype(str) == raw_id]
+                                if match.empty and "nombre_cajero" in user_data:
+                                    caj_nom = str(user_data.get("nombre_cajero", "")).strip().upper()
+                                    if caj_nom:
+                                        match = df_todas[df_todas["nombre_agencia"].astype(str).str.upper().str.strip() == caj_nom]
+                                if match.empty and len(df_todas) == 1:
+                                    match = df_todas.iloc[[0]]
 
                         if not match.empty:
                             st.session_state.taquilla_autenticada = True
@@ -4376,9 +4414,10 @@ if not st.session_state.taquilla_autenticada:
                                 "id": user_data["id"], 
                                 "usuario": user_data["usuario"], 
                                 "rol": user_data.get("rol", "agencia"), 
-                                "nombre": user_data.get("nombre_cajero", user_data["usuario"])
+                                "nombre": user_data.get("nombre_cajero", user_data["usuario"]),
+                                "user_id": user_data.get("user_id", "")
                             }
-                            st.session_state["opcion_actual"] = "Inicio"
+                            st.session_state["opcion_actual"] = "Portal Cobrador" if user_data.get("rol") == "cobrador" else "Inicio"
                             login_box.markdown(
                                 """
                                 <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 50vh; text-align: center;">
@@ -4400,8 +4439,9 @@ else:
     _check_cajero_id_cols()
     ag = st.session_state.agencia_actual
     cajero = st.session_state.cajero_actual
-    cajero_id_sb = None if str(cajero.get('rol', '')).lower() in ['supervisor', 'agencia'] else cajero.get('id')
-    ultimo_cierre = obtener_ultimo_dia_cerrado(ag['nombre_agencia'], cajero_id=cajero_id_sb)
+    rol_lower_init = str(cajero.get('rol', '')).lower()
+    cajero_id_sb = None if rol_lower_init in ['supervisor', 'agencia', 'cobrador'] else cajero.get('id')
+    ultimo_cierre = obtener_ultimo_dia_cerrado(ag.get('nombre_agencia', 'Ruta'), cajero_id=cajero_id_sb) if rol_lower_init != 'cobrador' else None
 
     if st.session_state.tema_oscuro:
         dashboard_css = """
@@ -4965,7 +5005,16 @@ else:
 
     rol_lower = str(cajero.get("rol", "")).lower()
 
-    if rol_lower == "supervisor":
+    if rol_lower == "cobrador":
+        menu_items = [
+            ("🛵 Escaneo / Recaudación", "Portal Cobrador"),
+            ("🗺️ Mi Ruta de Agencias", "Mi Ruta"),
+            ("💰 Mis Recaudaciones", "Mis Recaudaciones"),
+            ("🚪 Cerrar Sesión", "Cerrar Sesión")
+        ]
+        if st.session_state["opcion_actual"] not in [m[1] for m in menu_items]:
+            st.session_state["opcion_actual"] = "Portal Cobrador"
+    elif rol_lower == "supervisor":
         menu_items = [
             ("🏠 Inicio", "Inicio"),
             ("📌 Pizarra", "Pizarra"),
@@ -5001,7 +5050,7 @@ else:
     # 🟢 BARRA DE NAVEGACIÓN HORIZONTAL POR PÍLDORAS (SIEMPRE VISIBLE EN MÓVIL Y ESCRITORIO SIN DESPLEGABLE) 🟢
     opts_nav_labels = [m[0] for m in menu_items]
     vals_nav_values = [m[1] for m in menu_items]
-    curr_val = st.session_state.get("opcion_actual", "Inicio")
+    curr_val = st.session_state.get("opcion_actual", "Portal Cobrador" if rol_lower == "cobrador" else "Inicio")
     curr_label = opts_nav_labels[vals_nav_values.index(curr_val)] if curr_val in vals_nav_values else opts_nav_labels[0]
 
     selected_nav = st.pills(
@@ -5018,10 +5067,10 @@ else:
             st.session_state["opcion_actual"] = target_nav_val
             st.rerun()
 
-    u_id_admin_sb = ag.get("user_id")
+    u_id_admin_sb = ag.get("user_id") or cajero.get("user_id")
     ciclo_admin_sb = obtener_periodo_trabajo(u_id_admin_sb)
     
-    if rol_lower in ["agencia", "supervisor"]:
+    if rol_lower in ["agencia", "supervisor", "cobrador"]:
         label_periodo_sb = "Periodo de Trabajo"
         def _fmt_f(f_str):
             try: return pd.to_datetime(f_str).strftime("%d/%m/%Y")
@@ -5058,13 +5107,14 @@ else:
 """
 
     usr_disp_email = str(cajero.get('usuario') or cajero.get('nombre') or 'USUARIO').lower()
+    disp_terminal_nom = "🛵 RUTA DE COBRANZA" if rol_lower == "cobrador" else f"🏢 {ag.get('nombre_agencia', 'Terminal').upper()}"
 
     with st.sidebar:
         sidebar_info = f"""<div style="background-color: {card_bg}; border: 1px solid {card_border}; padding: 0.85rem 1rem; border-radius: 12px; margin-bottom: 0.75rem;">
 <div style="font-size: 0.65rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.15rem;">USUARIO ACTIVO</div>
 <div style="font-size: 0.95rem; font-weight: 700; color: {text_val_color}; border-bottom: 2px solid #00c853; padding-bottom: 0.35rem; margin-bottom: 0.5rem; word-break: break-all;">{usr_disp_email}</div>
-<div style="font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.1rem;">Terminal</div>
-<div style="font-size: 0.95rem; font-weight: 700; color: {text_val_color}; margin-bottom: 0.35rem;">🏢 {ag['nombre_agencia'].upper()}</div>
+<div style="font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.1rem;">Terminal / Asignación</div>
+<div style="font-size: 0.95rem; font-weight: 700; color: {text_val_color}; margin-bottom: 0.35rem;">{disp_terminal_nom}</div>
 <div style="font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.1rem;">Rol</div>
 <div style="display: inline-block; background-color: {badge_bg}; border: 1px solid {badge_border}; color: {badge_text}; font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.4rem; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.35rem;">{cajero['rol'].upper()}</div>
 <div style="font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.1rem;">{label_periodo_sb}</div>
@@ -5090,7 +5140,14 @@ else:
         with st.popover(f"📖 Guía de Uso ({user_rol.upper()})", use_container_width=True):
             st.markdown(f"### 📖 Guía Operativa — Rol {user_rol.upper()}")
             
-            if user_rol == "agencia":
+            if user_rol == "cobrador":
+                st.markdown("""
+                **🛵 Manual de Operación para Cobradores de Ruta:**
+                1. **Validación de Entregas QR:** Escanea el código QR del comprobante de la agencia o ingresa el token para sellar la recepción física del dinero.
+                2. **Confirmación en Ruta:** Revisa las entregas registradas en efectivo de las agencias en tu ruta asignada y confirma el monto recibido con un clic.
+                3. **Control de Recaudación:** Monitorea los totales acumulados en tu custodia (BS, USD, COP) hasta que sean liquidados con la Administración.
+                """)
+            elif user_rol == "agencia":
                 st.markdown("""
                 **🏢 Manual de Operación para Agencias:**
                 1. **Monitoreo del Ciclo Activo:** Consulta tus ventas brutas, comisiones negociadas, premios y saldo neto por cada moneda (BS, USD, COP).
@@ -5141,6 +5198,8 @@ else:
         st.session_state.taquilla_autenticada = False
         st.session_state["opcion_actual"] = "Inicio"
         st.rerun()
+    elif rol_lower == "cobrador" or opcion in ["Portal Cobrador", "Mi Ruta", "Mis Recaudaciones"]:
+        modulo_portal_cobrador(cajero, ag, vista_inicial=opcion)
     elif opcion == "Inicio": modulo_home(ag)
     elif opcion == "Pizarra": modulo_pizarra(ag)
     elif opcion == "Carga de Ventas": modulo_registro_taquilla(ag)

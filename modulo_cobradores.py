@@ -509,3 +509,356 @@ def modulo_cobradores(agencia_data=None):
                                     st.rerun()
                                 except Exception as ex:
                                     st.error(f"Error: {ex}")
+
+
+def modulo_portal_cobrador(cobrador_info, agencia_ctx=None, vista_inicial="Portal Cobrador"):
+    """
+    Portal Móvil y de Escritorio optimizado para el Cobrador de Calle.
+    Permite validar códigos QR de entregas, confirmar recepción de efectivo de agencias en su ruta,
+    consultar su lista de agencias y totalizar sus recaudaciones activas.
+    """
+    is_dark = st.session_state.get("tema_oscuro", True)
+    text_color = "#ffffff" if is_dark else "#0f172a"
+    sub_color = "#94a3b8" if is_dark else "#64748b"
+    card_bg = "rgba(13, 27, 34, 0.65)" if is_dark else "#ffffff"
+    card_border = "rgba(255, 255, 255, 0.08)" if is_dark else "rgba(15, 23, 42, 0.12)"
+
+    c_id = cobrador_info.get("id")
+    c_nombre = str(cobrador_info.get("nombre") or cobrador_info.get("nombre_cajero") or cobrador_info.get("usuario") or "Cobrador").strip()
+    c_usuario = str(cobrador_info.get("usuario", "")).strip()
+    u_id = cobrador_info.get("user_id") or (agencia_ctx.get("user_id") if isinstance(agencia_ctx, dict) else None)
+
+    st.markdown(
+        f"""
+        <div style="background: linear-gradient(135deg, rgba(0, 200, 83, 0.12) 0%, rgba(56, 189, 248, 0.1) 100%); border: 1px solid rgba(0, 200, 83, 0.25); border-radius: 14px; padding: 1.1rem 1.4rem; margin-bottom: 1.25rem;">
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                <div>
+                    <div style="font-size: 0.75rem; font-weight: 700; color: #00c853; text-transform: uppercase; letter-spacing: 0.05em;">🛵 PORTAL MÓVIL DE COBRANZA</div>
+                    <h2 style="margin: 2px 0 0 0; font-size: 1.5rem; font-weight: 800; color: {text_color};">
+                        Hola, {c_nombre.title()}
+                    </h2>
+                    <div style="font-size: 0.85rem; color: {sub_color}; margin-top: 2px;">
+                        Usuario: <code>@{c_usuario}</code> | Validador de entregas y recaudaciones QR en ruta
+                    </div>
+                </div>
+                <div style="background: rgba(0, 200, 83, 0.15); border: 1px solid #00c853; color: #00c853; font-weight: 700; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem;">
+                    🟢 EN TURNO ACTIVO
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # 1. Cargar Agencias Asignadas a este Cobrador
+    df_asig = _cargar_cobrador_agencias(u_id)
+    agencias_en_ruta = []
+    if not df_asig.empty and "cobrador_id" in df_asig.columns:
+        sub_asig = df_asig[df_asig["cobrador_id"] == c_id]
+        if not sub_asig.empty:
+            agencias_en_ruta = sub_asig["nombre_agencia"].astype(str).str.upper().tolist()
+
+    # 2. Cargar Período Activo y Pagos
+    ciclo = obtener_periodo_trabajo(u_id)
+    f_desde = ciclo.get("desde", str(datetime.now().date()))
+    f_hasta = ciclo.get("hasta", str(datetime.now().date()))
+
+    # Cargar pagos relevantes (del periodo o con fecha reciente)
+    df_pagos_cob = pd.DataFrame()
+    try:
+        q = supabase.table("cda_pagos_diarios").select("*")\
+            .gte("fecha", str(f_desde))\
+            .lte("fecha", f"{str(f_hasta)}T23:59:59")
+        if u_id:
+            q = q.eq("user_id", u_id)
+        res_p = q.execute()
+        df_pagos_cob = pd.DataFrame(res_p.data or [])
+        if not df_pagos_cob.empty:
+            df_pagos_cob.columns = [c.lower().strip() for c in df_pagos_cob.columns]
+    except Exception as ex:
+        st.warning(f"Nota al consultar pagos: {ex}")
+
+    # Tabs del Portal
+    tab_scan, tab_ruta, tab_mis_recs = st.tabs([
+        "📱 Validar / Escanear QR",
+        f"🗺️ Mi Ruta ({len(agencias_en_ruta)} Agencias)",
+        "💰 Mis Recaudaciones y Custodia"
+    ])
+
+    # ==============================================================
+    # TAB 1: ESCANEO Y VALIDACIÓN QR
+    # ==============================================================
+    with tab_scan:
+        st.markdown("#### 🔍 Validación Inmediata de Comprobante QR")
+        st.caption("Ingresa o escanea el Token QR del comprobante de entrega que te muestra el cajero de la agencia.")
+
+        col_t1, col_t2 = st.columns([3, 1])
+        with col_t1:
+            token_input = st.text_input(
+                "🔑 Token QR de Entrega", 
+                placeholder="Ej: QR-REC-174069... o pega el texto del QR",
+                key="input_qr_token_val"
+            ).strip()
+        with col_t2:
+            st.write("")
+            st.write("")
+            btn_validar_tkn = st.button("⚡ Validar Token", type="primary", use_container_width=True)
+
+        if btn_validar_tkn and token_input:
+            try:
+                # Buscar en cda_pagos_diarios
+                q_tkn = supabase.table("cda_pagos_diarios").select("*").ilike("qr_token", f"%{token_input}%")
+                if u_id:
+                    q_tkn = q_tkn.eq("user_id", u_id)
+                res_tkn = q_tkn.execute()
+                data_tkn = res_tkn.data or []
+
+                if not data_tkn:
+                    st.error(f"❌ No se encontró ninguna entrega registrada con el Token: `{token_input}`")
+                else:
+                    rec_pago = data_tkn[0]
+                    p_id = rec_pago["id"]
+                    ag_nom_p = str(rec_pago.get("agencia") or rec_pago.get("nombre_agency") or "Agencia").upper()
+                    mto_p = float(rec_pago.get("monto", 0.0))
+                    mon_p = normalizar_moneda(rec_pago.get("moneda"))
+                    f_esc_prev = str(rec_pago.get("fecha_escaneo_cobrador") or "").strip()
+                    cob_nom_prev = str(rec_pago.get("cobrador_nombre") or "").strip()
+
+                    sym = "Bs." if mon_p == "BS" else ("$" if mon_p == "USD" else "COP ")
+
+                    if f_esc_prev and cob_nom_prev:
+                        st.warning(
+                            f"⚠️ Este comprobante ya fue escaneado y validado anteriormente por **{cob_nom_prev}** el {f_esc_prev[:19]}.\n\n"
+                            f"🏢 **Agencia:** {ag_nom_p} | 💰 **Monto:** {sym}{mto_p:,.2f}"
+                        )
+                    else:
+                        # Proceder con la validación y firma del cobrador
+                        ahora_iso = _obtener_hora_actual().isoformat()
+                        supabase.table("cda_pagos_diarios").update({
+                            "cobrador_id": c_id,
+                            "cobrador_nombre": c_nombre,
+                            "fecha_escaneo_cobrador": ahora_iso,
+                            "confirmado": True,
+                            "confirmado_supervisor": True
+                        }).eq("id", p_id).execute()
+
+                        st.success(
+                            f"🎉 **¡ENTREGA VALIDADA CON ÉXITO!**\n\n"
+                            f"🏢 **Agencia:** {ag_nom_p}\n\n"
+                            f"💰 **Monto Recibido:** {sym}{mto_p:,.2f} {mon_p}\n\n"
+                            f"🕒 **Fecha/Hora:** {ahora_iso[:19].replace('T', ' ')}\n\n"
+                            f"🛵 **Registrado a nombre de:** {c_nombre}"
+                        )
+                        time.sleep(1.5)
+                        st.rerun()
+            except Exception as ex:
+                st.error(f"Error procesando token: {ex}")
+
+        st.markdown("---")
+
+        # Entregas Pendientes de Agencias en su Ruta
+        st.markdown("#### 📋 Entregas en Efectivo Pendientes por Cobrar (En tu Ruta)")
+        st.caption("Comprobantes emitidos por las agencias de tu ruta asignada que aún no han sido sellados:")
+
+        if df_pagos_cob.empty:
+            st.info("ℹ️ No hay registros de pagos en el período actual.")
+        else:
+            # Filtrar: agencias en ruta (o todas si no tiene asignación estricta), tipo cobrador/qr, no escaneados aún
+            mask_pend = (
+                (df_pagos_cob.get("fecha_escaneo_cobrador", pd.Series(dtype=str)).fillna("").eq("")) &
+                (
+                    df_pagos_cob["tipo_pago"].astype(str).str.contains("COBRADOR", case=False, na=False) |
+                    df_pagos_cob.get("qr_token", pd.Series(dtype=str)).fillna("").ne("")
+                )
+            )
+
+            df_pends = df_pagos_cob[mask_pend].copy()
+            if agencias_en_ruta:
+                df_pends = df_pends[df_pends["agencia"].astype(str).str.upper().isin(agencias_en_ruta)]
+
+            if df_pends.empty:
+                st.success("✅ **¡Al día!** No tienes entregas pendientes de confirmación en tus agencias asignadas.")
+            else:
+                st.write(f"Mostrando **{len(df_pends)}** entrega(s) pendiente(s) de escaneo:")
+                for _, r_pend in df_pends.iterrows():
+                    pid_p = r_pend["id"]
+                    ag_n = str(r_pend.get("agencia") or r_pend.get("nombre_agency") or "Agencia").upper()
+                    mon_n = normalizar_moneda(r_pend.get("moneda"))
+                    mto_n = float(r_pend.get("monto", 0.0))
+                    fch_n = str(r_pend.get("fecha", ""))[:10]
+                    tkn_n = str(r_pend.get("qr_token", "") or "Sin Token")
+                    caj_n = str(r_pend.get("cajero_id") or "Cajero").upper()
+
+                    sym_n = "Bs." if mon_n == "BS" else ("$" if mon_n == "USD" else "COP ")
+
+                    with st.container(border=True):
+                        c1, c2, c3 = st.columns([4, 3, 3])
+                        with c1:
+                            st.markdown(
+                                f"""
+                                <div style="font-weight: 700; font-size: 1.1rem; color: {text_color};">🏢 {ag_n}</div>
+                                <div style="font-size: 0.82rem; color: {sub_color}; margin-top: 2px;">
+                                    📅 <b>Fecha:</b> {fch_n} | 👤 <b>Cajero:</b> {caj_n}<br/>
+                                    🔑 <b>Token:</b> <code>{tkn_n}</code>
+                                </div>
+                                """,
+                                unsafe_allow_html=True
+                            )
+                        with c2:
+                            st.markdown(
+                                f"""
+                                <div style="font-size: 0.75rem; font-weight: 700; color: {sub_color}; text-transform: uppercase;">MONTO A RECIBIR</div>
+                                <div style="color: #00c853; font-weight: 800; font-size: 1.25rem;">{sym_n}{mto_n:,.2f}</div>
+                                <span style="background: rgba(251, 191, 36, 0.15); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 4px; padding: 2px 6px; font-size: 0.72rem; font-weight: 700;">⏳ PENDIENTE RECEPCIÓN</span>
+                                """,
+                                unsafe_allow_html=True
+                            )
+                        with c3:
+                            st.write("")
+                            if st.button("🤝 Recibir Efectivo", key=f"btn_recibir_pend_{pid_p}", type="primary", use_container_width=True):
+                                try:
+                                    ahora_iso = _obtener_hora_actual().isoformat()
+                                    supabase.table("cda_pagos_diarios").update({
+                                        "cobrador_id": c_id,
+                                        "cobrador_nombre": c_nombre,
+                                        "fecha_escaneo_cobrador": ahora_iso,
+                                        "confirmado": True,
+                                        "confirmado_supervisor": True
+                                    }).eq("id", pid_p).execute()
+                                    st.success(f"✅ ¡Efectivo de {ag_n} ({sym_n}{mto_n:,.2f}) recibido correctamente!")
+                                    time.sleep(1)
+                                    st.rerun()
+                                except Exception as ex:
+                                    st.error(f"Error confirmando: {ex}")
+
+    # ==============================================================
+    # TAB 2: MI RUTA DE AGENCIAS
+    # ==============================================================
+    with tab_ruta:
+        st.markdown("#### 🗺️ Directorio de Agencias Asignadas")
+        st.caption("Estas son las agencias configuradas en tu ruta de cobranza por la Administración:")
+
+        df_ag_all = _cargar_agencias(u_id)
+        if not agencias_en_ruta:
+            st.info("ℹ️ Aún no tienes agencias vinculadas a tu ruta. Comunícate con la Administración para que te asigne tus agencias.")
+        else:
+            for ag_nom in agencias_en_ruta:
+                info_ag = {}
+                if not df_ag_all.empty:
+                    match_ag = df_ag_all[df_ag_all["nombre_agencia"].astype(str).str.upper() == ag_nom]
+                    if not match_ag.empty:
+                        info_ag = match_ag.iloc[0].to_dict()
+
+                with st.container(border=True):
+                    col_ag1, col_ag2 = st.columns([3, 2])
+                    with col_ag1:
+                        st.markdown(
+                            f"""
+                            <div style="font-size: 1.15rem; font-weight: 700; color: {text_color};">🏢 {ag_nom}</div>
+                            <div style="font-size: 0.85rem; color: {sub_color}; margin-top: 4px;">
+                                Estado: <span style="color: #10b981; font-weight: 700;">🟢 Habilitada en Ruta</span>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
+                    with col_ag2:
+                        wa_ag = str(info_ag.get("telefono_whatsapp") or info_ag.get("telefono") or "").strip()
+                        if wa_ag and wa_ag.lower() not in ["none", "nan", ""]:
+                            clean_wa = ''.join(c for c in wa_ag if c.isdigit())
+                            if len(clean_wa) == 10 and clean_wa.startswith("0"): clean_wa = "58" + clean_wa[1:]
+                            wa_url = f"https://wa.me/{clean_wa}"
+                            st.markdown(
+                                f"""
+                                <a href="{wa_url}" target="_blank" style="display: block; text-align: center; background: rgba(37, 211, 102, 0.15); color: #25D366; border: 1px solid #25D366; border-radius: 8px; padding: 6px 12px; font-weight: 700; text-decoration: none; font-size: 0.85rem;">
+                                    📱 WhatsApp ({wa_ag})
+                                </a>
+                                """,
+                                unsafe_allow_html=True
+                            )
+                        else:
+                            st.caption("Sin teléfono registrado")
+
+    # ==============================================================
+    # TAB 3: MIS RECAUDACIONES Y CUSTODIA
+    # ==============================================================
+    with tab_mis_recs:
+        st.markdown("#### 💰 Fondos Recaudados y Liquidación")
+        st.caption("Resumen del dinero físico que has cobrado y se encuentra actualmente bajo tu custodia:")
+
+        if df_pagos_cob.empty:
+            st.info("ℹ️ No hay registros de pagos para mostrar.")
+        else:
+            # Filtrar pagos cobrados por este cobrador (por ID o por Nombre)
+            mask_mis = (
+                (df_pagos_cob.get("cobrador_id", pd.Series(dtype=object)).astype(str) == str(c_id)) |
+                (df_pagos_cob.get("cobrador_nombre", pd.Series(dtype=str)).astype(str).str.upper() == c_nombre.upper())
+            )
+            df_mis = df_pagos_cob[mask_mis].copy()
+
+            if df_mis.empty:
+                st.info("ℹ️ Aún no has validado recaudaciones en este período.")
+            else:
+                df_mis["monto"] = pd.to_numeric(df_mis["monto"], errors="coerce").fillna(0.0)
+                df_mis["moneda_norm"] = df_mis["moneda"].apply(normalizar_moneda)
+                df_mis["liquidado_admin"] = df_mis.get("liquidado_admin", False).fillna(False).astype(bool)
+
+                # Totales en Custodia (Pendientes de liquidar)
+                df_custodia = df_mis[df_mis["liquidado_admin"] == False]
+                tot_bs_cust = df_custodia[df_custodia["moneda_norm"] == "BS"]["monto"].sum()
+                tot_usd_cust = df_custodia[df_custodia["moneda_norm"] == "USD"]["monto"].sum()
+                tot_cop_cust = df_custodia[df_custodia["moneda_norm"] == "COP"]["monto"].sum()
+
+                # Totales Ya Liquidados
+                df_liq = df_mis[df_mis["liquidado_admin"] == True]
+                tot_bs_liq = df_liq[df_liq["moneda_norm"] == "BS"]["monto"].sum()
+                tot_usd_liq = df_liq[df_liq["moneda_norm"] == "USD"]["monto"].sum()
+                tot_cop_liq = df_liq[df_liq["moneda_norm"] == "COP"]["monto"].sum()
+
+                st.markdown("##### 💼 Dinero en Custodia Activa (Por entregar a Administración)")
+                km1, km2, km3 = st.columns(3)
+                km1.metric("Bolívares (BS)", f"Bs. {tot_bs_cust:,.2f}")
+                km2.metric("Dólares (USD)", f"${tot_usd_cust:,.2f}")
+                km3.metric("Pesos (COP)", f"COP {tot_cop_cust:,.2f}")
+
+                if not df_liq.empty:
+                    with st.expander("✅ Ver Totales Ya Liquidados a la Administración", expanded=False):
+                        kl1, kl2, kl3 = st.columns(3)
+                        kl1.metric("Bs. Liquidados", f"Bs. {tot_bs_liq:,.2f}")
+                        kl2.metric("USD Liquidados", f"${tot_usd_liq:,.2f}")
+                        kl3.metric("COP Liquidados", f"COP {tot_cop_liq:,.2f}")
+
+                st.markdown("---")
+                st.markdown("##### 📜 Historial Detallado de Recaudaciones")
+                for _, r_m in df_mis.iterrows():
+                    m_ag = str(r_m.get("agencia") or "Agencia").upper()
+                    m_mon = normalizar_moneda(r_m.get("moneda"))
+                    m_mto = float(r_m.get("monto", 0.0))
+                    m_fch = str(r_m.get("fecha", ""))[:10]
+                    m_fesc = str(r_m.get("fecha_escaneo_cobrador", "") or "")
+                    m_liq = bool(r_m.get("liquidado_admin", False))
+                    m_sym = "Bs." if m_mon == "BS" else ("$" if m_mon == "USD" else "COP ")
+
+                    status_badge = (
+                        "<span style='background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid #10b981; border-radius: 4px; padding: 2px 6px; font-size: 0.75rem; font-weight: 700;'>✅ LIQUIDADO A ADMIN</span>"
+                        if m_liq else
+                        "<span style='background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid #38bdf8; border-radius: 4px; padding: 2px 6px; font-size: 0.75rem; font-weight: 700;'>🛵 EN CUSTODIA</span>"
+                    )
+
+                    with st.container(border=True):
+                        st.markdown(
+                            f"""
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                                <div>
+                                    <div style="font-weight: 700; font-size: 1.05rem; color: {text_color};">🏢 {m_ag}</div>
+                                    <div style="font-size: 0.82rem; color: {sub_color}; margin-top: 2px;">
+                                        📅 {m_fch} {f' | 🕒 Cobrado: {m_fesc[:19].replace("T", " ")}' if m_fesc else ''}
+                                    </div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="font-weight: 800; font-size: 1.2rem; color: #00c853;">{m_sym}{m_mto:,.2f}</div>
+                                    {status_badge}
+                                </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )

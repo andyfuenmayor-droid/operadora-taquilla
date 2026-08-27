@@ -743,12 +743,12 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
     if pago_qr_sup_activo:
         with st.container(border=True):
             qr_b64 = generar_codigo_qr_base64(pago_qr_sup_activo)
-            col_qr1, col_qr2 = st.columns([1.2, 2.8])
+            col_qr1, col_qr2 = st.columns([1, 2.5])
             with col_qr1:
                 st.markdown(
                     f"""
-                    <div style="background: #ffffff; padding: 12px; border-radius: 12px; text-align: center; border: 1px solid rgba(0,0,0,0.1);">
-                        <img src="{qr_b64}" style="width: 100%; max-width: 190px; height: auto;" alt="QR Entrega Cobrador" />
+                    <div style="background: #ffffff; padding: 10px; border-radius: 12px; text-align: center; border: 1px solid rgba(0,0,0,0.1);">
+                        <img src="{qr_b64}" style="width: 100%; max-width: 180px; height: auto;" alt="QR Entrega Cobrador" />
                     </div>
                     """,
                     unsafe_allow_html=True
@@ -757,126 +757,136 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
                 m_sym = "Bs." if pago_qr_sup_activo.get("moneda") == "BS" else ("$" if pago_qr_sup_activo.get("moneda") == "USD" else "COP ")
                 st.markdown(
                     f"""
-                    <h3 style="margin: 0; color: #00c853; font-weight: 800; font-size: 1.1rem;">🛵 Comprobante de Entrega a Cobrador</h3>
-                    <p style="font-size: 0.85rem; color: #94a3b8; margin: 4px 0 10px 0;">Muestra este código QR al Cobrador de Ruta para que valide la recepción física del efectivo desde su teléfono.</p>
-                    <div style="font-size: 0.9rem; line-height: 1.6;">
-                        🏢 <b>Agencia:</b> {pago_qr_sup_activo.get('agencia')}<br/>
-                        🛵 <b>Cobrador Asignado:</b> <span style="color: #38bdf8; font-weight: 700;">{pago_qr_sup_activo.get('cobrador')}</span><br/>
-                        👤 <b>Supervisor Entrega:</b> {pago_qr_sup_activo.get('supervisor')}<br/>
-                        💰 <b>Monto Entregado:</b> <span style="font-weight: 800; color: #00c853; font-size: 1.15rem;">{m_sym}{pago_qr_sup_activo.get('monto'):,.2f}</span><br/>
-                        🔑 <b>Token QR:</b> <code>{pago_qr_sup_activo.get('token')}</code>
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <span style="font-size: 15px; font-weight: 800; color: #4ade80;">🛵 Comprobante de Entrega a Cobrador</span>
+                        <span style="background: rgba(74, 222, 128, 0.15); color: #4ade80; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;">QR Activo</span>
+                    </div>
+                    <p style="font-size: 12px; color: #94a3b8; margin: 4px 0 10px 0;">Muestra este código QR al Cobrador para que lo escanee desde su portal móvil y valide la recepción.</p>
+                    <div style="font-size: 13px; line-height: 1.6; background: rgba(15, 23, 42, 0.5); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+                        🏢 <b>Agencia:</b> {pago_qr_sup_activo.get('agencia')} &nbsp;|&nbsp; 👤 <b>Supervisor:</b> {pago_qr_sup_activo.get('supervisor')}<br/>
+                        🛵 <b>Cobrador:</b> <span style="color: #38bdf8; font-weight: 700;">{pago_qr_sup_activo.get('cobrador')}</span><br/>
+                        💰 <b>Monto Entregado:</b> <span style="font-weight: 800; color: #4ade80; font-size: 16px;">{m_sym}{pago_qr_sup_activo.get('monto'):,.2f}</span><br/>
+                        🔑 <b>Token:</b> <code style="color: #cbd5e1;">{pago_qr_sup_activo.get('token')}</code>
                     </div>
                     """,
                     unsafe_allow_html=True
                 )
+                st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
                 if st.button("❌ Cerrar Comprobante QR", key="btn_cerrar_qr_sup_activo", use_container_width=True):
                     st.session_state["pago_qr_sup_activo"] = None
                     st.rerun()
         st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
-    # 2. TARJETAS DE BALANCE DE EFECTIVO
-    st.markdown("<div style='font-size: 14px; font-weight: 800; color: #38bdf8; margin-bottom: 8px;'>📦 Balance y Fondo de Efectivo en Caja</div>", unsafe_allow_html=True)
-    c_b1, c_b2, c_b3, c_b4 = st.columns([3, 3, 3, 3.2])
+    # 2. TARJETAS DE BALANCE DE EFECTIVO EN CAJA (3 COLUMNAS LIMPIAS)
+    st.markdown("<div style='font-size: 14px; font-weight: 800; color: #38bdf8; margin-bottom: 8px;'>📦 Saldo en Custodia de Caja</div>", unsafe_allow_html=True)
+    c_b1, c_b2, c_b3 = st.columns(3)
     with c_b1:
         st.markdown(f"""
-            <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 10px 14px;">
-                <div style="font-size: 10px; font-weight: 700; color: #94a3b8;">🇻🇪 EFECTIVO EN CAJA (BS)</div>
-                <div style="font-size: 16px; font-weight: 800; color: #38bdf8; margin-top: 4px;">Bs {totales_rec_sup['BS']:,.2f}</div>
+            <div style="background: rgba(56, 189, 248, 0.06); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 8px; padding: 12px 16px;">
+                <div style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">🇻🇪 Efectivo Bolívares (BS)</div>
+                <div style="font-size: 20px; font-weight: 800; color: #38bdf8; margin-top: 4px;">Bs {totales_rec_sup['BS']:,.2f}</div>
             </div>
         """, unsafe_allow_html=True)
     with c_b2:
         st.markdown(f"""
-            <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 10px 14px;">
-                <div style="font-size: 10px; font-weight: 700; color: #94a3b8;">💵 EFECTIVO EN CAJA (USD)</div>
-                <div style="font-size: 16px; font-weight: 800; color: #38bdf8; margin-top: 4px;">${totales_rec_sup['USD']:,.2f}</div>
+            <div style="background: rgba(56, 189, 248, 0.06); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 8px; padding: 12px 16px;">
+                <div style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">💵 Efectivo Dólares (USD)</div>
+                <div style="font-size: 20px; font-weight: 800; color: #38bdf8; margin-top: 4px;">${totales_rec_sup['USD']:,.2f}</div>
             </div>
         """, unsafe_allow_html=True)
     with c_b3:
         st.markdown(f"""
-            <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 10px 14px;">
-                <div style="font-size: 10px; font-weight: 700; color: #94a3b8;">🇨🇴 EFECTIVO EN CAJA (COP)</div>
-                <div style="font-size: 16px; font-weight: 800; color: #38bdf8; margin-top: 4px;">COP {totales_rec_sup['COP']:,.2f}</div>
+            <div style="background: rgba(56, 189, 248, 0.06); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 8px; padding: 12px 16px;">
+                <div style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">🇨🇴 Efectivo Pesos (COP)</div>
+                <div style="font-size: 20px; font-weight: 800; color: #38bdf8; margin-top: 4px;">COP {totales_rec_sup['COP']:,.2f}</div>
             </div>
         """, unsafe_allow_html=True)
-    with c_b4:
-        with st.popover("💸 Entregar Efectivo (Admin / Cobrador)", use_container_width=True):
-            st.markdown("##### 💸 Liquidación / Entrega de Efectivo")
-            tipo_destino = st.radio(
-                "Destino de los fondos:",
-                ["🛵 Entregar a Cobrador de Ruta", "🏢 Entregar a Administración Central"],
-                key="rad_tipo_destino_sup"
-            )
 
-            # Cargar cobradores registrados
-            df_cobs = pd.DataFrame()
-            try:
-                res_cobs = supabase.table("cda_cobradores").select("*").eq("activo", True).execute()
-                df_cobs = pd.DataFrame(res_cobs.data or [])
-                if not df_cobs.empty:
-                    df_cobs.columns = [c.lower().strip() for c in df_cobs.columns]
-            except Exception:
-                pass
+    st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
 
-            ag_entrega = agencias_permitidas[0] if (agencias_permitidas and len(agencias_permitidas) == 1) else (st.session_state.get("agencia_actual", {}).get("nombre_agencia", "TODAS"))
+    # 3. CENTRO DE ENTREGAS Y LIQUIDACIONES (EXPANDER / PANEL ESTRUCTURADO)
+    df_cobs = pd.DataFrame()
+    try:
+        res_cobs = supabase.table("cda_cobradores").select("*").eq("activo", True).execute()
+        df_cobs = pd.DataFrame(res_cobs.data or [])
+        if not df_cobs.empty:
+            df_cobs.columns = [c.lower().strip() for c in df_cobs.columns]
+    except Exception:
+        pass
 
-            cobrador_seleccionado = None
-            if tipo_destino == "🛵 Entregar a Cobrador de Ruta":
+    ag_entrega = agencias_permitidas[0] if (agencias_permitidas and len(agencias_permitidas) == 1) else (st.session_state.get("agencia_actual", {}).get("nombre_agencia", "TODAS"))
+
+    with st.expander("💸 Realizar Entrega o Liquidación de Fondos", expanded=True):
+        sub_tab_cob, sub_tab_adm = st.tabs([
+            "🛵 1. Entregar a Cobrador de Ruta (Generar QR)",
+            "🏢 2. Liquidar a Administración Central"
+        ])
+
+        with sub_tab_cob:
+            st.caption("Entrega de efectivo físico al cobrador asignado para recolección en ruta con validación por código QR.")
+            
+            c_cob_1, c_cob_2, c_cob_3 = st.columns([2, 1, 1.2])
+            with c_cob_1:
                 if df_cobs.empty:
-                    st.warning("⚠️ No hay cobradores registrados o activos en el sistema.")
+                    st.warning("⚠️ No hay cobradores activos registrados en el sistema.")
+                    cob_elegido = None
                 else:
                     opciones_cobs = {
                         f"🛵 {r['nombre']} (@{r['usuario']})": r
                         for _, r in df_cobs.iterrows()
                     }
-                    cob_label = st.selectbox("Seleccione el Cobrador de Ruta:", list(opciones_cobs.keys()), key="sel_cob_sup_dest")
-                    cobrador_seleccionado = opciones_cobs.get(cob_label)
+                    cob_lbl = st.selectbox("Seleccione el Cobrador:", list(opciones_cobs.keys()), key="sel_cob_main_tab")
+                    cob_elegido = opciones_cobs.get(cob_lbl)
 
-            moneda_liq = st.selectbox("Moneda a Liquidar:", ["COP", "USD", "BS"], key="liq_moneda_sup_tab")
-            saldo_disp = float(totales_rec_sup.get(moneda_liq, 0.0))
-            monto_liq = st.number_input(f"Monto a Entregar ({moneda_liq}):", min_value=0.0, value=saldo_disp, key="liq_monto_sup_tab")
-            nota_default = f"Entrega de caja {ag_entrega} a Cobrador" if tipo_destino == "🛵 Entregar a Cobrador de Ruta" else f"Entrega de caja {ag_entrega} a Administración"
-            nota_liq = st.text_input("Nota / Comentario:", value=nota_default, key="liq_nota_sup_tab")
+            with c_cob_2:
+                mon_cob_def = "COP" if totales_rec_sup.get("COP", 0) > 0 else ("USD" if totales_rec_sup.get("USD", 0) > 0 else "BS")
+                mon_cob = st.selectbox("Moneda:", ["COP", "USD", "BS"], index=["COP", "USD", "BS"].index(mon_cob_def), key="mon_cob_main_tab")
 
-            btn_txt = "🚀 Generar Comprobante QR para Cobrador" if tipo_destino == "🛵 Entregar a Cobrador de Ruta" else "🚀 Confirmar Entrega a Admin"
+            with c_cob_3:
+                val_max_cob = float(totales_rec_sup.get(mon_cob, 0.0))
+                mto_cob = st.number_input(f"Monto ({mon_cob}):", min_value=0.0, value=val_max_cob, step=1000.0 if mon_cob == "COP" else 1.0, key="mto_cob_main_tab")
 
-            if st.button(btn_txt, key="btn_confirm_liq_admin_tab", type="primary", use_container_width=True):
-                if monto_liq <= 0:
-                    st.error("⚠️ El monto a entregar debe ser mayor a 0.")
-                elif tipo_destino == "🛵 Entregar a Cobrador de Ruta" and not cobrador_seleccionado:
-                    st.error("⚠️ Debes seleccionar un cobrador.")
-                else:
-                    curr_usr = obtener_nombre_usuario_actual()
-                    u_id_val = str(u_id or "SYSTEM")
-                    mon_norm = normalizar_moneda(moneda_liq)
-                    ahora_dt = datetime.now()
-                    ahora_iso = ahora_dt.isoformat()
-
-                    if tipo_destino == "🛵 Entregar a Cobrador de Ruta":
-                        c_id_sel = cobrador_seleccionado["id"]
-                        c_nom_sel = str(cobrador_seleccionado.get("nombre") or cobrador_seleccionado.get("usuario") or "Cobrador").strip()
-                        qr_token_generado = f"QR-REC-{int(time.time())}-{uuid.uuid4().hex[:6].upper()}"
+            c_cob_n1, c_cob_n2 = st.columns([2.5, 1.5])
+            with c_cob_n1:
+                nota_cob = st.text_input("Nota / Observación:", value=f"Entrega de caja {ag_entrega} a Cobrador", key="nota_cob_main_tab")
+            with c_cob_n2:
+                st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                if st.button("🚀 Entregar y Generar QR", type="primary", use_container_width=True, key="btn_do_entrega_cob"):
+                    if mto_cob <= 0:
+                        st.error("⚠️ El monto a entregar debe ser mayor a 0.")
+                    elif not cob_elegido:
+                        st.error("⚠️ Seleccione un cobrador.")
+                    else:
+                        curr_usr = obtener_nombre_usuario_actual()
+                        u_id_val = str(u_id or "SYSTEM")
+                        mon_norm = normalizar_moneda(mon_cob)
+                        ahora_dt = datetime.now()
+                        ahora_iso = ahora_dt.isoformat()
+                        c_id_sel = cob_elegido["id"]
+                        c_nom_sel = str(cob_elegido.get("nombre") or cob_elegido.get("usuario") or "Cobrador").strip()
+                        qr_token_gen = f"QR-REC-{int(time.time())}-{uuid.uuid4().hex[:6].upper()}"
 
                         try:
-                            # 1. Registrar salida en cda_caja_efectivo_supervisor
+                            # 1. Salida en cda_caja_efectivo_supervisor
                             supabase.table("cda_caja_efectivo_supervisor").insert({
                                 "user_id": u_id_val,
                                 "agencia": ag_entrega,
                                 "supervisor_nombre": curr_usr,
                                 "tipo_movimiento": "ENTREGA_COBRADOR",
-                                "monto": float(monto_liq),
+                                "monto": float(mto_cob),
                                 "moneda": mon_norm,
-                                "comentario": f"{nota_liq} (Cobrador: {c_nom_sel} | Token: {qr_token_generado})"
+                                "comentario": f"{nota_cob} (Cobrador: {c_nom_sel} | Token: {qr_token_gen})"
                             }).execute()
 
-                            # 2. Registrar en cda_pagos_diarios para trazabilidad y escaneo del cobrador
+                            # 2. Registro en cda_pagos_diarios para escaneo
                             supabase.table("cda_pagos_diarios").insert({
                                 "agencia": ag_entrega,
-                                "monto": float(monto_liq),
+                                "monto": float(mto_cob),
                                 "moneda": mon_norm,
                                 "tipo_pago": "Entregado a Cobrador",
                                 "concepto": f"Entrega Supervisor ({curr_usr}) a Cobrador ({c_nom_sel})",
-                                "referencia": f"TOKEN: {qr_token_generado}",
-                                "qr_token": qr_token_generado,
+                                "referencia": f"TOKEN: {qr_token_gen}",
+                                "qr_token": qr_token_gen,
                                 "cobrador_id": c_id_sel,
                                 "cobrador_nombre": c_nom_sel,
                                 "confirmado": False,
@@ -887,36 +897,55 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
                             }).execute()
 
                             st.session_state["pago_qr_sup_activo"] = {
-                                "token": qr_token_generado,
+                                "token": qr_token_gen,
                                 "agencia": ag_entrega,
-                                "monto": float(monto_liq),
+                                "monto": float(mto_cob),
                                 "moneda": mon_norm,
                                 "cobrador": c_nom_sel,
                                 "supervisor": curr_usr,
                                 "fecha": ahora_dt.strftime("%Y-%m-%d %I:%M %p")
                             }
-                            st.success(f"✅ ¡Entrega a Cobrador {c_nom_sel} ({mon_norm} {monto_liq:,.2f}) generada con éxito!")
-                            time.sleep(0.5)
+                            st.success(f"✅ ¡Entrega a Cobrador {c_nom_sel} ({mon_norm} {mto_cob:,.2f}) registrada!")
+                            time.sleep(0.4)
                             st.rerun()
                         except Exception as ex_c:
-                            st.error(f"❌ Error al registrar entrega a cobrador: {ex_c}")
-                    else:
-                        # Entrega a Administración Directa
-                        try:
-                            supabase.table("cda_caja_efectivo_supervisor").insert({
-                                "user_id": u_id_val,
-                                "agencia": ag_entrega,
-                                "supervisor_nombre": curr_usr,
-                                "tipo_movimiento": "ENTREGA_ADMIN",
-                                "monto": float(monto_liq),
-                                "moneda": mon_norm,
-                                "comentario": nota_liq
-                            }).execute()
-                            st.success(f"✅ Entrega a Administración de {mon_norm} {monto_liq:,.2f} registrada correctamente por {curr_usr}.")
-                            time.sleep(0.5)
-                            st.rerun()
-                        except Exception as ex_l:
-                            st.error(f"❌ Error al registrar liquidación: {ex_l}")
+                            st.error(f"❌ Error al registrar entrega: {ex_c}")
+
+        with sub_tab_adm:
+            st.caption("Liquidación directa del efectivo a la cuenta/caja de la Administración Central.")
+            c_adm_1, c_adm_2, c_adm_3 = st.columns([1, 1.2, 2])
+            with c_adm_1:
+                mon_adm_def = "COP" if totales_rec_sup.get("COP", 0) > 0 else ("USD" if totales_rec_sup.get("USD", 0) > 0 else "BS")
+                mon_adm = st.selectbox("Moneda a Liquidar:", ["COP", "USD", "BS"], index=["COP", "USD", "BS"].index(mon_adm_def), key="mon_adm_main_tab")
+            with c_adm_2:
+                val_max_adm = float(totales_rec_sup.get(mon_adm, 0.0))
+                mto_adm = st.number_input(f"Monto a Entregar ({mon_adm}):", min_value=0.0, value=val_max_adm, step=1000.0 if mon_adm == "COP" else 1.0, key="mto_adm_main_tab")
+            with c_adm_3:
+                nota_adm = st.text_input("Nota de Liquidación:", value=f"Entrega de caja {ag_entrega} a Administración", key="nota_adm_main_tab")
+
+            st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
+            if st.button("🏛️ Confirmar Liquidación a Administración", type="primary", use_container_width=True, key="btn_do_entrega_adm"):
+                if mto_adm <= 0:
+                    st.error("⚠️ El monto a entregar debe ser mayor a 0.")
+                else:
+                    curr_usr = obtener_nombre_usuario_actual()
+                    u_id_val = str(u_id or "SYSTEM")
+                    mon_norm = normalizar_moneda(mon_adm)
+                    try:
+                        supabase.table("cda_caja_efectivo_supervisor").insert({
+                            "user_id": u_id_val,
+                            "agencia": ag_entrega,
+                            "supervisor_nombre": curr_usr,
+                            "tipo_movimiento": "ENTREGA_ADMIN",
+                            "monto": float(mto_adm),
+                            "moneda": mon_norm,
+                            "comentario": nota_adm
+                        }).execute()
+                        st.success(f"✅ Liquidación de {mon_norm} {mto_adm:,.2f} a Administración registrada con éxito.")
+                        time.sleep(0.4)
+                        st.rerun()
+                    except Exception as ex_l:
+                        st.error(f"❌ Error al registrar liquidación: {ex_l}")
 
     st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
 

@@ -924,7 +924,7 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
                     cob_elegido = None
                 else:
                     opciones_cobs = {
-                        f"🛵 {r['nombre']} (@{r['usuario']})": r
+                        f"🛵 {r['nombre']} (@{r['usuario']})": r.to_dict()
                         for _, r in df_cobs.iterrows()
                     }
                     cob_lbl = st.selectbox("Seleccione el Cobrador:", list(opciones_cobs.keys()), key="sel_cob_main_tab")
@@ -946,7 +946,7 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
                 if st.button("🚀 Entregar y Generar QR", type="primary", use_container_width=True, key="btn_do_entrega_cob"):
                     if mto_cob <= 0:
                         st.error("⚠️ El monto a entregar debe ser mayor a 0.")
-                    elif not cob_elegido:
+                    elif cob_elegido is None:
                         st.error("⚠️ Seleccione un cobrador.")
                     else:
                         curr_usr = obtener_nombre_usuario_actual()

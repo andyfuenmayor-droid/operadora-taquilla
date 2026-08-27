@@ -159,4 +159,41 @@ def normalizar_moneda(mon):
     return m or "BS"
 
 
+def generar_codigo_qr_base64(data_payload):
+    """Genera una imagen PNG en Base64 con el Código QR del payload proporcionado."""
+    import json
+    import io
+    import base64
+    try:
+        import qrcode
+        if isinstance(data_payload, dict):
+            raw_str = json.dumps(data_payload, ensure_ascii=False)
+        else:
+            raw_str = str(data_payload)
+        
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=8,
+            border=2,
+        )
+        qr.add_data(raw_str)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="#0f172a", back_color="#ffffff")
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        b64_str = base64.b64encode(buf.getvalue()).decode("utf-8")
+        return f"data:image/png;base64,{b64_str}"
+    except Exception:
+        import urllib.parse
+        if isinstance(data_payload, dict):
+            import json
+            raw_str = json.dumps(data_payload, ensure_ascii=False)
+        else:
+            raw_str = str(data_payload)
+        encoded = urllib.parse.quote(raw_str)
+        return f"https://api.qrserver.com/v1/create-qr-code/?size=250x250&data={encoded}"
+
+
+
 

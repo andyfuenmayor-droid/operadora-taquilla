@@ -3,3 +3,5 @@ pandas
 supabase
 streamlit-option-menu
 python-dotenv
+qrcode
+pillow

@@ -4,7 +4,9 @@ import time
 import os
 import urllib.parse
 import textwrap
-from utils import supabase, obtener_periodo_trabajo, obtener_whatsapp_agencia_local, obtener_pagos_locales_agencia, obtener_gastos_locales_agencia, obtener_etiqueta_confirmacion, normalizar_moneda
+import uuid
+import json
+from utils import supabase, obtener_periodo_trabajo, obtener_whatsapp_agencia_local, obtener_pagos_locales_agencia, obtener_gastos_locales_agencia, obtener_etiqueta_confirmacion, normalizar_moneda, generar_codigo_qr_base64
 
 from datetime import datetime, timedelta, timezone
 from modulo_pizarra import modulo_pizarra
@@ -863,7 +865,7 @@ def _check_saldo_taquilla_table():
     return st.session_state["check_saldo_ok"]
 
 def _check_cajero_id_cols():
-    """Verifica que la columna `cajero_id` exista en cda_gastos_diarios, cda_pagos_diarios y cda_pagos_bancarios."""
+    """Verifica que la columna `cajero_id` y `qr_token` existan en las tablas correspondientes."""
     if "cajero_id_in_gastos" not in st.session_state:
         try:
             supabase.table("cda_gastos_diarios").select("cajero_id").limit(1).execute()
@@ -885,14 +887,27 @@ def _check_cajero_id_cols():
         except Exception:
             st.session_state["cajero_id_in_bancarios"] = False
 
-    if not st.session_state["cajero_id_in_gastos"] or not st.session_state["cajero_id_in_pagos"] or not st.session_state["cajero_id_in_bancarios"]:
+    if "qr_token_in_pagos" not in st.session_state:
+        try:
+            supabase.table("cda_pagos_diarios").select("qr_token").limit(1).execute()
+            st.session_state["qr_token_in_pagos"] = True
+        except Exception:
+            st.session_state["qr_token_in_pagos"] = False
+
+    if not st.session_state["cajero_id_in_gastos"] or not st.session_state["cajero_id_in_pagos"] or not st.session_state["cajero_id_in_bancarios"] or not st.session_state["qr_token_in_pagos"]:
         st.warning(
-            "⚠️ Las columnas para separar gastos/pagos por cajero no están totalmente creadas en Supabase.\n\n"
-            "Ejecuta este SQL en el Editor SQL de Supabase para habilitar el registro por cajero:\n\n"
+            "⚠️ Las columnas para separar gastos/pagos por cajero y recaudación por cobrador QR no están totalmente creadas en Supabase.\n\n"
+            "Ejecuta este SQL en el Editor SQL de Supabase para habilitar el soporte completo:\n\n"
             "```sql\n"
             "ALTER TABLE cda_gastos_diarios ADD COLUMN IF NOT EXISTS cajero_id TEXT;\n"
             "ALTER TABLE cda_pagos_diarios ADD COLUMN IF NOT EXISTS cajero_id TEXT;\n"
             "ALTER TABLE cda_pagos_bancarios ADD COLUMN IF NOT EXISTS cajero_id TEXT;\n"
+            "ALTER TABLE cda_pagos_diarios ADD COLUMN IF NOT EXISTS qr_token TEXT;\n"
+            "ALTER TABLE cda_pagos_diarios ADD COLUMN IF NOT EXISTS cobrador_id BIGINT;\n"
+            "ALTER TABLE cda_pagos_diarios ADD COLUMN IF NOT EXISTS cobrador_nombre TEXT;\n"
+            "ALTER TABLE cda_pagos_diarios ADD COLUMN IF NOT EXISTS fecha_escaneo_cobrador TIMESTAMP WITH TIME ZONE;\n"
+            "ALTER TABLE cda_pagos_diarios ADD COLUMN IF NOT EXISTS liquidado_admin BOOLEAN DEFAULT FALSE;\n"
+            "ALTER TABLE cda_pagos_diarios ADD COLUMN IF NOT EXISTS fecha_liquidacion_admin TIMESTAMP WITH TIME ZONE;\n"
             "```"
         )
     return st.session_state["cajero_id_in_gastos"] and st.session_state["cajero_id_in_pagos"] and st.session_state["cajero_id_in_bancarios"]
@@ -2206,6 +2221,74 @@ def modulo_pagos(agencia_data):
     else:
         st.info("ℹ️ No hay pagos en este día.")
 
+    # Componente visual para mostrar el Código QR recién generado o consultado
+    pago_qr_activo = st.session_state.get("pago_qr_generado")
+    if pago_qr_activo:
+        with st.container():
+            st.markdown("---")
+            qr_b64 = generar_codigo_qr_base64(pago_qr_activo)
+            col_qr1, col_qr2 = st.columns([1.3, 2.7])
+            with col_qr1:
+                st.markdown(
+                    f"""
+                    <div style="background: white; padding: 12px; border-radius: 12px; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
+                        <img src="{qr_b64}" style="width: 100%; max-width: 220px; height: auto;" alt="Código QR de Entrega" />
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+            with col_qr2:
+                m_sym = "Bs." if pago_qr_activo.get("moneda") == "BS" else ("$" if pago_qr_activo.get("moneda") == "USD" else "COP ")
+                st.markdown(
+                    f"""
+                    <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 1rem;">
+                        <h4 style="margin: 0; color: #10b981;">🛵 Comprobante de Entrega a Cobrador</h4>
+                        <p style="margin: 4px 0 10px 0; font-size: 0.85rem; opacity: 0.8;">Presenta este código QR al Cobrador de Ruta para validar la recepción del efectivo.</p>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.9rem;">
+                            <div><b>🏢 Agencia:</b> {pago_qr_activo.get('agencia')}</div>
+                            <div><b>📅 Fecha:</b> {pago_qr_activo.get('fecha')}</div>
+                            <div><b>💰 Monto:</b> <span style="font-weight: 700; color: #10b981; font-size: 1.1rem;">{m_sym}{pago_qr_activo.get('monto'):,.2f}</span></div>
+                            <div><b>🔑 Token QR:</b> <code>{pago_qr_activo.get('token')}</code></div>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+                col_btn_qr1, _ = st.columns([1, 1])
+                with col_btn_qr1:
+                    if st.button("❌ Cerrar Comprobante QR", key="btn_cerrar_qr_activo", use_container_width=True):
+                        st.session_state["pago_qr_generado"] = None
+                        st.rerun()
+            st.markdown("---")
+
+    if not df_p.empty:
+        # Expander para ver Códigos QR de entregas realizadas en el día
+        df_p_cobs = df_p[df_p["tipo_pago"].astype(str).str.contains("COBRADOR", case=False, na=False) | df_p.get("qr_token", pd.Series(dtype=str)).fillna("").ne("")].copy()
+        if not df_p_cobs.empty:
+            with st.expander("🛵 Ver / Reimprimir Códigos QR de Entregas a Cobrador del Día", expanded=False):
+                opciones_cobs = []
+                for _, r_c in df_p_cobs.iterrows():
+                    cid_lbl = f"ID #{r_c.get('id', 'N/A')} - {r_c.get('moneda','')} {float(r_c.get('monto', 0)):,.2f} - {r_c.get('fecha','')}"
+                    opciones_cobs.append((cid_lbl, r_c.to_dict()))
+                
+                sel_cob_pago = st.selectbox("Seleccione la entrega a consultar:", [o[0] for o in opciones_cobs], key="sel_qr_reimprimir")
+                if sel_cob_pago:
+                    pago_dict_sel = next(o[1] for o in opciones_cobs if o[0] == sel_cob_pago)
+                    tkn_sel = pago_dict_sel.get("qr_token") or f"QR-REC-{pago_dict_sel.get('id', '0')}"
+                    payload_ver = {
+                        "pago_id": pago_dict_sel.get("id"),
+                        "token": tkn_sel,
+                        "tipo": "ENTREGA_COBRADOR",
+                        "agencia": ag_nombre,
+                        "fecha": str(pago_dict_sel.get("fecha")),
+                        "monto": float(pago_dict_sel.get("monto", 0)),
+                        "moneda": str(pago_dict_sel.get("moneda")),
+                        "usuario": str(cajero_info.get("nombre") or cajero_info.get("usuario") or "Supervisor/Agencia")
+                    }
+                    if st.button("📱 Mostrar Código QR de este Pago", key=f"btn_mostrar_qr_{pago_dict_sel.get('id')}", use_container_width=True):
+                        st.session_state["pago_qr_generado"] = payload_ver
+                        st.rerun()
+
     if not cerrado:
         with st.form("form_p", clear_on_submit=True):
             render_titulo_seccion("📝 Registrar Nuevo Pago")
@@ -2217,14 +2300,20 @@ def modulo_pagos(agencia_data):
             moneda_pg = c2.selectbox("Moneda", monedas_asig, index=0)
             monto_pg = c3.number_input("Monto", min_value=0.0, format="%.2f")
             if es_agencia:
-                opts_tipo_pg = ["Pago a Comercializador"]
+                opts_tipo_pg = ["Pago a Comercializador", "Entregado a Cobrador"]
+            elif rol_usuario == "cajero":
+                opts_tipo_pg = ["Entregado a Supervisor"]
             else:
-                opts_tipo_pg = ["Efectivo (Entregado a Admin)", "Pago de Premios / Abono de Pérdida", "Abono / Reposición de Caja", "Pago a Comercializador"]
+                opts_tipo_pg = ["Entregado a Cobrador", "Efectivo (Entregado a Admin)", "Pago de Premios / Abono de Pérdida", "Abono / Reposición de Caja", "Pago a Comercializador"]
             tipo_pg = c4.selectbox("Tipo Pago / Concepto", opts_tipo_pg)
             if st.form_submit_button("💾 GUARDAR PAGO", use_container_width=True):
                 if monto_pg <= 0:
                     st.error("Ingrese un monto válido mayor a cero.")
                 else:
+                    qr_token_val = None
+                    if tipo_pg == "Entregado a Cobrador":
+                        qr_token_val = f"QR-REC-{int(time.time())}-{uuid.uuid4().hex[:6].upper()}"
+
                     pago_data = {
                         "fecha": str(fecha_pg), 
                         "agencia": ag_nombre,
@@ -2237,9 +2326,28 @@ def modulo_pagos(agencia_data):
                         "confirmado_supervisor": False,
                         "rechazado": False
                     }
+                    if qr_token_val:
+                        pago_data["qr_token"] = qr_token_val
+
                     if st.session_state.get("cajero_id_in_pagos", False) or cajero_id:
                         pago_data["cajero_id"] = cajero_id
-                    supabase.table("cda_pagos_diarios").insert(pago_data).execute()
+                    
+                    res_ins = supabase.table("cda_pagos_diarios").insert(pago_data).execute()
+                    pago_id_ins = res_ins.data[0].get("id") if (res_ins and res_ins.data) else None
+
+                    if tipo_pg == "Entregado a Cobrador" and qr_token_val:
+                        st.session_state["pago_qr_generado"] = {
+                            "pago_id": pago_id_ins,
+                            "token": qr_token_val,
+                            "tipo": "ENTREGA_COBRADOR",
+                            "agencia": ag_nombre,
+                            "fecha": str(fecha_pg),
+                            "monto": round(float(monto_pg), 2),
+                            "moneda": moneda_pg,
+                            "usuario": str(cajero_info.get("nombre") or cajero_info.get("usuario") or "Supervisor/Agencia"),
+                            "timestamp": datetime.now().isoformat()
+                        }
+
                     st.success("✅ Pago guardado exitosamente!")
                     time.sleep(1)
                     st.rerun()

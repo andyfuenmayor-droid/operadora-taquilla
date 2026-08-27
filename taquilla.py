@@ -11,6 +11,7 @@ from utils import supabase, obtener_periodo_trabajo, obtener_whatsapp_agencia_lo
 from datetime import datetime, timedelta, timezone
 from modulo_pizarra import modulo_pizarra
 from modulo_auditoria import modulo_auditoria_hibrida
+from modulo_cobradores import modulo_cobradores
 
 st.set_page_config(
     page_title="Taquilla POS",
@@ -4971,6 +4972,7 @@ else:
             ("📌 Pizarra", "Pizarra"),
             ("📊 Reporte", "Reporte por Rango"),
             ("🛡️ Auditoría", "Auditoría Híbrida"),
+            ("🛵 Cobradores", "Gestión de Cobradores"),
             ("🔒 Cierre Diario", "Cierre Diario"),
             ("🚪 Cerrar Sesión", "Cerrar Sesión")
         ]
@@ -4979,6 +4981,7 @@ else:
             ("🏠 Inicio", "Inicio"),
             ("📊 Reporte", "Reporte por Rango"),
             ("🛡️ Auditoría", "Auditoría Híbrida"),
+            ("🛵 Cobradores", "Gestión de Cobradores"),
             ("💵 Pago Efectivo", "Gestión de Pagos"),
             ("🏦 Gestión Bancaria", "Gestión Bancaria"),
             ("🚪 Cerrar Sesión", "Cerrar Sesión")
@@ -4992,6 +4995,7 @@ else:
             ("💸 Gastos Agencias", "Gestión de Gastos"),
             ("💵 Pago Efectivo", "Gestión de Pagos"),
             ("🏦 Gestión Bancaria", "Gestión Bancaria"),
+            ("🛵 Cobradores", "Gestión de Cobradores"),
             ("🔒 Cierre Diario", "Cierre Diario"),
             ("🚪 Cerrar Sesión", "Cerrar Sesión")
         ]
@@ -5148,6 +5152,7 @@ else:
     elif opcion == "Gestión de Gastos": modulo_gastos(ag)
     elif opcion == "Gestión de Pagos": modulo_pagos(ag)
     elif opcion == "Gestión Bancaria": modulo_gestion_bancaria(ag)
+    elif opcion == "Gestión de Cobradores": modulo_cobradores(ag)
     elif opcion == "Reporte por Rango": modulo_reporte_rango(ag)
     elif opcion == "Tickets Premiados": modulo_premios_tickets(ag)
     elif opcion == "Cierre Diario": modulo_cierre_diario(ag)

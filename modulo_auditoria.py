@@ -179,12 +179,6 @@ def modulo_auditoria_hibrida(agencia_data=None):
                                 except Exception as ex:
                                     st.error(f"Error: {ex}")
 
-    with st.expander("🛵 Acceso Rápido a Cobradores de Ruta", expanded=False):
-        st.caption("Gestiona los cobradores, asignación de agencias por ruta y liquidación de entregas QR.")
-        if st.button("🛵 Abrir Módulo de Cobradores", key="btn_ir_cobradores_auditoria", type="primary"):
-            st.session_state["opcion_actual"] = "Gestión de Cobradores"
-            st.rerun()
-
     st.markdown("---")
     st.subheader(f"Comparativa por Ciclo Completo: {f_desde_str} al {f_hasta_str}")
 

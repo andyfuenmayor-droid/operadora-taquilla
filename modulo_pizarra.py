@@ -616,15 +616,37 @@ def _renderizar_lista_transacciones(df_list, key_prefix="act"):
                         else:
                             st.error(f"❌ Error: {err}")
 
-def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias_permitidas=None):
-    """Pestaña 2: Arqueo y Control de Efectivo, Balances por Agencia, Liquidación e Histórico estrictamente restringido al paraguas."""
+def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias_permitidas=None, f_desde=None, f_hasta=None, sel_agencia="Todas"):
+    """Pestaña 2: Arqueo y Control de Efectivo, Balances por Agencia, Liquidación e Histórico por Ciclo Operativo con Arrastre."""
     _sincronizar_efectivo_supervisor_con_pagos(u_id=u_id, existe_supervisor=existe_supervisor, agencias_permitidas=agencias_permitidas)
 
-    totales_pend_sup = {"BS": 0.0, "USD": 0.0, "COP": 0.0}
-    totales_rec_sup = {"BS": 0.0, "USD": 0.0, "COP": 0.0}
-    totales_conf_admin = {"BS": 0.0, "USD": 0.0, "COP": 0.0}
+    f_desde_str = str(f_desde) if f_desde else ""
+    f_hasta_str = str(f_hasta) if f_hasta else ""
 
-    movs_lista = []
+    # Totales globales disponibles en custodia actual
+    totales_rec_sup = {"BS": 0.0, "USD": 0.0, "COP": 0.0}
+    totales_pend_sup = {"BS": 0.0, "USD": 0.0, "COP": 0.0}
+    
+    # Arrastre previo (anterior a f_desde_str)
+    arrastre_global = {"BS": 0.0, "USD": 0.0, "COP": 0.0}
+    # Entradas y entregas del ciclo actual (entre f_desde_str y f_hasta_str)
+    entradas_ciclo_global = {"BS": 0.0, "USD": 0.0, "COP": 0.0}
+    entregas_ciclo_global = {"BS": 0.0, "USD": 0.0, "COP": 0.0}
+
+    # Desglose por agencia
+    stats_por_agencia = {}
+    if agencias_permitidas:
+        for ag_n in agencias_permitidas:
+            if ag_n and ag_n not in ["NONE", "TODAS", "Todas"]:
+                stats_por_agencia[ag_n.upper().strip()] = {
+                    "arrastre": {"BS": 0.0, "USD": 0.0, "COP": 0.0},
+                    "entradas": {"BS": 0.0, "USD": 0.0, "COP": 0.0},
+                    "entregas": {"BS": 0.0, "USD": 0.0, "COP": 0.0},
+                    "pendientes": {"BS": 0.0, "USD": 0.0, "COP": 0.0},
+                }
+
+    movs_todos = []
+    movs_ciclo = []
     pagos_ids_en_movs = set()
     mapa_cajeros_movs = obtener_mapa_cajeros(u_id)
     mapa_pd = {}
@@ -659,8 +681,6 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
             for rm in res_movs.data:
                 rm_copy = dict(rm)
                 ag_m = str(rm_copy.get("agencia") or "").upper().strip()
-                
-                # Filtrar movimientos pertenecientes al paraguas
                 if agencias_permitidas and ag_m not in agencias_permitidas and ag_m != "TODAS":
                     continue
 
@@ -674,19 +694,56 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
                     if nombre_res and nombre_res != "Cajero":
                         rm_copy["supervisor_nombre"] = nombre_res
 
-                movs_lista.append(rm_copy)
-                if rm_copy.get("pago_id") is not None:
-                    pagos_ids_en_movs.add(str(rm_copy["pago_id"]))
-                
+                f_raw = str(rm_copy.get("fecha") or rm_copy.get("created_at") or "").strip()
+                f_corta = f_raw[:10] if len(f_raw) >= 10 else ""
+                rm_copy["fecha_corta"] = f_corta
+                rm_copy["fecha_display"] = f_raw
+
                 mon_m = normalizar_moneda(rm_copy.get("moneda"))
                 monto_m = float(rm_copy.get("monto") or 0.0)
                 tipo_m = str(rm_copy.get("tipo_movimiento") or "").upper()
+                rm_copy["moneda_norm"] = mon_m
+                rm_copy["monto_num"] = monto_m
+
+                movs_todos.append(rm_copy)
+                if rm_copy.get("pago_id") is not None:
+                    pagos_ids_en_movs.add(str(rm_copy["pago_id"]))
+
+                if ag_m not in stats_por_agencia and ag_m not in ["TODAS", "NONE", ""]:
+                    stats_por_agencia[ag_m] = {
+                        "arrastre": {"BS": 0.0, "USD": 0.0, "COP": 0.0},
+                        "entradas": {"BS": 0.0, "USD": 0.0, "COP": 0.0},
+                        "entregas": {"BS": 0.0, "USD": 0.0, "COP": 0.0},
+                        "pendientes": {"BS": 0.0, "USD": 0.0, "COP": 0.0},
+                    }
+
+                # Identificar si es arrastre previo o movimiento del ciclo
+                is_previo = bool(f_desde_str and f_corta and f_corta < f_desde_str)
+                is_ciclo = bool((not f_desde_str or f_corta >= f_desde_str) and (not f_hasta_str or f_corta <= f_hasta_str))
 
                 if tipo_m in ["ENTREGA_ADMIN", "ENTREGA_COBRADOR"]:
                     totales_rec_sup[mon_m] -= monto_m
-                    totales_conf_admin[mon_m] += monto_m
+                    if is_previo:
+                        arrastre_global[mon_m] -= monto_m
+                        if ag_m in stats_por_agencia:
+                            stats_por_agencia[ag_m]["arrastre"][mon_m] -= monto_m
+                    elif is_ciclo:
+                        entregas_ciclo_global[mon_m] += monto_m
+                        if ag_m in stats_por_agencia:
+                            stats_por_agencia[ag_m]["entregas"][mon_m] += monto_m
+                        movs_ciclo.append(rm_copy)
+
                 elif tipo_m == "ENTRADA_CAJERO" and rm_copy.get("pago_id") is None:
                     totales_rec_sup[mon_m] += monto_m
+                    if is_previo:
+                        arrastre_global[mon_m] += monto_m
+                        if ag_m in stats_por_agencia:
+                            stats_por_agencia[ag_m]["arrastre"][mon_m] += monto_m
+                    elif is_ciclo:
+                        entradas_ciclo_global[mon_m] += monto_m
+                        if ag_m in stats_por_agencia:
+                            stats_por_agencia[ag_m]["entradas"][mon_m] += monto_m
+                        movs_ciclo.append(rm_copy)
     except Exception:
         pass
 
@@ -714,29 +771,61 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
                     sup_nom = c_nom
 
                 u_id_val = str(pago.get("user_id") or "SYSTEM").strip()
-                f_val = str(pago.get("fecha") or "")
+                f_val = str(pago.get("fecha") or pago.get("created_at") or "")
+                f_corta = f_val[:10] if len(f_val) >= 10 else ""
+
+                if ag_p not in stats_por_agencia and ag_p not in ["TODAS", "NONE", ""]:
+                    stats_por_agencia[ag_p] = {
+                        "arrastre": {"BS": 0.0, "USD": 0.0, "COP": 0.0},
+                        "entradas": {"BS": 0.0, "USD": 0.0, "COP": 0.0},
+                        "entregas": {"BS": 0.0, "USD": 0.0, "COP": 0.0},
+                        "pendientes": {"BS": 0.0, "USD": 0.0, "COP": 0.0},
+                    }
+
+                pago_mov_item = {
+                    "id": f"pd_{pid}",
+                    "pago_id": pid,
+                    "user_id": u_id_val,
+                    "agencia": ag_p,
+                    "supervisor_nombre": sup_nom,
+                    "tipo_movimiento": "ENTRADA_CAJERO",
+                    "monto": monto_val,
+                    "monto_num": monto_val,
+                    "moneda": moneda_val,
+                    "moneda_norm": moneda_val,
+                    "comentario": f"Pago Cajero {c_nom} #{pid}",
+                    "fecha": f_val,
+                    "fecha_display": f_val,
+                    "fecha_corta": f_corta
+                }
 
                 if pid and pid not in pagos_ids_en_movs:
-                    movs_lista.append({
-                        "id": f"pd_{pid}",
-                        "pago_id": pid,
-                        "user_id": u_id_val,
-                        "agencia": ag_p,
-                        "supervisor_nombre": sup_nom,
-                        "tipo_movimiento": "ENTRADA_CAJERO",
-                        "monto": monto_val,
-                        "moneda": moneda_val,
-                        "comentario": f"Pago Cajero #{pid}",
-                        "fecha": f_val
-                    })
+                    movs_todos.append(pago_mov_item)
+
+                is_previo = bool(f_desde_str and f_corta and f_corta < f_desde_str)
+                is_ciclo = bool((not f_desde_str or f_corta >= f_desde_str) and (not f_hasta_str or f_corta <= f_hasta_str))
 
                 if is_conf:
                     totales_rec_sup[moneda_val] += monto_val
+                    if is_previo:
+                        arrastre_global[moneda_val] += monto_val
+                        if ag_p in stats_por_agencia:
+                            stats_por_agencia[ag_p]["arrastre"][moneda_val] += monto_val
+                    elif is_ciclo:
+                        entradas_ciclo_global[moneda_val] += monto_val
+                        if ag_p in stats_por_agencia:
+                            stats_por_agencia[ag_p]["entradas"][moneda_val] += monto_val
+                        if pid not in pagos_ids_en_movs:
+                            movs_ciclo.append(pago_mov_item)
                 else:
                     totales_pend_sup[moneda_val] += monto_val
+                    if is_ciclo:
+                        if ag_p in stats_por_agencia:
+                            stats_por_agencia[ag_p]["pendientes"][moneda_val] += monto_val
 
     for m in ["BS", "USD", "COP"]:
         totales_rec_sup[m] = max(0.0, totales_rec_sup[m])
+        arrastre_global[m] = max(0.0, arrastre_global[m])
 
     # 1. COMPROBANTE QR ACTIVO SI SE GENERÓ UNA ENTREGA A COBRADOR
     pago_qr_sup_activo = st.session_state.get("pago_qr_sup_activo")
@@ -778,13 +867,14 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
         st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
     # 2. TARJETAS DE BALANCE DE EFECTIVO EN CAJA (3 COLUMNAS LIMPIAS)
-    st.markdown("<div style='font-size: 14px; font-weight: 800; color: #38bdf8; margin-bottom: 8px;'>📦 Saldo en Custodia de Caja</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-size: 14px; font-weight: 800; color: #38bdf8; margin-bottom: 8px;'>📦 Saldo en Custodia de Caja (Actual)</div>", unsafe_allow_html=True)
     c_b1, c_b2, c_b3 = st.columns(3)
     with c_b1:
         st.markdown(f"""
             <div style="background: rgba(56, 189, 248, 0.06); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 8px; padding: 12px 16px;">
                 <div style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">🇻🇪 Efectivo Bolívares (BS)</div>
                 <div style="font-size: 20px; font-weight: 800; color: #38bdf8; margin-top: 4px;">Bs {totales_rec_sup['BS']:,.2f}</div>
+                <div style="font-size: 10px; color: #94a3b8; margin-top: 4px;">Arrastre: <b>Bs {arrastre_global['BS']:,.2f}</b> | Ciclo: <b>+{entradas_ciclo_global['BS']:,.2f}</b> | Entregas: <b>-{entregas_ciclo_global['BS']:,.2f}</b></div>
             </div>
         """, unsafe_allow_html=True)
     with c_b2:
@@ -792,6 +882,7 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
             <div style="background: rgba(56, 189, 248, 0.06); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 8px; padding: 12px 16px;">
                 <div style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">💵 Efectivo Dólares (USD)</div>
                 <div style="font-size: 20px; font-weight: 800; color: #38bdf8; margin-top: 4px;">${totales_rec_sup['USD']:,.2f}</div>
+                <div style="font-size: 10px; color: #94a3b8; margin-top: 4px;">Arrastre: <b>${arrastre_global['USD']:,.2f}</b> | Ciclo: <b>+${entradas_ciclo_global['USD']:,.2f}</b> | Entregas: <b>-${entregas_ciclo_global['USD']:,.2f}</b></div>
             </div>
         """, unsafe_allow_html=True)
     with c_b3:
@@ -799,6 +890,7 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
             <div style="background: rgba(56, 189, 248, 0.06); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 8px; padding: 12px 16px;">
                 <div style="font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase;">🇨🇴 Efectivo Pesos (COP)</div>
                 <div style="font-size: 20px; font-weight: 800; color: #38bdf8; margin-top: 4px;">COP {totales_rec_sup['COP']:,.2f}</div>
+                <div style="font-size: 10px; color: #94a3b8; margin-top: 4px;">Arrastre: <b>COP {arrastre_global['COP']:,.2f}</b> | Ciclo: <b>+{entradas_ciclo_global['COP']:,.2f}</b> | Entregas: <b>-{entregas_ciclo_global['COP']:,.2f}</b></div>
             </div>
         """, unsafe_allow_html=True)
 
@@ -816,7 +908,7 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
 
     ag_entrega = agencias_permitidas[0] if (agencias_permitidas and len(agencias_permitidas) == 1) else (st.session_state.get("agencia_actual", {}).get("nombre_agencia", "TODAS"))
 
-    with st.expander("💸 Realizar Entrega o Liquidación de Fondos", expanded=True):
+    with st.expander("💸 Realizar Entrega o Liquidación de Fondos", expanded=False):
         sub_tab_cob, sub_tab_adm = st.tabs([
             "🛵 1. Entregar a Cobrador de Ruta (Generar QR)",
             "🏢 2. Liquidar a Administración Central"
@@ -949,78 +1041,85 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
 
     st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
 
-    # 2. RESUMEN DE EFECTIVO POR AGENCIA (SOLO DEL PARAGUAS)
-    st.markdown("<div style='font-size: 14px; font-weight: 800; color: #f8fafc; margin-bottom: 6px;'>🏛️ Resumen de Efectivo por Agencia</div>", unsafe_allow_html=True)
-    if movs_lista:
-        df_movs = pd.DataFrame(movs_lista)
-        df_movs["moneda_norm"] = df_movs["moneda"].apply(normalizar_moneda)
-        df_movs["agencia_norm"] = df_movs["agencia"].astype(str).str.upper().str.strip()
-        
-        df_pd_all = pd.DataFrame()
-        try:
-            q_pd2 = supabase.table("cda_pagos_diarios").select("*")
-            if u_id:
-                try:
-                    q_pd2 = q_pd2.eq("user_id", u_id)
-                except Exception:
-                    pass
-            res_pd_all = q_pd2.execute()
-            if res_pd_all.data:
-                df_pd_all = pd.DataFrame(res_pd_all.data)
-        except Exception:
-            pass
+    # 4. RESUMEN DE EFECTIVO POR AGENCIA (DESGLOSE DE ARRASTRE Y CICLO)
+    st.markdown("<div style='font-size: 14px; font-weight: 800; color: #f8fafc; margin-bottom: 6px;'>🏛️ Resumen de Efectivo por Agencia (Ciclo Operativo & Arrastre)</div>", unsafe_allow_html=True)
+    
+    target_ags = agencias_permitidas if agencias_permitidas else sorted(stats_por_agencia.keys())
+    if sel_agencia and sel_agencia != "Todas":
+        target_ags = [sel_agencia]
 
-        resumen_agencias = []
-        target_ags = agencias_permitidas if agencias_permitidas else sorted(set(df_movs["agencia_norm"].unique()))
+    resumen_agencias = []
+    for ag in sorted(target_ags):
+        if not ag or ag in ["NONE", "TODAS", "Todas"]:
+            continue
 
-        for ag in sorted(target_ags):
-            if not ag or ag in ["NONE", "TODAS"]:
-                continue
+        st_ag = stats_por_agencia.get(ag, {
+            "arrastre": {"BS": 0.0, "USD": 0.0, "COP": 0.0},
+            "entradas": {"BS": 0.0, "USD": 0.0, "COP": 0.0},
+            "entregas": {"BS": 0.0, "USD": 0.0, "COP": 0.0},
+            "pendientes": {"BS": 0.0, "USD": 0.0, "COP": 0.0},
+        })
 
-            sub_pd = df_pd_all[df_pd_all["agencia"].astype(str).str.upper().str.strip() == ag] if (not df_pd_all.empty and "agencia" in df_pd_all.columns) else pd.DataFrame()
-            
-            if not sub_pd.empty:
-                sub_pd["moneda_norm"] = sub_pd["moneda"].apply(normalizar_moneda)
-                sub_pd = sub_pd[sub_pd.apply(lambda r: "EFECTIVO" in str(r.get("categoria","")).upper() or "EFECTIVO" in str(r.get("tipo_pago","")).upper() or ("REF:" not in str(r.get("tipo_pago","")).upper() and "PUNTO" not in str(r.get("tipo_pago","")).upper() and "TRANSFERENCIA" not in str(r.get("tipo_pago","")).upper() and "ZELLE" not in str(r.get("tipo_pago","")).upper() and "PAGO MÓVIL" not in str(r.get("tipo_pago","")).upper()), axis=1)]
+        arr_bs, arr_usd, arr_cop = st_ag["arrastre"]["BS"], st_ag["arrastre"]["USD"], st_ag["arrastre"]["COP"]
+        ent_bs, ent_usd, ent_cop = st_ag["entradas"]["BS"], st_ag["entradas"]["USD"], st_ag["entradas"]["COP"]
+        sal_bs, sal_usd, sal_cop = st_ag["entregas"]["BS"], st_ag["entregas"]["USD"], st_ag["entregas"]["COP"]
+        pnd_bs, pnd_usd, pnd_cop = st_ag["pendientes"]["BS"], st_ag["pendientes"]["USD"], st_ag["pendientes"]["COP"]
 
-            p_bs = sub_pd[(sub_pd["moneda_norm"] == "BS") & (sub_pd["confirmado"] == False) & (sub_pd.get("confirmado_supervisor", False) == False)]["monto"].sum() if not sub_pd.empty else 0.0
-            c_bs = sub_pd[(sub_pd["moneda_norm"] == "BS") & ((sub_pd["confirmado"] == True) | (sub_pd.get("confirmado_supervisor", False) == True))]["monto"].sum() if not sub_pd.empty else 0.0
+        saldo_bs = max(0.0, arr_bs + ent_bs - sal_bs)
+        saldo_usd = max(0.0, arr_usd + ent_usd - sal_usd)
+        saldo_cop = max(0.0, arr_cop + ent_cop - sal_cop)
 
-            p_usd = sub_pd[(sub_pd["moneda_norm"] == "USD") & (sub_pd["confirmado"] == False) & (sub_pd.get("confirmado_supervisor", False) == False)]["monto"].sum() if not sub_pd.empty else 0.0
-            c_usd = sub_pd[(sub_pd["moneda_norm"] == "USD") & ((sub_pd["confirmado"] == True) | (sub_pd.get("confirmado_supervisor", False) == True))]["monto"].sum() if not sub_pd.empty else 0.0
+        resumen_agencias.append({
+            "🏢 Agencia": ag,
+            "📥 Arrastre Previo": f"Bs {arr_bs:,.2f} | ${arr_usd:,.2f} | COP {arr_cop:,.2f}",
+            "⚡ Entradas Ciclo": f"Bs {ent_bs:,.2f} | ${ent_usd:,.2f} | COP {ent_cop:,.2f}",
+            "💸 Entregas Ciclo": f"Bs {sal_bs:,.2f} | ${sal_usd:,.2f} | COP {sal_cop:,.2f}",
+            "💰 Saldo Actual": f"Bs {saldo_bs:,.2f} | ${saldo_usd:,.2f} | COP {saldo_cop:,.2f}",
+            "⏳ Pend. Validación": f"Bs {pnd_bs:,.2f} | ${pnd_usd:,.2f} | COP {pnd_cop:,.2f}"
+        })
 
-            p_cop = sub_pd[(sub_pd["moneda_norm"] == "COP") & (sub_pd["confirmado"] == False) & (sub_pd.get("confirmado_supervisor", False) == False)]["monto"].sum() if not sub_pd.empty else 0.0
-            c_cop = sub_pd[(sub_pd["moneda_norm"] == "COP") & ((sub_pd["confirmado"] == True) | (sub_pd.get("confirmado_supervisor", False) == True))]["monto"].sum() if not sub_pd.empty else 0.0
+    if resumen_agencias:
+        st.dataframe(pd.DataFrame(resumen_agencias), use_container_width=True, hide_index=True)
+    else:
+        st.info("ℹ️ No hay agencias asignadas para este usuario.")
 
-            resumen_agencias.append({
-                "Agencia": ag,
-                "Pendiente (Bs / $ / COP)": f"Bs {float(p_bs):,.2f} | ${float(p_usd):,.2f} | COP {float(p_cop):,.2f}",
-                "Confirmado en Caja (Bs / $ / COP)": f"Bs {float(c_bs):,.2f} | ${float(c_usd):,.2f} | COP {float(c_cop):,.2f}"
-            })
+    st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
 
-        if resumen_agencias:
-            st.dataframe(pd.DataFrame(resumen_agencias), use_container_width=True, hide_index=True)
+    # 5. HISTÓRICO DE MOVIMIENTOS DE CAJA (SOLO DEL CICLO OPERATIVO)
+    st.markdown(f"<div style='font-size: 14px; font-weight: 800; color: #f8fafc; margin-bottom: 6px;'>📜 Histórico de Movimientos del Ciclo ({f_desde_str} al {f_hasta_str})</div>", unsafe_allow_html=True)
+    
+    # Mostrar píldora de saldo inicial arrastrado si existe
+    tiene_arrastre = (arrastre_global["BS"] > 0 or arrastre_global["USD"] > 0 or arrastre_global["COP"] > 0)
+    if tiene_arrastre:
+        st.markdown(
+            f"""
+            <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 6px 14px; margin-bottom: 8px; font-size: 12px; color: #cbd5e1;">
+                📥 <b>Saldo Inicial Arrastrado (Ciclos Anteriores):</b> 
+                <span style="color: #38bdf8; font-weight: 700;">Bs {arrastre_global['BS']:,.2f}</span> &nbsp;|&nbsp; 
+                <span style="color: #38bdf8; font-weight: 700;">${arrastre_global['USD']:,.2f}</span> &nbsp;|&nbsp; 
+                <span style="color: #38bdf8; font-weight: 700;">COP {arrastre_global['COP']:,.2f}</span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
-        st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
+    df_movs_ciclo = pd.DataFrame(movs_ciclo)
+    if not df_movs_ciclo.empty:
+        if sel_agencia and sel_agencia != "Todas":
+            df_movs_ciclo = df_movs_ciclo[df_movs_ciclo["agencia"].astype(str).str.upper().str.strip() == sel_agencia.upper().strip()]
 
-        # 3. HISTÓRICO DE MOVIMIENTOS DE CAJA (SOLO DEL PARAGUAS)
-        st.markdown("<div style='font-size: 14px; font-weight: 800; color: #f8fafc; margin-bottom: 6px;'>📜 Histórico de Movimientos de Caja</div>", unsafe_allow_html=True)
-        cols_req = ["fecha", "agencia", "supervisor_nombre", "tipo_movimiento", "monto", "moneda_norm", "comentario"]
+    if not df_movs_ciclo.empty:
+        cols_req = ["fecha_display", "agencia", "supervisor_nombre", "tipo_movimiento", "monto_num", "moneda_norm", "comentario"]
         for col in cols_req:
-            if col not in df_movs.columns:
-                df_movs[col] = ""
-        df_disp_movs = df_movs[cols_req].copy()
+            if col not in df_movs_ciclo.columns:
+                df_movs_ciclo[col] = ""
+        df_disp_movs = df_movs_ciclo[cols_req].copy()
         df_disp_movs.columns = ["Fecha / Hora", "Agencia", "Responsable", "Tipo Movimiento", "Monto", "Moneda", "Comentario"]
-        
-        # Filtro estricto por agencias del paraguas en la visualización
-        if agencias_permitidas:
-            df_disp_movs = df_disp_movs[df_disp_movs["Agencia"].astype(str).str.upper().str.strip().isin(agencias_permitidas) | (df_disp_movs["Agencia"].astype(str).str.upper().str.strip() == "TODAS")]
-
         df_disp_movs["Monto"] = df_disp_movs["Monto"].apply(lambda m: f"{float(m or 0.0):,.2f}")
         df_disp_movs = df_disp_movs.sort_values(by="Fecha / Hora", ascending=False)
-        st.dataframe(df_disp_movs.head(50), use_container_width=True, hide_index=True)
+        st.dataframe(df_disp_movs, use_container_width=True, hide_index=True)
     else:
-        st.info("ℹ️ No hay movimientos registrados en la Caja de Efectivo aún.")
+        st.info(f"ℹ️ No hay movimientos registrados en el ciclo operativo actual ({f_desde_str} al {f_hasta_str}). El saldo proviene del arrastre inicial.")
 
 def modulo_pizarra(agencia_data=None):
     return modulo_pizarra_confirmaciones(agencia_data)
@@ -1411,4 +1510,4 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
         _renderizar_lista_transacciones(df_act_work, key_prefix="act")
 
     with tab_arqueo:
-        _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=existe_sup, agencias_permitidas=agencias_paraguas)
+        _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=existe_sup, agencias_permitidas=agencias_paraguas, f_desde=f_desde_str, f_hasta=f_hasta_str, sel_agencia=sel_agencia)

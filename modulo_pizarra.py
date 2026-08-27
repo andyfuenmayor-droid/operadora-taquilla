@@ -973,18 +973,18 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
                             # 2. Registro en cda_pagos_diarios para escaneo
                             supabase.table("cda_pagos_diarios").insert({
                                 "agencia": ag_entrega,
+                                "nombre_agency": ag_entrega,
                                 "monto": float(mto_cob),
                                 "moneda": mon_norm,
                                 "tipo_pago": "Entregado a Cobrador",
-                                "concepto": f"Entrega Supervisor ({curr_usr}) a Cobrador ({c_nom_sel})",
-                                "referencia": f"TOKEN: {qr_token_gen}",
+                                "comentario_supervisor": f"Entrega Supervisor ({curr_usr}) a Cobrador ({c_nom_sel}) - {nota_cob}",
                                 "qr_token": qr_token_gen,
                                 "cobrador_id": c_id_sel,
                                 "cobrador_nombre": c_nom_sel,
                                 "confirmado": False,
                                 "confirmado_supervisor": True,
                                 "supervisor_nombre": curr_usr,
-                                "fecha": ahora_iso,
+                                "fecha": ahora_dt.strftime("%Y-%m-%d"),
                                 "user_id": u_id_val
                             }).execute()
 

@@ -6,6 +6,7 @@ import urllib.parse
 import textwrap
 import uuid
 import json
+import random
 from utils import supabase, obtener_periodo_trabajo, obtener_whatsapp_agencia_local, obtener_pagos_locales_agencia, obtener_gastos_locales_agencia, obtener_etiqueta_confirmacion, normalizar_moneda, generar_codigo_qr_base64
 
 from datetime import datetime, timedelta, timezone
@@ -2258,16 +2259,20 @@ def modulo_pagos(agencia_data):
                 )
             with col_qr2:
                 m_sym = "Bs." if pago_qr_activo.get("moneda") == "BS" else ("$" if pago_qr_activo.get("moneda") == "USD" else "COP ")
+                pin_val = str(pago_qr_activo.get("pin") or pago_qr_activo.get("token", "").replace("QR-REC-", ""))
                 st.markdown(
                     f"""
                     <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 1rem;">
                         <h4 style="margin: 0; color: #10b981;">🛵 Comprobante de Entrega a Cobrador</h4>
-                        <p style="margin: 4px 0 10px 0; font-size: 0.85rem; opacity: 0.8;">Presenta este código QR al Cobrador de Ruta para validar la recepción del efectivo.</p>
+                        <div style="background: linear-gradient(135deg, rgba(0, 200, 83, 0.15) 0%, rgba(56, 189, 248, 0.12) 100%); border: 2px solid #00c853; border-radius: 10px; padding: 10px 14px; margin: 8px 0; text-align: center;">
+                            <div style="font-size: 11px; font-weight: 700; color: #4ade80; text-transform: uppercase; letter-spacing: 0.05em;">🔢 CÓDIGO PIN DE VALIDACIÓN (6 DÍGITOS)</div>
+                            <div style="font-size: 28px; font-weight: 900; color: #ffffff; letter-spacing: 6px; font-family: monospace; margin: 2px 0;">{pin_val}</div>
+                            <div style="font-size: 11px; color: #94a3b8;">Díctale este PIN al cobrador para validar en 1 segundo sin usar cámara</div>
+                        </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.9rem;">
                             <div><b>🏢 Agencia:</b> {pago_qr_activo.get('agencia')}</div>
                             <div><b>📅 Fecha:</b> {pago_qr_activo.get('fecha')}</div>
                             <div><b>💰 Monto:</b> <span style="font-weight: 700; color: #10b981; font-size: 1.1rem;">{m_sym}{pago_qr_activo.get('monto'):,.2f}</span></div>
-                            <div><b>🔑 Token QR:</b> <code>{pago_qr_activo.get('token')}</code></div>
                         </div>
                     </div>
                     """,
@@ -2330,8 +2335,10 @@ def modulo_pagos(agencia_data):
                     st.error("Ingrese un monto válido mayor a cero.")
                 else:
                     qr_token_val = None
+                    pin_6 = None
                     if tipo_pg == "Entregado a Cobrador":
-                        qr_token_val = f"QR-REC-{int(time.time())}-{uuid.uuid4().hex[:6].upper()}"
+                        pin_6 = f"{random.randint(100000, 999999)}"
+                        qr_token_val = f"QR-REC-{pin_6}"
 
                     pago_data = {
                         "fecha": str(fecha_pg), 
@@ -2358,6 +2365,7 @@ def modulo_pagos(agencia_data):
                         st.session_state["pago_qr_generado"] = {
                             "pago_id": pago_id_ins,
                             "token": qr_token_val,
+                            "pin": pin_6,
                             "tipo": "ENTREGA_COBRADOR",
                             "agencia": ag_nombre,
                             "fecha": str(fecha_pg),

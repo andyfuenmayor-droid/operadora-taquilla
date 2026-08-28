@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime
 import time
 import uuid
+import random
 from utils import supabase, obtener_periodo_trabajo, normalizar_moneda, obtener_etiqueta_confirmacion, generar_codigo_qr_base64
 
 def obtener_nombre_usuario_actual():
@@ -860,24 +861,28 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
                 )
             with col_qr2:
                 m_sym = "Bs." if pago_qr_sup_activo.get("moneda") == "BS" else ("$" if pago_qr_sup_activo.get("moneda") == "USD" else "COP ")
+                pin_val = str(pago_qr_sup_activo.get("pin") or pago_qr_sup_activo.get("token", "").replace("QR-REC-", ""))
                 st.markdown(
                     f"""
                     <div style="display: flex; align-items: center; justify-content: space-between;">
                         <span style="font-size: 15px; font-weight: 800; color: #4ade80;">🛵 Comprobante de Entrega a Cobrador</span>
-                        <span style="background: rgba(74, 222, 128, 0.15); color: #4ade80; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;">QR Activo</span>
+                        <span style="background: rgba(74, 222, 128, 0.15); color: #4ade80; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;">Código Activo</span>
                     </div>
-                    <p style="font-size: 12px; color: #94a3b8; margin: 4px 0 10px 0;">Muestra este código QR al Cobrador para que lo escanee desde su portal móvil y valide la recepción.</p>
+                    <div style="background: linear-gradient(135deg, rgba(0, 200, 83, 0.15) 0%, rgba(56, 189, 248, 0.12) 100%); border: 2px solid #00c853; border-radius: 10px; padding: 10px 14px; margin: 8px 0; text-align: center;">
+                        <div style="font-size: 11px; font-weight: 700; color: #4ade80; text-transform: uppercase; letter-spacing: 0.05em;">🔢 CÓDIGO PIN DE VALIDACIÓN (6 DÍGITOS)</div>
+                        <div style="font-size: 28px; font-weight: 900; color: #ffffff; letter-spacing: 6px; font-family: monospace; margin: 2px 0;">{pin_val}</div>
+                        <div style="font-size: 11px; color: #94a3b8;">Díctale este PIN al cobrador para validar en 1 segundo sin usar cámara</div>
+                    </div>
                     <div style="font-size: 13px; line-height: 1.6; background: rgba(15, 23, 42, 0.5); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
                         🏢 <b>Agencia:</b> {pago_qr_sup_activo.get('agencia')} &nbsp;|&nbsp; 👤 <b>Supervisor:</b> {pago_qr_sup_activo.get('supervisor')}<br/>
                         🛵 <b>Cobrador:</b> <span style="color: #38bdf8; font-weight: 700;">{pago_qr_sup_activo.get('cobrador')}</span><br/>
-                        💰 <b>Monto Entregado:</b> <span style="font-weight: 800; color: #4ade80; font-size: 16px;">{m_sym}{pago_qr_sup_activo.get('monto'):,.2f}</span><br/>
-                        🔑 <b>Token:</b> <code style="color: #cbd5e1;">{pago_qr_sup_activo.get('token')}</code>
+                        💰 <b>Monto Entregado:</b> <span style="font-weight: 800; color: #4ade80; font-size: 16px;">{m_sym}{pago_qr_sup_activo.get('monto'):,.2f}</span>
                     </div>
                     """,
                     unsafe_allow_html=True
                 )
                 st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
-                if st.button("❌ Cerrar Comprobante QR", key="btn_cerrar_qr_sup_activo", use_container_width=True):
+                if st.button("❌ Cerrar Comprobante", key="btn_cerrar_qr_sup_activo", use_container_width=True):
                     st.session_state["pago_qr_sup_activo"] = None
                     st.rerun()
         st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
@@ -972,7 +977,8 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
                         ahora_iso = ahora_dt.isoformat()
                         c_id_sel = cob_elegido["id"]
                         c_nom_sel = str(cob_elegido.get("nombre") or cob_elegido.get("usuario") or "Cobrador").strip()
-                        qr_token_gen = f"QR-REC-{int(time.time())}-{uuid.uuid4().hex[:6].upper()}"
+                        pin_6 = f"{random.randint(100000, 999999)}"
+                        qr_token_gen = f"QR-REC-{pin_6}"
 
                         ins_caja_id = None
                         try:
@@ -984,7 +990,7 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
                                 "tipo_movimiento": "ENTREGA_COBRADOR",
                                 "monto": float(mto_cob),
                                 "moneda": mon_norm,
-                                "comentario": f"{nota_cob} (Cobrador: {c_nom_sel} | Token: {qr_token_gen})"
+                                "comentario": f"{nota_cob} (Cobrador: {c_nom_sel} | PIN: {pin_6})"
                             }).execute()
                             if res_caja.data:
                                 ins_caja_id = res_caja.data[0].get("id")
@@ -996,7 +1002,7 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
                                 "monto": float(mto_cob),
                                 "moneda": mon_norm,
                                 "tipo_pago": "Entregado a Cobrador",
-                                "comentario_supervisor": f"Entrega Supervisor ({curr_usr}) a Cobrador ({c_nom_sel}) - {nota_cob}",
+                                "comentario_supervisor": f"Entrega Supervisor ({curr_usr}) a Cobrador ({c_nom_sel}) - {nota_cob} (PIN: {pin_6})",
                                 "qr_token": qr_token_gen,
                                 "cobrador_id": c_id_sel,
                                 "cobrador_nombre": c_nom_sel,
@@ -1009,6 +1015,7 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
 
                             st.session_state["pago_qr_sup_activo"] = {
                                 "token": qr_token_gen,
+                                "pin": pin_6,
                                 "agencia": ag_entrega,
                                 "monto": float(mto_cob),
                                 "moneda": mon_norm,
@@ -1016,7 +1023,7 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
                                 "supervisor": curr_usr,
                                 "fecha": ahora_dt.strftime("%Y-%m-%d %I:%M %p")
                             }
-                            st.success(f"✅ ¡Entrega a Cobrador {c_nom_sel} ({mon_norm} {mto_cob:,.2f}) registrada!")
+                            st.success(f"✅ ¡Entrega a Cobrador {c_nom_sel} ({mon_norm} {mto_cob:,.2f}) registrada con PIN: {pin_6}!")
                             time.sleep(0.4)
                             st.rerun()
                         except Exception as ex_c:

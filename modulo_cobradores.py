@@ -785,35 +785,39 @@ def modulo_portal_cobrador(cobrador_info, agencia_ctx=None, vista_inicial="Porta
                     st.rerun()
             st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
 
-        st.markdown("#### 📷 Validación y Escaneo de Comprobante QR")
-        st.caption("Apunta la cámara de tu teléfono móvil directamente al Código QR mostrado en la pantalla de la taquilla:")
+        st.markdown("#### 🔢 Validación Rápida por Código PIN (6 Dígitos)")
+        st.caption("Ingresa los 6 números que te dicte o muestre el supervisor para validar la entrega en 1 segundo sin usar cámara:")
 
-        cam_ver = st.session_state.get("cam_scan_cobrador_version", 0)
-        cam_foto = st.camera_input("📸 Activar Cámara para Escanear QR", key=f"cam_scan_cobrador_mobile_{cam_ver}")
-        if cam_foto is not None:
-            token_leido = decodificar_token_qr_de_imagen(cam_foto)
-            if token_leido:
-                st.info(f"🔍 **¡Código QR Detectado!**: `{token_leido}`. Validando entrega...")
-                _procesar_validacion_entrega(token_leido, c_id, c_nombre, u_id)
-            else:
-                st.warning("⚠️ No se pudo leer el Código QR con nitidez. Asegúrate de enfocar bien la pantalla del supervisor o ingresa el Token abajo.")
+        with st.form("form_val_pin_cobrador", clear_on_submit=False):
+            c_pin1, c_pin2 = st.columns([2.5, 1.5])
+            with c_pin1:
+                pin_input = st.text_input(
+                    "Código PIN de Entrega (6 dígitos)", 
+                    placeholder="Ej: 482910",
+                    max_chars=20,
+                    key="input_pin_cob_val"
+                ).strip()
+            with c_pin2:
+                st.write("")
+                st.write("")
+                btn_val_pin = st.form_submit_button("⚡ VALIDAR PIN", type="primary", use_container_width=True)
+
+        if btn_val_pin and pin_input:
+            _procesar_validacion_entrega(pin_input, c_id, c_nombre, u_id)
 
         st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
-        with st.expander("🔑 O Ingresar / Pegar Token Manualmente", expanded=False):
-            col_t1, col_t2 = st.columns([3, 1])
-            with col_t1:
-                token_input = st.text_input(
-                    "Token QR de Entrega", 
-                    placeholder="Ej: QR-REC-1787876522-064051",
-                    key="input_qr_token_val"
-                ).strip()
-            with col_t2:
-                st.write("")
-                st.write("")
-                btn_validar_tkn = st.button("⚡ Validar Token", type="primary", use_container_width=True)
+        with st.expander("📷 O Escanear Código QR con Cámara (Opcional)", expanded=False):
+            st.caption("Apunta la cámara de tu teléfono móvil directamente al Código QR mostrado en la pantalla de la taquilla:")
 
-            if btn_validar_tkn and token_input:
-                _procesar_validacion_entrega(token_input, c_id, c_nombre, u_id)
+            cam_ver = st.session_state.get("cam_scan_cobrador_version", 0)
+            cam_foto = st.camera_input("📸 Activar Cámara para Escanear QR", key=f"cam_scan_cobrador_mobile_{cam_ver}")
+            if cam_foto is not None:
+                token_leido = decodificar_token_qr_de_imagen(cam_foto)
+                if token_leido:
+                    st.info(f"🔍 **¡Código QR Detectado!**: `{token_leido}`. Validando entrega...")
+                    _procesar_validacion_entrega(token_leido, c_id, c_nombre, u_id)
+                else:
+                    st.warning("⚠️ No se pudo leer el Código QR con nitidez. Puedes ingresar el PIN de 6 dígitos arriba.")
 
         st.markdown("---")
 
@@ -854,6 +858,8 @@ def modulo_portal_cobrador(cobrador_info, agencia_ctx=None, vista_inicial="Porta
                         caj_n = str(caj_raw).upper()
 
                     sym_n = "Bs." if mon_n == "BS" else ("$" if mon_n == "USD" else "COP ")
+                    tkn_n = str(r_pend.get("qr_token") or "").strip()
+                    pin_n = tkn_n.replace("QR-REC-", "") if tkn_n else "N/A"
 
                     with st.container(border=True):
                         c1, c2, c3 = st.columns([4, 3, 3])
@@ -863,7 +869,7 @@ def modulo_portal_cobrador(cobrador_info, agencia_ctx=None, vista_inicial="Porta
                                 <div style="font-weight: 700; font-size: 1.1rem; color: {text_color};">🏢 {ag_n}</div>
                                 <div style="font-size: 0.82rem; color: {sub_color}; margin-top: 2px;">
                                     📅 <b>Fecha:</b> {fch_n} | 👤 <b>Cajero:</b> {caj_n}<br/>
-                                    🔑 <b>Token:</b> <code>{tkn_n}</code>
+                                    🔢 <b>PIN:</b> <b style="color: #38bdf8; font-size: 1rem; font-family: monospace;">{pin_n}</b>
                                 </div>
                                 """,
                                 unsafe_allow_html=True

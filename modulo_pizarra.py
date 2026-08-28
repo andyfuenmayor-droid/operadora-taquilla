@@ -224,6 +224,7 @@ def _sincronizar_efectivo_supervisor_con_pagos(u_id=None, existe_supervisor=True
                 moneda_val = normalizar_moneda(pago.get("moneda"))
 
                 comentario_text = f"Recibido de cajero {c_nombre} (Confirmado)"
+                f_pago_sync = str(pago.get("fecha") or pago.get("created_at") or datetime.now().isoformat())
 
                 try:
                     supabase.table("cda_caja_efectivo_supervisor").insert({
@@ -234,7 +235,8 @@ def _sincronizar_efectivo_supervisor_con_pagos(u_id=None, existe_supervisor=True
                         "monto": monto_val,
                         "moneda": moneda_val,
                         "pago_id": pid,
-                        "comentario": comentario_text
+                        "comentario": comentario_text,
+                        "fecha": f_pago_sync
                     }).execute()
                     pagos_registrados.add(str(pid))
                 except Exception:
@@ -246,7 +248,8 @@ def _sincronizar_efectivo_supervisor_con_pagos(u_id=None, existe_supervisor=True
                             "tipo_movimiento": "ENTRADA_CAJERO",
                             "monto": monto_val,
                             "moneda": moneda_val,
-                            "comentario": comentario_text
+                            "comentario": comentario_text,
+                            "fecha": f_pago_sync
                         }).execute()
                     except Exception:
                         pass
@@ -740,7 +743,7 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
                             stats_por_agencia[ag_m]["entregas"][mon_m] += monto_m
                         movs_ciclo.append(rm_copy)
 
-                elif tipo_m == "ENTRADA_CAJERO" and rm_copy.get("pago_id") is None:
+                elif tipo_m == "ENTRADA_CAJERO":
                     totales_rec_sup[mon_m] += monto_m
                     if is_previo:
                         arrastre_global[mon_m] += monto_m
@@ -818,16 +821,17 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
                 is_ciclo = bool((not f_desde_str or f_corta >= f_desde_str) and (not f_hasta_str or f_corta <= f_hasta_str))
 
                 if is_conf:
-                    totales_rec_sup[moneda_val] += monto_val
-                    if is_previo:
-                        arrastre_global[moneda_val] += monto_val
-                        if ag_p in stats_por_agencia:
-                            stats_por_agencia[ag_p]["arrastre"][moneda_val] += monto_val
-                    elif is_ciclo:
-                        entradas_ciclo_global[moneda_val] += monto_val
-                        if ag_p in stats_por_agencia:
-                            stats_por_agencia[ag_p]["entradas"][moneda_val] += monto_val
-                        if pid not in pagos_ids_en_movs:
+                    # Si ya está registrado en cda_caja_efectivo_supervisor, no sumar doble
+                    if pid and pid not in pagos_ids_en_movs:
+                        totales_rec_sup[moneda_val] += monto_val
+                        if is_previo:
+                            arrastre_global[moneda_val] += monto_val
+                            if ag_p in stats_por_agencia:
+                                stats_por_agencia[ag_p]["arrastre"][moneda_val] += monto_val
+                        elif is_ciclo:
+                            entradas_ciclo_global[moneda_val] += monto_val
+                            if ag_p in stats_por_agencia:
+                                stats_por_agencia[ag_p]["entradas"][moneda_val] += monto_val
                             movs_ciclo.append(pago_mov_item)
                 else:
                     totales_pend_sup[moneda_val] += monto_val

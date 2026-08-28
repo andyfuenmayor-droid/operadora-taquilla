@@ -718,6 +718,30 @@ def modulo_portal_cobrador(cobrador_info, agencia_ctx=None, vista_inicial="Porta
     # TAB 1: ESCANEO Y VALIDACIÓN QR
     # ==============================================================
     with tab_scan:
+        st.markdown(
+            """
+            <style>
+            /* Traducción y mejora de botones del widget de cámara Streamlit al Español */
+            div[data-testid="stCameraInput"] button:has(svg) {
+                font-size: 0 !important;
+            }
+            div[data-testid="stCameraInput"] button:has(svg)::after {
+                content: "📸 Tomar Foto para Escanear";
+                font-size: 14px !important;
+                font-weight: 600;
+            }
+            div[data-testid="stCameraInput"] button:not(:has(svg)) {
+                font-size: 0 !important;
+            }
+            div[data-testid="stCameraInput"] button:not(:has(svg))::after {
+                content: "✖ Limpiar Foto / Escanear Otra";
+                font-size: 14px !important;
+                font-weight: 600;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
         st.markdown("#### 📷 Validación y Escaneo de Comprobante QR")
         st.caption("Apunta la cámara de tu teléfono móvil directamente al Código QR mostrado en la pantalla de la taquilla:")
 

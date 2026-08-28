@@ -2244,48 +2244,38 @@ def modulo_pagos(agencia_data):
     else:
         st.info("ℹ️ No hay pagos en este día.")
 
-    # Componente visual para mostrar el Código QR recién generado o consultado
+    # Componente visual para mostrar el PIN de Entrega recién generado o consultado
     pago_qr_activo = st.session_state.get("pago_qr_generado")
     if pago_qr_activo:
         with st.container():
             st.markdown("---")
-            qr_b64 = generar_codigo_qr_base64(pago_qr_activo)
-            col_qr1, col_qr2 = st.columns([1.3, 2.7])
-            with col_qr1:
-                st.markdown(
-                    f"""
-                    <div style="background: white; padding: 12px; border-radius: 12px; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
-                        <img src="{qr_b64}" style="width: 100%; max-width: 220px; height: auto;" alt="Código QR de Entrega" />
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-            with col_qr2:
-                m_sym = "Bs." if pago_qr_activo.get("moneda") == "BS" else ("$" if pago_qr_activo.get("moneda") == "USD" else "COP ")
-                pin_val = str(pago_qr_activo.get("pin") or pago_qr_activo.get("token", "").replace("QR-REC-", ""))
-                st.markdown(
-                    f"""
-                    <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 1rem;">
+            m_sym = "Bs." if pago_qr_activo.get("moneda") == "BS" else ("$" if pago_qr_activo.get("moneda") == "USD" else "COP ")
+            pin_val = str(pago_qr_activo.get("pin") or pago_qr_activo.get("token", "").replace("QR-REC-", ""))
+            st.markdown(
+                f"""
+                <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(56, 189, 248, 0.12) 100%); border: 2px solid #10b981; border-radius: 14px; padding: 1.25rem; text-align: center;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
                         <h4 style="margin: 0; color: #10b981;">🛵 Comprobante de Entrega a Cobrador</h4>
-                        <div style="background: linear-gradient(135deg, rgba(0, 200, 83, 0.15) 0%, rgba(56, 189, 248, 0.12) 100%); border: 2px solid #00c853; border-radius: 10px; padding: 10px 14px; margin: 8px 0; text-align: center;">
-                            <div style="font-size: 11px; font-weight: 700; color: #4ade80; text-transform: uppercase; letter-spacing: 0.05em;">🔢 CÓDIGO PIN DE VALIDACIÓN (6 DÍGITOS)</div>
-                            <div style="font-size: 28px; font-weight: 900; color: #ffffff; letter-spacing: 6px; font-family: monospace; margin: 2px 0;">{pin_val}</div>
-                            <div style="font-size: 11px; color: #94a3b8;">Díctale este PIN al cobrador para validar en 1 segundo sin usar cámara</div>
-                        </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.9rem;">
-                            <div><b>🏢 Agencia:</b> {pago_qr_activo.get('agencia')}</div>
-                            <div><b>📅 Fecha:</b> {pago_qr_activo.get('fecha')}</div>
-                            <div><b>💰 Monto:</b> <span style="font-weight: 700; color: #10b981; font-size: 1.1rem;">{m_sym}{pago_qr_activo.get('monto'):,.2f}</span></div>
-                        </div>
+                        <span style="background: rgba(16, 185, 129, 0.2); color: #10b981; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 800;">PIN ACTIVO</span>
                     </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-                col_btn_qr1, _ = st.columns([1, 1])
-                with col_btn_qr1:
-                    if st.button("❌ Cerrar Comprobante QR", key="btn_cerrar_qr_activo", use_container_width=True):
-                        st.session_state["pago_qr_generado"] = None
-                        st.rerun()
+                    <p style="margin: 0 0 10px 0; font-size: 0.85rem; color: #94a3b8;">Díctale este PIN de 6 dígitos al Cobrador de Ruta para validar la recepción del efectivo en 1 segundo:</p>
+                    <div style="background: rgba(15, 23, 42, 0.75); border: 2px solid #10b981; border-radius: 10px; padding: 12px; max-width: 320px; margin: 0 auto 12px auto; box-shadow: 0 4px 20px rgba(16, 185, 129, 0.25);">
+                        <div style="font-size: 11px; font-weight: 700; color: #10b981; text-transform: uppercase; letter-spacing: 0.05em;">🔢 CÓDIGO PIN (6 DÍGITOS)</div>
+                        <div style="font-size: 32px; font-weight: 900; color: #ffffff; letter-spacing: 8px; font-family: monospace; margin: 2px 0;">{pin_val}</div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.9rem; max-width: 480px; margin: 0 auto;">
+                        <div><b>🏢 Agencia:</b> {pago_qr_activo.get('agencia')}</div>
+                        <div><b>📅 Fecha:</b> {pago_qr_activo.get('fecha')}</div>
+                        <div style="grid-column: span 2;"><b>💰 Monto:</b> <span style="font-weight: 800; color: #10b981; font-size: 1.15rem;">{m_sym}{pago_qr_activo.get('monto'):,.2f}</span></div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
+            if st.button("❌ Cerrar Comprobante", key="btn_cerrar_qr_activo", use_container_width=True):
+                st.session_state["pago_qr_generado"] = None
+                st.rerun()
             st.markdown("---")
 
     if not df_p.empty:

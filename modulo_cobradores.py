@@ -718,41 +718,16 @@ def modulo_portal_cobrador(cobrador_info, agencia_ctx=None, vista_inicial="Porta
         st.warning(f"Nota al consultar pagos: {ex}")
 
     # Tabs del Portal
-    tab_scan, tab_ruta, tab_mis_recs = st.tabs([
-        "📱 Validar / Escanear QR",
+    tab_pin, tab_ruta, tab_mis_recs = st.tabs([
+        "🔢 Validar PIN de Entrega",
         f"🗺️ Mi Ruta ({len(agencias_en_ruta)} Agencias)",
         "💰 Mis Recaudaciones y Custodia"
     ])
 
     # ==============================================================
-    # TAB 1: ESCANEO Y VALIDACIÓN QR
+    # TAB 1: VALIDACIÓN RÁPIDA POR PIN
     # ==============================================================
-    with tab_scan:
-        st.markdown(
-            """
-            <style>
-            /* Traducción y mejora de botones del widget de cámara Streamlit al Español */
-            div[data-testid="stCameraInput"] button:has(svg) {
-                font-size: 0 !important;
-            }
-            div[data-testid="stCameraInput"] button:has(svg)::after {
-                content: "📸 Tomar Foto para Escanear";
-                font-size: 14px !important;
-                font-weight: 600;
-            }
-            div[data-testid="stCameraInput"] button:not(:has(svg)) {
-                font-size: 0 !important;
-            }
-            div[data-testid="stCameraInput"] button:not(:has(svg))::after {
-                content: "✖ Limpiar Foto / Escanear Otra";
-                font-size: 14px !important;
-                font-weight: 600;
-            }
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
-
+    with tab_pin:
         # Mostrar tarjeta de éxito si se validó una entrega
         exito_data = st.session_state.get("entrega_validada_exito")
         if exito_data:
@@ -766,7 +741,7 @@ def modulo_portal_cobrador(cobrador_info, agencia_ctx=None, vista_inicial="Porta
                         🏢 <b>Agencia:</b> {exito_data.get('agencia')}<br/>
                         🕒 <b>Fecha/Hora:</b> {exito_data.get('fecha')}<br/>
                         🛵 <b>Registrado a nombre de:</b> {exito_data.get('cobrador')}<br/>
-                        🔑 <b>Token:</b> <code>{exito_data.get('token')}</code>
+                        🔢 <b>PIN Validado:</b> <b style="color: #38bdf8; font-family: monospace;">{exito_data.get('token')}</b>
                     </div>
                 </div>
                 """,
@@ -774,19 +749,17 @@ def modulo_portal_cobrador(cobrador_info, agencia_ctx=None, vista_inicial="Porta
             )
             col_b1, col_b2 = st.columns([1, 1])
             with col_b1:
-                if st.button("📷 Escanear Siguiente Entrega", type="primary", use_container_width=True, key="btn_scan_next_qr"):
+                if st.button("🔑 Validar Siguiente Entrega", type="primary", use_container_width=True, key="btn_scan_next_qr"):
                     st.session_state.pop("entrega_validada_exito", None)
-                    st.session_state["cam_scan_cobrador_version"] = st.session_state.get("cam_scan_cobrador_version", 0) + 1
                     st.rerun()
             with col_b2:
                 if st.button("💰 Actualizar y Continuar", use_container_width=True, key="btn_cont_qr"):
                     st.session_state.pop("entrega_validada_exito", None)
-                    st.session_state["cam_scan_cobrador_version"] = st.session_state.get("cam_scan_cobrador_version", 0) + 1
                     st.rerun()
             st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
 
-        st.markdown("#### 🔢 Validación Rápida por Código PIN (6 Dígitos)")
-        st.caption("Ingresa los 6 números que te dicte o muestre el supervisor para validar la entrega en 1 segundo sin usar cámara:")
+        st.markdown("#### 🔢 Validación de Entrega por Código PIN (6 Dígitos)")
+        st.caption("Ingresa los 6 números que te dicte o muestre el supervisor para validar la entrega en 1 segundo:")
 
         with st.form("form_val_pin_cobrador", clear_on_submit=False):
             c_pin1, c_pin2 = st.columns([2.5, 1.5])
@@ -804,20 +777,6 @@ def modulo_portal_cobrador(cobrador_info, agencia_ctx=None, vista_inicial="Porta
 
         if btn_val_pin and pin_input:
             _procesar_validacion_entrega(pin_input, c_id, c_nombre, u_id)
-
-        st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
-        with st.expander("📷 O Escanear Código QR con Cámara (Opcional)", expanded=False):
-            st.caption("Apunta la cámara de tu teléfono móvil directamente al Código QR mostrado en la pantalla de la taquilla:")
-
-            cam_ver = st.session_state.get("cam_scan_cobrador_version", 0)
-            cam_foto = st.camera_input("📸 Activar Cámara para Escanear QR", key=f"cam_scan_cobrador_mobile_{cam_ver}")
-            if cam_foto is not None:
-                token_leido = decodificar_token_qr_de_imagen(cam_foto)
-                if token_leido:
-                    st.info(f"🔍 **¡Código QR Detectado!**: `{token_leido}`. Validando entrega...")
-                    _procesar_validacion_entrega(token_leido, c_id, c_nombre, u_id)
-                else:
-                    st.warning("⚠️ No se pudo leer el Código QR con nitidez. Puedes ingresar el PIN de 6 dígitos arriba.")
 
         st.markdown("---")
 

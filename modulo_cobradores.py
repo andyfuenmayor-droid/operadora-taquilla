@@ -803,8 +803,11 @@ def modulo_portal_cobrador(cobrador_info, agencia_ctx=None, vista_inicial="Porta
                     mon_n = normalizar_moneda(r_pend.get("moneda"))
                     mto_n = float(r_pend.get("monto", 0.0))
                     fch_n = str(r_pend.get("fecha", ""))[:10]
-                    tkn_n = str(r_pend.get("qr_token", "") or "Sin Token")
-                    caj_n = str(r_pend.get("cajero_id") or "Cajero").upper()
+                    caj_raw = r_pend.get("cajero_id")
+                    if pd.isna(caj_raw) or not str(caj_raw).strip() or str(caj_raw).lower() in ["nan", "none"]:
+                        caj_n = "Supervisor / Caja"
+                    else:
+                        caj_n = str(caj_raw).upper()
 
                     sym_n = "Bs." if mon_n == "BS" else ("$" if mon_n == "USD" else "COP ")
 

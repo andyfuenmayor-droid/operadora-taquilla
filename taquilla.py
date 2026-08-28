@@ -352,6 +352,9 @@ def filtrar_df_por_cajero(df, target_cajero_id):
     is_matched = (c_col.isin(targets) | c_col.str.lower().isin(targets)) | (u_col.isin(targets) | u_col.str.lower().isin(targets))
     is_general = c_unassigned & u_unassigned
     
+    # Registros creados por Admin/Supervisor
+    is_admin_registered = (~c_col.isin(cajeros_ids) & ~c_col.str.lower().isin(cajeros_ids)) & (~u_col.isin(cajeros_ids) & ~u_col.str.lower().isin(cajeros_ids))
+
     mask = is_matched | is_general | is_agency_payment | is_admin_registered
 
     # Las entregas directas a cobrador (y operaciones QR supervisor-cobrador) son exclusivas del supervisor/admin

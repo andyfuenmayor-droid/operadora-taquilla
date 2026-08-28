@@ -958,9 +958,10 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
                         c_nom_sel = str(cob_elegido.get("nombre") or cob_elegido.get("usuario") or "Cobrador").strip()
                         qr_token_gen = f"QR-REC-{int(time.time())}-{uuid.uuid4().hex[:6].upper()}"
 
+                        ins_caja_id = None
                         try:
                             # 1. Salida en cda_caja_efectivo_supervisor
-                            supabase.table("cda_caja_efectivo_supervisor").insert({
+                            res_caja = supabase.table("cda_caja_efectivo_supervisor").insert({
                                 "user_id": u_id_val,
                                 "agencia": ag_entrega,
                                 "supervisor_nombre": curr_usr,
@@ -969,6 +970,8 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
                                 "moneda": mon_norm,
                                 "comentario": f"{nota_cob} (Cobrador: {c_nom_sel} | Token: {qr_token_gen})"
                             }).execute()
+                            if res_caja.data:
+                                ins_caja_id = res_caja.data[0].get("id")
 
                             # 2. Registro en cda_pagos_diarios para escaneo
                             supabase.table("cda_pagos_diarios").insert({
@@ -1001,6 +1004,11 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
                             time.sleep(0.4)
                             st.rerun()
                         except Exception as ex_c:
+                            if ins_caja_id:
+                                try:
+                                    supabase.table("cda_caja_efectivo_supervisor").delete().eq("id", ins_caja_id).execute()
+                                except Exception:
+                                    pass
                             st.error(f"❌ Error al registrar entrega: {ex_c}")
 
         with sub_tab_adm:

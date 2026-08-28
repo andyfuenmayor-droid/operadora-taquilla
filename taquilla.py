@@ -351,10 +351,14 @@ def filtrar_df_por_cajero(df, target_cajero_id):
     is_matched = (c_col.isin(targets) | c_col.str.lower().isin(targets)) | (u_col.isin(targets) | u_col.str.lower().isin(targets))
     is_general = c_unassigned & u_unassigned
     
-    # Registros creados por Admin/Supervisor
-    is_admin_registered = (~c_col.isin(cajeros_ids) & ~c_col.str.lower().isin(cajeros_ids)) & (~u_col.isin(cajeros_ids) & ~u_col.str.lower().isin(cajeros_ids))
-
     mask = is_matched | is_general | is_agency_payment | is_admin_registered
+
+    # Las entregas directas a cobrador (y operaciones QR supervisor-cobrador) son exclusivas del supervisor/admin
+    if "tipo_pago" in df.columns:
+        mask = mask & (~df["tipo_pago"].astype(str).str.upper().str.contains("COBRADOR"))
+    if "qr_token" in df.columns:
+        mask = mask & (df["qr_token"].fillna("").astype(str).str.strip().eq(""))
+
     return df[mask]
 
 def enriquecer_columna_cajero(df):
@@ -581,6 +585,12 @@ def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha
         df_ps = cargar_datos_agencia_tabla("pagos_semana", agencia_nombre, fecha_desde=fecha_desde, u_id=u_id)
     if df_ps.empty:
         df_ps = cargar_datos_agencia_tabla("pagos_semana", agencia_nombre, u_id=u_id)
+
+    if not es_supervisor:
+        if not df_p.empty and "tipo_pago" in df_p.columns:
+            df_p = df_p[~df_p["tipo_pago"].astype(str).str.upper().str.contains("COBRADOR")]
+        if not df_p.empty and "qr_token" in df_p.columns:
+            df_p = df_p[df_p["qr_token"].fillna("").astype(str).str.strip().eq("")]
 
     if cajero_id:
         df_p = filtrar_df_por_cajero(df_p, cajero_id)
@@ -2188,6 +2198,14 @@ def modulo_pagos(agencia_data):
         df_p = cargar_datos_agencia_tabla("cda_pagos_diarios", ag_nombre, fecha=fecha_filtro)
         if not df_p.empty and "moneda" in df_p.columns:
             df_p = df_p[df_p["moneda"].astype(str).str.strip().str.upper().apply(normalizar_moneda).isin(monedas_asig)]
+        
+        # Si el usuario actual es un cajero (no supervisor ni admin), ocultar entregas a cobrador
+        if not es_supervisor and not es_agencia:
+            if not df_p.empty and "tipo_pago" in df_p.columns:
+                df_p = df_p[~df_p["tipo_pago"].astype(str).str.upper().str.contains("COBRADOR")]
+            if not df_p.empty and "qr_token" in df_p.columns:
+                df_p = df_p[df_p["qr_token"].fillna("").astype(str).str.strip().eq("")]
+
         if c_target_id:
             df_p = filtrar_df_por_cajero(df_p, c_target_id)
     except Exception:

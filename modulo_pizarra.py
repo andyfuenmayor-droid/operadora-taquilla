@@ -206,6 +206,11 @@ def _sincronizar_efectivo_supervisor_con_pagos(u_id=None, existe_supervisor=True
 
             cat_val = str(pago.get("categoria") or "").upper()
             tipo = str(pago.get("tipo_pago") or pago.get("metodo") or "").upper()
+
+            # Salidas / Entregas de fondos NUNCA son entradas de cajero
+            if "COBRADOR" in tipo or "ADMIN" in tipo or "COMERCIALIZADOR" in tipo or "PREMIO" in tipo or "EGRESO" in tipo or "SALIDA" in tipo:
+                continue
+
             es_efectivo = "EFECTIVO" in cat_val or "EFECTIVO" in tipo or ("REF:" not in tipo and "PUNTO" not in tipo and "TRANSFERENCIA" not in tipo and "ZELLE" not in tipo and "PAGO MÓVIL" not in tipo)
 
             if pid is not None and es_efectivo and str(pid) not in pagos_registrados:
@@ -368,7 +373,9 @@ def _confirmar_registro_individual(row, current_usr, mapa_cajeros=None):
                 except Exception:
                     pass
 
-        es_efectivo = (row.get("categoria") == "Efectivo" or "EFECTIVO" in str(row.get("metodo", "")).upper())
+        tipo_row = str(row.get("tipo_pago") or row.get("metodo") or "").upper()
+        es_salida = any(k in tipo_row for k in ["COBRADOR", "ADMIN", "COMERCIALIZADOR", "PREMIO", "EGRESO", "SALIDA"])
+        es_efectivo = (not es_salida) and (row.get("categoria") == "Efectivo" or "EFECTIVO" in tipo_row or "ENTREGADO A SUPERVISOR" in tipo_row)
         if es_efectivo:
             c_nom_pago = row.get("cajero_nombre") or resolver_nombre_cajero(row.get("cajero_id"), pago_dict=row, mapa=mapa_cajeros)
             u_id_val = str(row.get("cajero_id") or row.get("user_id") or "SYSTEM")
@@ -757,6 +764,11 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
 
             cat_val = str(pago.get("categoria") or "").upper()
             tipo = str(pago.get("tipo_pago") or pago.get("metodo") or "").upper()
+
+            # Las entregas/egresos (Cobrador, Admin, etc.) se procesan desde cda_caja_efectivo_supervisor
+            if "COBRADOR" in tipo or "ADMIN" in tipo or "COMERCIALIZADOR" in tipo or "PREMIO" in tipo or "EGRESO" in tipo or "SALIDA" in tipo:
+                continue
+
             es_efectivo = "EFECTIVO" in cat_val or "EFECTIVO" in tipo or ("REF:" not in tipo and "PUNTO" not in tipo and "TRANSFERENCIA" not in tipo and "ZELLE" not in tipo and "PAGO MÓVIL" not in tipo)
 
             if es_efectivo:

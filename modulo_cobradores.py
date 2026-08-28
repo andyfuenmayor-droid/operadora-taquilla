@@ -511,53 +511,6 @@ def modulo_cobradores(agencia_data=None):
                                     st.error(f"Error: {ex}")
 
 
-def modulo_portal_cobrador(cobrador_info, agencia_ctx=None, vista_inicial="Portal Cobrador"):
-    """
-    Portal Móvil y de Escritorio optimizado para el Cobrador de Calle.
-    Permite validar códigos QR de entregas, confirmar recepción de efectivo de agencias en su ruta,
-    consultar su lista de agencias y totalizar sus recaudaciones activas.
-    """
-    is_dark = st.session_state.get("tema_oscuro", True)
-    text_color = "#ffffff" if is_dark else "#0f172a"
-    sub_color = "#94a3b8" if is_dark else "#64748b"
-    card_bg = "rgba(13, 27, 34, 0.65)" if is_dark else "#ffffff"
-    card_border = "rgba(255, 255, 255, 0.08)" if is_dark else "rgba(15, 23, 42, 0.12)"
-
-    c_id = cobrador_info.get("id")
-    c_nombre = str(cobrador_info.get("nombre") or cobrador_info.get("nombre_cajero") or cobrador_info.get("usuario") or "Cobrador").strip()
-    c_usuario = str(cobrador_info.get("usuario", "")).strip()
-    u_id = cobrador_info.get("user_id") or (agencia_ctx.get("user_id") if isinstance(agencia_ctx, dict) else None)
-
-    st.markdown(
-        f"""
-        <div style="background: linear-gradient(135deg, rgba(0, 200, 83, 0.12) 0%, rgba(56, 189, 248, 0.1) 100%); border: 1px solid rgba(0, 200, 83, 0.25); border-radius: 14px; padding: 1.1rem 1.4rem; margin-bottom: 1.25rem;">
-            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
-                <div>
-                    <div style="font-size: 0.75rem; font-weight: 700; color: #00c853; text-transform: uppercase; letter-spacing: 0.05em;">🛵 PORTAL MÓVIL DE COBRANZA</div>
-                    <h2 style="margin: 2px 0 0 0; font-size: 1.5rem; font-weight: 800; color: {text_color};">
-                        Hola, {c_nombre.title()}
-                    </h2>
-                    <div style="font-size: 0.85rem; color: {sub_color}; margin-top: 2px;">
-                        Usuario: <code>@{c_usuario}</code> | Validador de entregas y recaudaciones QR en ruta
-                    </div>
-                </div>
-                <div style="background: rgba(0, 200, 83, 0.15); border: 1px solid #00c853; color: #00c853; font-weight: 700; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem;">
-                    🟢 EN TURNO ACTIVO
-                </div>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-    # 1. Cargar Agencias Asignadas a este Cobrador
-    df_asig = _cargar_cobrador_agencias(u_id)
-    agencias_en_ruta = []
-    if not df_asig.empty and "cobrador_id" in df_asig.columns:
-        sub_asig = df_asig[df_asig["cobrador_id"] == c_id]
-        if not sub_asig.empty:
-            agencias_en_ruta = sub_asig["nombre_agencia"].astype(str).str.upper().tolist()
-
 def decodificar_token_qr_de_imagen(image_file):
     """Decodifica un código QR a partir de una captura de cámara o imagen y extrae el Token limpio."""
     if not image_file:
@@ -684,6 +637,75 @@ def _procesar_validacion_entrega(token_input, c_id, c_nombre, u_id):
     except Exception as ex:
         st.error(f"Error procesando token: {ex}")
         return False
+
+
+def modulo_portal_cobrador(cobrador_info, agencia_ctx=None, vista_inicial="Portal Cobrador"):
+    """
+    Portal Móvil y de Escritorio optimizado para el Cobrador de Calle.
+    Permite validar códigos QR de entregas, confirmar recepción de efectivo de agencias en su ruta,
+    consultar su lista de agencias y totalizar sus recaudaciones activas.
+    """
+    is_dark = st.session_state.get("tema_oscuro", True)
+    text_color = "#ffffff" if is_dark else "#0f172a"
+    sub_color = "#94a3b8" if is_dark else "#64748b"
+    card_bg = "rgba(13, 27, 34, 0.65)" if is_dark else "#ffffff"
+    card_border = "rgba(255, 255, 255, 0.08)" if is_dark else "rgba(15, 23, 42, 0.12)"
+
+    c_id = cobrador_info.get("id")
+    c_nombre = str(cobrador_info.get("nombre") or cobrador_info.get("nombre_cajero") or cobrador_info.get("usuario") or "Cobrador").strip()
+    c_usuario = str(cobrador_info.get("usuario", "")).strip()
+    u_id = cobrador_info.get("user_id") or (agencia_ctx.get("user_id") if isinstance(agencia_ctx, dict) else None)
+
+    st.markdown(
+        f"""
+        <div style="background: linear-gradient(135deg, rgba(0, 200, 83, 0.12) 0%, rgba(56, 189, 248, 0.1) 100%); border: 1px solid rgba(0, 200, 83, 0.25); border-radius: 14px; padding: 1.1rem 1.4rem; margin-bottom: 1.25rem;">
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                <div>
+                    <div style="font-size: 0.75rem; font-weight: 700; color: #00c853; text-transform: uppercase; letter-spacing: 0.05em;">🛵 PORTAL MÓVIL DE COBRANZA</div>
+                    <h2 style="margin: 2px 0 0 0; font-size: 1.5rem; font-weight: 800; color: {text_color};">
+                        Hola, {c_nombre.title()}
+                    </h2>
+                    <div style="font-size: 0.85rem; color: {sub_color}; margin-top: 2px;">
+                        Usuario: <code>@{c_usuario}</code> | Validador de entregas y recaudaciones QR en ruta
+                    </div>
+                </div>
+                <div style="background: rgba(0, 200, 83, 0.15); border: 1px solid #00c853; color: #00c853; font-weight: 700; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem;">
+                    🟢 EN TURNO ACTIVO
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # 1. Cargar Agencias Asignadas a este Cobrador
+    df_asig = _cargar_cobrador_agencias(u_id)
+    agencias_en_ruta = []
+    if not df_asig.empty and "cobrador_id" in df_asig.columns:
+        sub_asig = df_asig[df_asig["cobrador_id"] == c_id]
+        if not sub_asig.empty:
+            agencias_en_ruta = sub_asig["nombre_agencia"].astype(str).str.upper().tolist()
+
+    # 2. Cargar Período Activo y Pagos
+    ciclo = obtener_periodo_trabajo(u_id)
+    f_desde = ciclo.get("desde", str(datetime.now().date()))
+    f_hasta = ciclo.get("hasta", str(datetime.now().date()))
+
+    # Cargar pagos relevantes: del periodo o cualquier entrega pendiente de cobro
+    df_pagos_cob = pd.DataFrame()
+    try:
+        q = supabase.table("cda_pagos_diarios").select("*")
+        if u_id:
+            try:
+                q = q.eq("user_id", u_id)
+            except Exception:
+                pass
+        res_p = q.execute()
+        df_pagos_cob = pd.DataFrame(res_p.data or [])
+        if not df_pagos_cob.empty:
+            df_pagos_cob.columns = [c.lower().strip() for c in df_pagos_cob.columns]
+    except Exception as ex:
+        st.warning(f"Nota al consultar pagos: {ex}")
 
     # Tabs del Portal
     tab_scan, tab_ruta, tab_mis_recs = st.tabs([

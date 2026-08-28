@@ -584,6 +584,12 @@ def _procesar_validacion_entrega(token_input, c_id, c_nombre, u_id):
         return False
     
     token_clean = str(token_input).strip()
+
+    # Si ya fue validado en esta sesión justo ahora, no re-procesar
+    ultimo_exito = st.session_state.get("entrega_validada_exito")
+    if ultimo_exito and ultimo_exito.get("token") == token_clean:
+        return True
+
     try:
         q_tkn = supabase.table("cda_pagos_diarios").select("*").ilike("qr_token", f"%{token_clean}%")
         if u_id:
@@ -624,14 +630,18 @@ def _procesar_validacion_entrega(token_input, c_id, c_nombre, u_id):
             "confirmado_supervisor": True
         }).eq("id", p_id).execute()
 
-        st.success(
-            f"🎉 **¡ENTREGA VALIDADA CON ÉXITO!**\n\n"
-            f"🏢 **Agencia:** {ag_nom_p}\n\n"
-            f"💰 **Monto Recibido:** {sym}{mto_p:,.2f} {mon_p}\n\n"
-            f"🕒 **Fecha/Hora:** {ahora_iso[:19].replace('T', ' ')}\n\n"
-            f"🛵 **Registrado a nombre de:** {c_nombre}"
-        )
-        time.sleep(1.2)
+        # Guardar en session_state para mostrar tarjeta de éxito persistente
+        st.session_state["entrega_validada_exito"] = {
+            "token": token_clean,
+            "agencia": ag_nom_p,
+            "monto": mto_p,
+            "moneda": mon_p,
+            "simbolo": sym,
+            "fecha": ahora_iso[:19].replace("T", " "),
+            "cobrador": c_nombre
+        }
+        # Incrementar versión de cámara para limpiar el buffer en el navegador
+        st.session_state["cam_scan_cobrador_version"] = st.session_state.get("cam_scan_cobrador_version", 0) + 1
         st.rerun()
         return True
     except Exception as ex:
@@ -742,10 +752,44 @@ def modulo_portal_cobrador(cobrador_info, agencia_ctx=None, vista_inicial="Porta
             """,
             unsafe_allow_html=True
         )
+
+        # Mostrar tarjeta de éxito si se validó una entrega
+        exito_data = st.session_state.get("entrega_validada_exito")
+        if exito_data:
+            st.markdown(
+                f"""
+                <div style="background: linear-gradient(135deg, rgba(0, 200, 83, 0.22) 0%, rgba(56, 189, 248, 0.15) 100%); border: 2px solid #00c853; border-radius: 14px; padding: 1.25rem; margin-bottom: 1.25rem; text-align: center;">
+                    <div style="font-size: 2.5rem; margin-bottom: 4px;">🎉</div>
+                    <h3 style="color: #00c853; margin: 0 0 8px 0; font-size: 1.4rem; font-weight: 800;">¡ENTREGA VALIDADA CON ÉXITO!</h3>
+                    <div style="font-size: 1.7rem; font-weight: 900; color: #ffffff; margin: 8px 0;">{exito_data.get('simbolo')}{exito_data.get('monto'):,.2f} {exito_data.get('moneda')}</div>
+                    <div style="font-size: 0.95rem; color: #cbd5e1; line-height: 1.7;">
+                        🏢 <b>Agencia:</b> {exito_data.get('agencia')}<br/>
+                        🕒 <b>Fecha/Hora:</b> {exito_data.get('fecha')}<br/>
+                        🛵 <b>Registrado a nombre de:</b> {exito_data.get('cobrador')}<br/>
+                        🔑 <b>Token:</b> <code>{exito_data.get('token')}</code>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+            col_b1, col_b2 = st.columns([1, 1])
+            with col_b1:
+                if st.button("📷 Escanear Siguiente Entrega", type="primary", use_container_width=True, key="btn_scan_next_qr"):
+                    st.session_state.pop("entrega_validada_exito", None)
+                    st.session_state["cam_scan_cobrador_version"] = st.session_state.get("cam_scan_cobrador_version", 0) + 1
+                    st.rerun()
+            with col_b2:
+                if st.button("💰 Actualizar y Continuar", use_container_width=True, key="btn_cont_qr"):
+                    st.session_state.pop("entrega_validada_exito", None)
+                    st.session_state["cam_scan_cobrador_version"] = st.session_state.get("cam_scan_cobrador_version", 0) + 1
+                    st.rerun()
+            st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
+
         st.markdown("#### 📷 Validación y Escaneo de Comprobante QR")
         st.caption("Apunta la cámara de tu teléfono móvil directamente al Código QR mostrado en la pantalla de la taquilla:")
 
-        cam_foto = st.camera_input("📸 Activar Cámara para Escanear QR", key="cam_scan_cobrador_mobile")
+        cam_ver = st.session_state.get("cam_scan_cobrador_version", 0)
+        cam_foto = st.camera_input("📸 Activar Cámara para Escanear QR", key=f"cam_scan_cobrador_mobile_{cam_ver}")
         if cam_foto is not None:
             token_leido = decodificar_token_qr_de_imagen(cam_foto)
             if token_leido:

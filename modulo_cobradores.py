@@ -558,25 +558,132 @@ def modulo_portal_cobrador(cobrador_info, agencia_ctx=None, vista_inicial="Porta
         if not sub_asig.empty:
             agencias_en_ruta = sub_asig["nombre_agencia"].astype(str).str.upper().tolist()
 
-    # 2. Cargar Período Activo y Pagos
-    ciclo = obtener_periodo_trabajo(u_id)
-    f_desde = ciclo.get("desde", str(datetime.now().date()))
-    f_hasta = ciclo.get("hasta", str(datetime.now().date()))
-
-    # Cargar pagos relevantes (del periodo o con fecha reciente)
-    df_pagos_cob = pd.DataFrame()
+def decodificar_token_qr_de_imagen(image_file):
+    """Decodifica un código QR a partir de una captura de cámara o imagen y extrae el Token limpio."""
+    if not image_file:
+        return None
     try:
-        q = supabase.table("cda_pagos_diarios").select("*")\
-            .gte("fecha", str(f_desde))\
-            .lte("fecha", f"{str(f_hasta)}T23:59:59")
+        from PIL import Image
+        img = Image.open(image_file)
+    except Exception:
+        return None
+
+    raw_text = None
+
+    # Método 1: zxingcpp (extremadamente rápido y preciso en fotos de celulares)
+    try:
+        import zxingcpp
+        res = zxingcpp.read_barcode(img)
+        if res and res.text:
+            raw_text = str(res.text).strip()
+    except Exception:
+        pass
+
+    # Método 2: pyzbar
+    if not raw_text:
+        try:
+            from pyzbar.pyzbar import decode
+            objs = decode(img)
+            if objs:
+                raw_text = objs[0].data.decode("utf-8").strip()
+        except Exception:
+            pass
+
+    # Método 3: OpenCV
+    if not raw_text:
+        try:
+            import cv2
+            import numpy as np
+            open_cv_image = np.array(img.convert('RGB'))
+            detector = cv2.QRCodeDetector()
+            val, _, _ = detector.detectAndDecode(open_cv_image)
+            if val and str(val).strip():
+                raw_text = str(val).strip()
+        except Exception:
+            pass
+
+    if not raw_text:
+        return None
+
+    # Limpiar si el QR contiene un payload JSON (ej: {"token": "QR-REC-...", ...})
+    try:
+        import json
+        if "{" in raw_text and "}" in raw_text:
+            data = json.loads(raw_text)
+            if isinstance(data, dict) and "token" in data:
+                return str(data["token"]).strip()
+    except Exception:
+        pass
+
+    # Si contiene 'QR-REC-' en cualquier parte del texto
+    if "QR-REC-" in raw_text:
+        for item in raw_text.replace('"', ' ').replace("'", ' ').split():
+            if "QR-REC-" in item:
+                return item.strip()
+
+    return raw_text.strip()
+
+
+def _procesar_validacion_entrega(token_input, c_id, c_nombre, u_id):
+    """Valida y sella el token de entrega en la base de datos."""
+    if not token_input:
+        st.error("⚠️ Ingrese o escanee un token válido.")
+        return False
+    
+    token_clean = str(token_input).strip()
+    try:
+        q_tkn = supabase.table("cda_pagos_diarios").select("*").ilike("qr_token", f"%{token_clean}%")
         if u_id:
-            q = q.eq("user_id", u_id)
-        res_p = q.execute()
-        df_pagos_cob = pd.DataFrame(res_p.data or [])
-        if not df_pagos_cob.empty:
-            df_pagos_cob.columns = [c.lower().strip() for c in df_pagos_cob.columns]
+            try:
+                q_tkn = q_tkn.eq("user_id", u_id)
+            except Exception:
+                pass
+        res_tkn = q_tkn.execute()
+        data_tkn = res_tkn.data or []
+
+        if not data_tkn:
+            st.error(f"❌ No se encontró ninguna entrega registrada con el Token: `{token_clean}`")
+            return False
+
+        rec_pago = data_tkn[0]
+        p_id = rec_pago["id"]
+        ag_nom_p = str(rec_pago.get("agencia") or rec_pago.get("nombre_agency") or "Agencia").upper()
+        mto_p = float(rec_pago.get("monto", 0.0))
+        mon_p = normalizar_moneda(rec_pago.get("moneda"))
+        f_esc_prev = str(rec_pago.get("fecha_escaneo_cobrador") or "").strip()
+        cob_nom_prev = str(rec_pago.get("cobrador_nombre") or "").strip()
+
+        sym = "Bs." if mon_p == "BS" else ("$" if mon_p == "USD" else "COP ")
+
+        if f_esc_prev and cob_nom_prev and cob_nom_prev.lower() not in ["", "none", "cobrador"]:
+            st.warning(
+                f"⚠️ Este comprobante ya fue escaneado y validado anteriormente por **{cob_nom_prev}** el {f_esc_prev[:19]}.\n\n"
+                f"🏢 **Agencia:** {ag_nom_p} | 💰 **Monto:** {sym}{mto_p:,.2f}"
+            )
+            return False
+
+        ahora_iso = _obtener_hora_actual().isoformat()
+        supabase.table("cda_pagos_diarios").update({
+            "cobrador_id": c_id,
+            "cobrador_nombre": c_nombre,
+            "fecha_escaneo_cobrador": ahora_iso,
+            "confirmado": True,
+            "confirmado_supervisor": True
+        }).eq("id", p_id).execute()
+
+        st.success(
+            f"🎉 **¡ENTREGA VALIDADA CON ÉXITO!**\n\n"
+            f"🏢 **Agencia:** {ag_nom_p}\n\n"
+            f"💰 **Monto Recibido:** {sym}{mto_p:,.2f} {mon_p}\n\n"
+            f"🕒 **Fecha/Hora:** {ahora_iso[:19].replace('T', ' ')}\n\n"
+            f"🛵 **Registrado a nombre de:** {c_nombre}"
+        )
+        time.sleep(1.2)
+        st.rerun()
+        return True
     except Exception as ex:
-        st.warning(f"Nota al consultar pagos: {ex}")
+        st.error(f"Error procesando token: {ex}")
+        return False
 
     # Tabs del Portal
     tab_scan, tab_ruta, tab_mis_recs = st.tabs([
@@ -589,70 +696,34 @@ def modulo_portal_cobrador(cobrador_info, agencia_ctx=None, vista_inicial="Porta
     # TAB 1: ESCANEO Y VALIDACIÓN QR
     # ==============================================================
     with tab_scan:
-        st.markdown("#### 🔍 Validación Inmediata de Comprobante QR")
-        st.caption("Ingresa o escanea el Token QR del comprobante de entrega que te muestra el cajero de la agencia.")
+        st.markdown("#### 📷 Validación y Escaneo de Comprobante QR")
+        st.caption("Apunta la cámara de tu teléfono móvil directamente al Código QR mostrado en la pantalla de la taquilla:")
 
-        col_t1, col_t2 = st.columns([3, 1])
-        with col_t1:
-            token_input = st.text_input(
-                "🔑 Token QR de Entrega", 
-                placeholder="Ej: QR-REC-174069... o pega el texto del QR",
-                key="input_qr_token_val"
-            ).strip()
-        with col_t2:
-            st.write("")
-            st.write("")
-            btn_validar_tkn = st.button("⚡ Validar Token", type="primary", use_container_width=True)
+        cam_foto = st.camera_input("📸 Activar Cámara para Escanear QR", key="cam_scan_cobrador_mobile")
+        if cam_foto is not None:
+            token_leido = decodificar_token_qr_de_imagen(cam_foto)
+            if token_leido:
+                st.info(f"🔍 **¡Código QR Detectado!**: `{token_leido}`. Validando entrega...")
+                _procesar_validacion_entrega(token_leido, c_id, c_nombre, u_id)
+            else:
+                st.warning("⚠️ No se pudo leer el Código QR con nitidez. Asegúrate de enfocar bien la pantalla del supervisor o ingresa el Token abajo.")
 
-        if btn_validar_tkn and token_input:
-            try:
-                # Buscar en cda_pagos_diarios
-                q_tkn = supabase.table("cda_pagos_diarios").select("*").ilike("qr_token", f"%{token_input}%")
-                if u_id:
-                    q_tkn = q_tkn.eq("user_id", u_id)
-                res_tkn = q_tkn.execute()
-                data_tkn = res_tkn.data or []
+        st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
+        with st.expander("🔑 O Ingresar / Pegar Token Manualmente", expanded=False):
+            col_t1, col_t2 = st.columns([3, 1])
+            with col_t1:
+                token_input = st.text_input(
+                    "Token QR de Entrega", 
+                    placeholder="Ej: QR-REC-1787876522-064051",
+                    key="input_qr_token_val"
+                ).strip()
+            with col_t2:
+                st.write("")
+                st.write("")
+                btn_validar_tkn = st.button("⚡ Validar Token", type="primary", use_container_width=True)
 
-                if not data_tkn:
-                    st.error(f"❌ No se encontró ninguna entrega registrada con el Token: `{token_input}`")
-                else:
-                    rec_pago = data_tkn[0]
-                    p_id = rec_pago["id"]
-                    ag_nom_p = str(rec_pago.get("agencia") or rec_pago.get("nombre_agency") or "Agencia").upper()
-                    mto_p = float(rec_pago.get("monto", 0.0))
-                    mon_p = normalizar_moneda(rec_pago.get("moneda"))
-                    f_esc_prev = str(rec_pago.get("fecha_escaneo_cobrador") or "").strip()
-                    cob_nom_prev = str(rec_pago.get("cobrador_nombre") or "").strip()
-
-                    sym = "Bs." if mon_p == "BS" else ("$" if mon_p == "USD" else "COP ")
-
-                    if f_esc_prev and cob_nom_prev:
-                        st.warning(
-                            f"⚠️ Este comprobante ya fue escaneado y validado anteriormente por **{cob_nom_prev}** el {f_esc_prev[:19]}.\n\n"
-                            f"🏢 **Agencia:** {ag_nom_p} | 💰 **Monto:** {sym}{mto_p:,.2f}"
-                        )
-                    else:
-                        # Proceder con la validación y firma del cobrador
-                        ahora_iso = _obtener_hora_actual().isoformat()
-                        supabase.table("cda_pagos_diarios").update({
-                            "cobrador_id": c_id,
-                            "cobrador_nombre": c_nombre,
-                            "fecha_escaneo_cobrador": ahora_iso,
-                            "confirmado": True,
-                            "confirmado_supervisor": True
-                        }).eq("id", p_id).execute()
-
-                        st.success(
-                            f"🎉 **¡ENTREGA VALIDADA CON ÉXITO!**\n\n"
-                            f"🏢 **Agencia:** {ag_nom_p}\n\n"
-                            f"💰 **Monto Recibido:** {sym}{mto_p:,.2f} {mon_p}\n\n"
-                            f"🕒 **Fecha/Hora:** {ahora_iso[:19].replace('T', ' ')}\n\n"
-                            f"🛵 **Registrado a nombre de:** {c_nombre}"
-                        )
-                        time.sleep(1.5)
-                        st.rerun()
-            except Exception as ex:
-                st.error(f"Error procesando token: {ex}")
+            if btn_validar_tkn and token_input:
+                _procesar_validacion_entrega(token_input, c_id, c_nombre, u_id)
 
         st.markdown("---")
 

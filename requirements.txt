@@ -5,3 +5,6 @@ streamlit-option-menu
 python-dotenv
 qrcode
 pillow
+zxing-cpp
+opencv-python-headless
+pyzbar

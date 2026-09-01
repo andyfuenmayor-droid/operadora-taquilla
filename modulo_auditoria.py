@@ -149,40 +149,60 @@ def modulo_auditoria_hibrida(agencia_data=None):
                                     st.rerun()
                     for u in usuarios_agencia:
                         uid = u['id']
-                        with st.popover(f"✏️ {u['usuario']}", key=f"pop_{ag_id}_{uid}"):
-                            col_a, col_b = st.columns(2)
-                            with col_a:
-                                roles_lista = ["cajero", "supervisor", "agencia"]
-                                u_rol = str(u.get('rol', 'cajero')).lower()
-                                idx_r = roles_lista.index(u_rol) if u_rol in roles_lista else 0
-                                nuevo_rol = st.selectbox("Rol", roles_lista, index=idx_r, key=f"rol_edit_{uid}")
-                                nuevo_activo = st.checkbox("Activo", value=u.get('activo', True), key=f"act_{uid}")
-                                if st.button("💾 Actualizar", key=f"upd_{uid}", use_container_width=True):
-                                    try:
-                                        supabase.table("taquilla_usuarios").update({"rol": nuevo_rol, "activo": nuevo_activo}).eq("id", uid).execute()
-                                        st.success("Actualizado")
-                                        st.rerun()
-                                    except Exception as ex:
-                                        st.error(f"Error: {ex}")
-                            with col_b:
-                                nueva_clave = st.text_input("Nueva clave", type="password", key=f"clave_{uid}", placeholder="dejar vacio = sin cambio")
-                                if st.button("🔑 Cambiar Clave", key=f"chpwd_{uid}", use_container_width=True):
-                                    if nueva_clave:
+                        u_rol = str(u.get('rol', 'cajero')).lower()
+                        badge_bg = "#064e3b" if u_rol == "agencia" else ("#1e3a8a" if u_rol == "supervisor" else "#78350f")
+                        badge_color = "#34d399" if u_rol == "agencia" else ("#60a5fa" if u_rol == "supervisor" else "#fbbf24")
+
+                        with st.container(border=True):
+                            col_u1, col_u2, col_u3 = st.columns([3, 3, 3])
+                            with col_u1:
+                                st.markdown(f"👤 **`{u['usuario']}`**")
+                                nom_caj_disp = u.get('nombre_cajero')
+                                if nom_caj_disp:
+                                    st.caption(f"Nombre: {nom_caj_disp}")
+                            with col_u2:
+                                st.markdown(f"<div style='margin-top: 5px;'><span style='background-color: {badge_bg}; color: {badge_color}; padding: 3px 10px; border-radius: 6px; font-weight: 700; font-size: 12px; text-transform: uppercase;'>ROL: {u_rol.upper()}</span></div>", unsafe_allow_html=True)
+                            with col_u3:
+                                with st.popover("⚙️ Modificar Rol / Clave", use_container_width=True, key=f"pop_{ag_id}_{uid}"):
+                                    st.markdown(f"#### ⚙️ Editar Usuario: `{u['usuario']}`")
+                                    col_a, col_b = st.columns(2)
+                                    with col_a:
+                                        st.markdown("**🎭 Modificar Rol:**")
+                                        roles_lista = ["cajero", "supervisor", "agencia"]
+                                        idx_r = roles_lista.index(u_rol) if u_rol in roles_lista else 0
+                                        nuevo_rol = st.selectbox("Seleccione el Rol:", roles_lista, index=idx_r, key=f"rol_edit_{uid}")
+                                        nuevo_activo = st.checkbox("Usuario Activo", value=u.get('activo', True), key=f"act_{uid}")
+                                        if st.button("💾 Guardar Rol", key=f"upd_{uid}", type="primary", use_container_width=True):
+                                            try:
+                                                supabase.table("taquilla_usuarios").update({"rol": nuevo_rol, "activo": nuevo_activo}).eq("id", uid).execute()
+                                                st.success(f"✅ Rol actualizado a '{nuevo_rol.upper()}'")
+                                                time.sleep(0.8)
+                                                st.rerun()
+                                            except Exception as ex:
+                                                st.error(f"Error: {ex}")
+                                    with col_b:
+                                        st.markdown("**🔑 Cambiar Clave:**")
+                                        nueva_clave = st.text_input("Nueva Clave:", type="password", key=f"clave_{uid}", placeholder="dejar vacío = sin cambio")
+                                        if st.button("🔑 Actualizar Clave", key=f"chpwd_{uid}", use_container_width=True):
+                                            if nueva_clave.strip():
+                                                try:
+                                                    supabase.table("taquilla_usuarios").update({"clave": nueva_clave.strip()}).eq("id", uid).execute()
+                                                    st.success("✅ Clave actualizada")
+                                                    time.sleep(0.8)
+                                                    st.rerun()
+                                                except Exception as ex:
+                                                    st.error(f"Error: {ex}")
+                                            else:
+                                                st.warning("Ingresa una nueva clave")
+                                    st.divider()
+                                    if st.button("🗑️ Eliminar Usuario", key=f"del_{uid}", use_container_width=True, type="secondary"):
                                         try:
-                                            supabase.table("taquilla_usuarios").update({"clave": nueva_clave.strip()}).eq("id", uid).execute()
-                                            st.success("Clave actualizada")
+                                            supabase.table("taquilla_usuarios").delete().eq("id", uid).execute()
+                                            st.success(f"Usuario '{u['usuario']}' eliminado")
+                                            time.sleep(0.8)
                                             st.rerun()
                                         except Exception as ex:
                                             st.error(f"Error: {ex}")
-                                    else:
-                                        st.warning("Ingresa una nueva clave")
-                            if st.button("🗑️ Eliminar", key=f"del_{uid}", use_container_width=True, type="secondary"):
-                                try:
-                                    supabase.table("taquilla_usuarios").delete().eq("id", uid).execute()
-                                    st.success(f"Usuario '{u['usuario']}' eliminado")
-                                    st.rerun()
-                                except Exception as ex:
-                                    st.error(f"Error: {ex}")
 
     st.markdown("---")
     st.subheader(f"Comparativa por Ciclo Completo: {f_desde_str} al {f_hasta_str}")

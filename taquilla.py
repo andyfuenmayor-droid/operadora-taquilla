@@ -4428,17 +4428,7 @@ if not st.session_state.taquilla_autenticada:
 
                         if not match.empty:
                             ag_dict = match.iloc[0].to_dict()
-                            rol_det = user_data.get("rol", "agencia")
-                            u_name_chk = str(user_data.get("usuario") or "").strip().lower()
-                            ag_user_chk = str(ag_dict.get("usuario_taquilla") or "").strip().lower()
-
-                            if ag_user_chk and u_name_chk == ag_user_chk:
-                                rol_det = "agencia"
-                                if user_data.get("id") and str(user_data.get("rol", "")).lower() != "agencia":
-                                    try:
-                                        supabase.table("taquilla_usuarios").update({"rol": "agencia"}).eq("id", user_data["id"]).execute()
-                                    except Exception:
-                                        pass
+                            rol_det = str(user_data.get("rol", "agencia")).lower()
 
                             st.session_state.taquilla_autenticada = True
                             st.session_state.agencia_actual = ag_dict

@@ -98,15 +98,6 @@ def modulo_auditoria_hibrida(agencia_data=None):
                 try:
                     res_u = supabase.table("taquilla_usuarios").select("*").eq("agencia_id", ag_id).execute()
                     usuarios_agencia = res_u.data or []
-                    u_taq_ag = str(row.get("usuario_taquilla") or "").strip().lower()
-                    for u_item in usuarios_agencia:
-                        if u_taq_ag and str(u_item.get("usuario", "")).strip().lower() == u_taq_ag:
-                            if str(u_item.get("rol", "")).lower() != "agencia":
-                                u_item["rol"] = "agencia"
-                                try:
-                                    supabase.table("taquilla_usuarios").update({"rol": "agencia"}).eq("id", u_item["id"]).execute()
-                                except Exception:
-                                    pass
                 except Exception:
                     pass
                 with st.container(border=True):
@@ -119,7 +110,6 @@ def modulo_auditoria_hibrida(agencia_data=None):
                                 r_c = str(r_val or '').lower().strip()
                                 if r_c == 'supervisor': return 'S'
                                 elif r_c == 'agencia': return 'A'
-                                elif r_c == 'cobrador': return 'Cob'
                                 return 'C'
                             txt = ", ".join([f"`{u['usuario']}` ({_get_rol_tag_taq(u.get('rol'))})" for u in usuarios_agencia if u.get('activo')])
                             st.markdown(txt if txt else "Sin usuarios activos")
@@ -136,7 +126,7 @@ def modulo_auditoria_hibrida(agencia_data=None):
                                 np_ = st.text_input("Clave", type="password", key=f"np_{ag_id}")
                             with col2:
                                 n_cajero = st.text_input("Nombre (opcional)", key=f"nom_{ag_id}")
-                                rol_new = st.selectbox("Rol", ["agencia", "supervisor", "cajero", "cobrador"], key=f"rol_{ag_id}")
+                                rol_new = st.selectbox("Rol", ["cajero", "supervisor", "agencia"], key=f"rol_{ag_id}")
                             col_btn1, col_btn2 = st.columns([1, 1])
                             with col_btn1:
                                 if st.form_submit_button("💾 Guardar", use_container_width=True):
@@ -162,7 +152,7 @@ def modulo_auditoria_hibrida(agencia_data=None):
                         with st.popover(f"✏️ {u['usuario']}", key=f"pop_{ag_id}_{uid}"):
                             col_a, col_b = st.columns(2)
                             with col_a:
-                                roles_lista = ["agencia", "supervisor", "cajero", "cobrador"]
+                                roles_lista = ["cajero", "supervisor", "agencia"]
                                 u_rol = str(u.get('rol', 'cajero')).lower()
                                 idx_r = roles_lista.index(u_rol) if u_rol in roles_lista else 0
                                 nuevo_rol = st.selectbox("Rol", roles_lista, index=idx_r, key=f"rol_edit_{uid}")

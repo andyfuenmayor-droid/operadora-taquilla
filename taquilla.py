@@ -5046,7 +5046,6 @@ else:
         menu_items = [
             ("🏠 Inicio", "Inicio"),
             ("📊 Reporte", "Reporte por Rango"),
-            ("🛡️ Auditoría", "Auditoría Híbrida"),
             ("💵 Pago Efectivo", "Gestión de Pagos"),
             ("🏦 Gestión Bancaria", "Gestión Bancaria"),
             ("🚪 Cerrar Sesión", "Cerrar Sesión")
@@ -5063,8 +5062,9 @@ else:
             ("🔒 Cierre Diario", "Cierre Diario"),
             ("🚪 Cerrar Sesión", "Cerrar Sesión")
         ]
-        if st.session_state["opcion_actual"] not in [m[1] for m in menu_items]:
-            st.session_state["opcion_actual"] = "Inicio"
+
+    if st.session_state["opcion_actual"] not in [m[1] for m in menu_items]:
+        st.session_state["opcion_actual"] = "Portal Cobrador" if rol_lower == "cobrador" else "Inicio"
 
     # 🟢 BARRA DE NAVEGACIÓN HORIZONTAL POR PÍLDORAS (SIEMPRE VISIBLE EN MÓVIL Y ESCRITORIO SIN DESPLEGABLE) 🟢
     opts_nav_labels = [m[0] for m in menu_items]

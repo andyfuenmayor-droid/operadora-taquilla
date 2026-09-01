@@ -4427,16 +4427,21 @@ if not st.session_state.taquilla_autenticada:
                                     match = df_todas.iloc[[0]]
 
                         if not match.empty:
+                            ag_dict = match.iloc[0].to_dict()
+                            rol_det = user_data.get("rol", "agencia")
+                            if str(ag_dict.get("usuario_taquilla") or "").strip().lower() == str(user_data.get("usuario") or "").strip().lower():
+                                rol_det = "agencia"
+
                             st.session_state.taquilla_autenticada = True
-                            st.session_state.agencia_actual = match.iloc[0].to_dict()
+                            st.session_state.agencia_actual = ag_dict
                             st.session_state.cajero_actual = {
                                 "id": user_data["id"], 
                                 "usuario": user_data["usuario"], 
-                                "rol": user_data.get("rol", "agencia"), 
+                                "rol": rol_det, 
                                 "nombre": user_data.get("nombre_cajero", user_data["usuario"]),
                                 "user_id": user_data.get("user_id", "")
                             }
-                            st.session_state["opcion_actual"] = "Portal Cobrador" if user_data.get("rol") == "cobrador" else "Inicio"
+                            st.session_state["opcion_actual"] = "Portal Cobrador" if rol_det == "cobrador" else "Inicio"
                             login_box.markdown(
                                 """
                                 <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 50vh; text-align: center;">

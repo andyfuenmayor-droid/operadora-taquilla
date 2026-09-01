@@ -24,7 +24,7 @@ def modulo_auditoria_hibrida(agencia_data=None):
         ciclo = obtener_periodo_trabajo(u_id)
         f_desde_str, f_hasta_str = ciclo['desde'], ciclo['hasta']
 
-        res_ag = supabase.table("agencias").select("id, nombre_agencia, auditoria_activa, participacion_ag, sistemas, monedas").eq("user_id", u_id).execute()
+        res_ag = supabase.table("agencias").select("id, nombre_agencia, auditoria_activa, participacion_ag, sistemas, monedas, usuario_taquilla").eq("user_id", u_id).execute()
         df_agencias = pd.DataFrame(res_ag.data or [])
 
         agencias_auditables = []
@@ -98,6 +98,15 @@ def modulo_auditoria_hibrida(agencia_data=None):
                 try:
                     res_u = supabase.table("taquilla_usuarios").select("*").eq("agencia_id", ag_id).execute()
                     usuarios_agencia = res_u.data or []
+                    u_taq_ag = str(row.get("usuario_taquilla") or "").strip().lower()
+                    for u_item in usuarios_agencia:
+                        if u_taq_ag and str(u_item.get("usuario", "")).strip().lower() == u_taq_ag:
+                            if str(u_item.get("rol", "")).lower() != "agencia":
+                                u_item["rol"] = "agencia"
+                                try:
+                                    supabase.table("taquilla_usuarios").update({"rol": "agencia"}).eq("id", u_item["id"]).execute()
+                                except Exception:
+                                    pass
                 except Exception:
                     pass
                 with st.container(border=True):

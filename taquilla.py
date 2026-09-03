@@ -753,6 +753,18 @@ def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha
 def dia_esta_cerrado(agencia_nombre, fecha, cajero_id=None):
     """Retorna True si el día ya fue cerrado para esta agencia (y cajero opcional)."""
     try:
+        # 1. Verificar primero en saldo_taquilla (registro oficial de cierres ejecutados)
+        q_s = supabase.table("saldo_taquilla")\
+            .select("id")\
+            .eq("nombre_agency", agencia_nombre)\
+            .eq("fecha", str(fecha))
+        if cajero_id:
+            q_s = q_s.eq("cajero_id", str(cajero_id))
+        res_s = q_s.limit(1).execute()
+        if len(res_s.data or []) > 0:
+            return True
+
+        # 2. Verificar también en cda_reportes_diarios
         q = supabase.table("cda_reportes_diarios")\
             .select("cerrado")\
             .eq("nombre_agency", agencia_nombre)\
@@ -807,7 +819,30 @@ def reabrir_dia(agencia_nombre, fecha, cajero_id=None):
 
 def obtener_ultimo_dia_cerrado(agencia_nombre, cajero_id=None):
     """Retorna la última fecha cerrada, o None si no hay ninguna."""
+    fechas_encontradas = []
     try:
+        # 1. Consultar saldo_taquilla (cierres efectivos de caja)
+        if cajero_id:
+            res_sc = supabase.table("saldo_taquilla")\
+                .select("fecha")\
+                .eq("nombre_agency", agencia_nombre)\
+                .eq("cajero_id", str(cajero_id))\
+                .order("fecha", desc=True)\
+                .limit(1)\
+                .execute()
+            if res_sc.data:
+                fechas_encontradas.append(pd.to_datetime(res_sc.data[0]["fecha"]).date())
+        else:
+            res_sg = supabase.table("saldo_taquilla")\
+                .select("fecha")\
+                .eq("nombre_agency", agencia_nombre)\
+                .order("fecha", desc=True)\
+                .limit(1)\
+                .execute()
+            if res_sg.data:
+                fechas_encontradas.append(pd.to_datetime(res_sg.data[0]["fecha"]).date())
+
+        # 2. Consultar cda_reportes_diarios
         if cajero_id:
             res_c = supabase.table("cda_reportes_diarios")\
                 .select("fecha")\
@@ -818,17 +853,20 @@ def obtener_ultimo_dia_cerrado(agencia_nombre, cajero_id=None):
                 .limit(1)\
                 .execute()
             if res_c.data:
-                return pd.to_datetime(res_c.data[0]["fecha"]).date()
+                fechas_encontradas.append(pd.to_datetime(res_c.data[0]["fecha"]).date())
+        else:
+            res_g = supabase.table("cda_reportes_diarios")\
+                .select("fecha")\
+                .eq("nombre_agency", agencia_nombre)\
+                .eq("cerrado", True)\
+                .order("fecha", desc=True)\
+                .limit(1)\
+                .execute()
+            if res_g.data:
+                fechas_encontradas.append(pd.to_datetime(res_g.data[0]["fecha"]).date())
 
-        res_g = supabase.table("cda_reportes_diarios")\
-            .select("fecha")\
-            .eq("nombre_agency", agencia_nombre)\
-            .eq("cerrado", True)\
-            .order("fecha", desc=True)\
-            .limit(1)\
-            .execute()
-        if res_g.data:
-            return pd.to_datetime(res_g.data[0]["fecha"]).date()
+        if fechas_encontradas:
+            return max(fechas_encontradas)
     except Exception:
         pass
     return None
@@ -3303,6 +3341,9 @@ def modulo_cierre_diario(agencia_data):
 
 @st.fragment
 def _fragmento_cierre_diario(agencia_data):
+    if "mensaje_cierre_exitoso" in st.session_state:
+        st.success(st.session_state.pop("mensaje_cierre_exitoso"))
+
     u_id = agencia_data['user_id']
     nom = agencia_data['nombre_agencia']
     cajero_info = st.session_state.get("cajero_actual", {})
@@ -3589,8 +3630,9 @@ def _fragmento_cierre_diario(agencia_data):
                                     supabase.table("saldo_taquilla").upsert(p_saldo, on_conflict="nombre_agency,fecha,cajero_id").execute()
                                 except Exception:
                                     pass
-                                st.success(f"✅ Día cerrado para {c_name_item}.")
-                                time.sleep(0.5); st.rerun(scope="fragment")
+                                st.session_state["mensaje_cierre_exitoso"] = f"✅ Día {fecha_sel} cerrado exitosamente para {c_name_item}."
+                                time.sleep(0.5)
+                                st.rerun(scope="app")
     else:
         if cerrado:
             st.success(f"✅ Tu jornada del día {fecha_sel} está **CERRADA**.")
@@ -3606,10 +3648,16 @@ def _fragmento_cierre_diario(agencia_data):
                             if cajero_id:
                                 p_saldo["cajero_id"] = str(cajero_id)
                             supabase.table("saldo_taquilla").upsert(p_saldo, on_conflict="nombre_agency,fecha,cajero_id").execute()
-                            st.success("✅ Tu jornada fue cerrada y tu saldo guardado exitosamente.")
+                            st.session_state["mensaje_cierre_exitoso"] = f"✅ Tu jornada del día {fecha_sel} fue cerrada y tu saldo guardado exitosamente."
+                            try:
+                                f_next = pd.to_datetime(fecha_sel).date() + timedelta(days=1)
+                                st.session_state["fecha_cierre"] = f_next
+                            except Exception:
+                                pass
                         except Exception as e:
                             st.error(f"Error al guardar el saldo restante: {e}")
-                        time.sleep(0.5); st.rerun(scope="fragment")
+                        time.sleep(0.5)
+                        st.rerun(scope="app")
 
 
 def modulo_premios_tickets(agencia_data):

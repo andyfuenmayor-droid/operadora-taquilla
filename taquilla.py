@@ -4284,19 +4284,57 @@ if not st.session_state.taquilla_autenticada:
             }
 
             div[data-baseweb="input"]:focus-within {
-                border-color: #00c853 !important;
-                box-shadow: 0 0 0 2px rgba(0, 200, 83, 0.25) !important;
+                border-color: #10b981 !important;
+                box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25) !important;
             }
 
-            button[kind="primaryFormSubmit"],
-            [data-testid="stForm"] button {
-                background: linear-gradient(90deg, #00c853 0%, #00e676 100%) !important;
-                color: #ffffff !important;
-                font-weight: 700 !important;
+            /* Icono de visibilidad de clave */
+            div[data-baseweb="input"] button {
+                background: transparent !important;
                 border: none !important;
-                border-radius: 10px !important;
-                height: 44px !important;
-                box-shadow: 0 4px 14px rgba(0, 200, 83, 0.3) !important;
+                box-shadow: none !important;
+                color: #94a3b8 !important;
+                height: auto !important;
+                padding: 4px !important;
+            }
+            div[data-baseweb="input"] button:hover {
+                color: #ffffff !important;
+                background: transparent !important;
+                box-shadow: none !important;
+                transform: none !important;
+            }
+
+            /* Botón Iniciar Sesión */
+            [data-testid="stFormSubmitButton"] button,
+            button[kind="primaryFormSubmit"] {
+                background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
+                background-color: #059669 !important;
+                color: #ffffff !important;
+                -webkit-text-fill-color: #ffffff !important;
+                font-weight: 700 !important;
+                font-size: 0.95rem !important;
+                letter-spacing: 0.03em !important;
+                border: 1px solid rgba(52, 211, 153, 0.45) !important;
+                border-radius: 12px !important;
+                height: 46px !important;
+                box-shadow: 0 4px 18px rgba(16, 185, 129, 0.35) !important;
+                text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35) !important;
+                transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+            }
+            [data-testid="stFormSubmitButton"] button:hover,
+            button[kind="primaryFormSubmit"]:hover {
+                background: linear-gradient(135deg, #047857 0%, #059669 100%) !important;
+                background-color: #047857 !important;
+                border-color: rgba(52, 211, 153, 0.7) !important;
+                box-shadow: 0 6px 24px rgba(16, 185, 129, 0.5) !important;
+                transform: translateY(-1px) !important;
+                color: #ffffff !important;
+                -webkit-text-fill-color: #ffffff !important;
+            }
+            [data-testid="stFormSubmitButton"] button * {
+                color: #ffffff !important;
+                -webkit-text-fill-color: #ffffff !important;
+                text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35) !important;
             }
         </style>
         """,

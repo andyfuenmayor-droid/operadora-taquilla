@@ -111,6 +111,21 @@ st.html("""
         visibility: hidden !important;
         width: 0px !important;
     }
+    /* Evitar que Streamlit opaque o ponga negra la pantalla en cada rerun */
+    [data-testid="stAppViewContainer"] [data-testid="stMain"],
+    [data-testid="stAppViewBlockContainer"],
+    .element-container,
+    div[data-testid="stVerticalBlock"] > div {
+        opacity: 1 !important;
+        transition: none !important;
+        filter: none !important;
+    }
+    .stApp--running [data-testid="stMain"],
+    .stApp--running [data-testid="stAppViewBlockContainer"],
+    .stApp--running .element-container {
+        opacity: 1 !important;
+        filter: none !important;
+    }
     </style>
 """)
 

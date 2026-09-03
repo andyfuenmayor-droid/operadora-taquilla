@@ -18,7 +18,7 @@ st.set_page_config(
     page_title="Taquilla POS",
     page_icon="assets/pos_icon.png",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 def obtener_hora_local():
@@ -105,6 +105,11 @@ st.html("""
     }
     #MainMenu {
         visibility: hidden !important;
+    }
+    [data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"], [data-testid="collapsedControl"] {
+        display: none !important;
+        visibility: hidden !important;
+        width: 0px !important;
     }
     </style>
 """)
@@ -1833,6 +1838,10 @@ def modulo_home(agencia_data):
 def modulo_registro_taquilla(agencia_data):
     render_encabezado_principal(f"🎰 Carga Manual de Ventas (Auditoría): {agencia_data['nombre_agencia']}")
     st.info("ℹ️ **Carga de Auditoría:** Este registro manual es utilizado exclusivamente para auditar y contrastar las ventas reportadas en taquilla contra la carga oficial del sistema en el **Módulo de Auditoría**, sin alterar los saldos oficiales del administrador.")
+    _fragmento_registro_taquilla(agencia_data)
+
+@st.fragment
+def _fragmento_registro_taquilla(agencia_data):
     cajero_info = st.session_state.get("cajero_actual", {})
     rol_usuario = cajero_info.get("rol", "cajero")
     cajero_id = cajero_info.get("id")
@@ -1939,7 +1948,7 @@ def modulo_registro_taquilla(agencia_data):
                             row_id = match.iloc[0]["id"]
                             supabase.table("cda_reportes_diarios").update(data).eq("id", row_id).execute()
                             st.success(f"✅ {sist} ({moneda_sel}) guardado!")
-                            time.sleep(1.0); st.rerun()
+                            time.sleep(0.5); st.rerun(scope="fragment")
                         except Exception as e:
                             st.error(f"Error: {e}")
                 with col_btn_del:
@@ -1948,7 +1957,7 @@ def modulo_registro_taquilla(agencia_data):
                             row_id = match.iloc[0]["id"]
                             supabase.table("cda_reportes_diarios").delete().eq("id", row_id).execute()
                             st.success(f"🗑️ Registro de {sist} ({moneda_sel}) eliminado!")
-                            time.sleep(1.0); st.rerun()
+                            time.sleep(0.5); st.rerun(scope="fragment")
                         except Exception as e:
                             st.error(f"Error: {e}")
             else:
@@ -1968,13 +1977,17 @@ def modulo_registro_taquilla(agencia_data):
                         }
                         supabase.table("cda_reportes_diarios").insert(data).execute()
                         st.success(f"✅ {sist} ({moneda_sel}) registrado para el {fecha_carga_iso}!")
-                        time.sleep(1.0); st.rerun()
+                        time.sleep(0.5); st.rerun(scope="fragment")
                     except Exception as e:
                         st.error(f"Error: {e}")
 
 
 def modulo_gastos(agencia_data):
     render_encabezado_principal("💸 Gastos Agencias")
+    _fragmento_gastos(agencia_data)
+
+@st.fragment
+def _fragmento_gastos(agencia_data):
     u_id = agencia_data['user_id']
     ag_nombre = agencia_data['nombre_agencia']
     cajero_info = st.session_state.get("cajero_actual", {})
@@ -2112,7 +2125,9 @@ def modulo_gastos(agencia_data):
                     if st.session_state.get("cajero_id_in_gastos", False):
                         gasto_data["cajero_id"] = cajero_id
                     supabase.table("cda_gastos_diarios").insert(gasto_data).execute()
-                    st.success("✅ Gasto guardado exitosamente!"); time.sleep(1); st.rerun()
+                    st.success("✅ Gasto guardado exitosamente!")
+                    time.sleep(0.5)
+                    st.rerun(scope="fragment")
 
 
 def modulo_pagos(agencia_data):
@@ -3300,6 +3315,10 @@ def modulo_reporte_rango(agencia_data):
 
 def modulo_cierre_diario(agencia_data):
     render_encabezado_principal("🔒 Cierre Diario")
+    _fragmento_cierre_diario(agencia_data)
+
+@st.fragment
+def _fragmento_cierre_diario(agencia_data):
     u_id = agencia_data['user_id']
     nom = agencia_data['nombre_agencia']
     cajero_info = st.session_state.get("cajero_actual", {})
@@ -3559,7 +3578,7 @@ def modulo_cierre_diario(agencia_data):
                         if st.button(f"🔓 Reabrir Día", key=f"btn_reabrir_{c_id_item}", use_container_width=True):
                             if reabrir_dia(nom, fecha_sel, cajero_id=c_id_item):
                                 st.success(f"✅ Día reabierto para {c_name_item}.")
-                                time.sleep(1); st.rerun()
+                                time.sleep(0.5); st.rerun(scope="fragment")
                     else:
                         st.markdown(
                             f"""
@@ -3587,7 +3606,7 @@ def modulo_cierre_diario(agencia_data):
                                 except Exception:
                                     pass
                                 st.success(f"✅ Día cerrado para {c_name_item}.")
-                                time.sleep(1); st.rerun()
+                                time.sleep(0.5); st.rerun(scope="fragment")
     else:
         if cerrado:
             st.success(f"✅ Tu jornada del día {fecha_sel} está **CERRADA**.")
@@ -3606,7 +3625,7 @@ def modulo_cierre_diario(agencia_data):
                             st.success("✅ Tu jornada fue cerrada y tu saldo guardado exitosamente.")
                         except Exception as e:
                             st.error(f"Error al guardar el saldo restante: {e}")
-                        time.sleep(1); st.rerun()
+                        time.sleep(0.5); st.rerun(scope="fragment")
 
 
 def modulo_premios_tickets(agencia_data):
@@ -4490,35 +4509,16 @@ else:
             display: none !important;
         }
 
-        /* Boton apertura sidebar */
+        /* Ocultar sidebar y boton de apertura definitivamente */
         [data-testid="collapsedControl"],
         [data-testid="stSidebarCollapsedControl"],
         [data-testid="stHeader"] button[aria-label*="sidebar" i],
         [data-testid="stHeader"] button[aria-label*="Sidebar" i],
-        button[data-testid="stSidebarCollapsedControl"] {
-            display: flex !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            z-index: 999999 !important;
-            background-color: #0d1b22 !important;
-            color: #ffffff !important;
-            border: 2px solid #00c853 !important;
-            border-radius: 8px !important;
-            min-width: 44px !important;
-            min-height: 44px !important;
-            box-shadow: 0 4px 14px rgba(0, 200, 83, 0.4) !important;
-            margin: 4px 8px !important;
-        }
-
-        [data-testid="collapsedControl"] svg,
-        [data-testid="stSidebarCollapsedControl"] svg,
-        [data-testid="stHeader"] button[aria-label*="sidebar" i] svg,
-        [data-testid="stHeader"] button[aria-label*="Sidebar" i] svg {
-            fill: #ffffff !important;
-            color: #ffffff !important;
-            stroke: #ffffff !important;
-            width: 24px !important;
-            height: 24px !important;
+        button[data-testid="stSidebarCollapsedControl"],
+        [data-testid="stSidebar"] {
+            display: none !important;
+            visibility: hidden !important;
+            width: 0px !important;
         }
 
         .stApp, [data-testid="stAppViewContainer"], section.main, .main {
@@ -4789,35 +4789,16 @@ else:
             display: none !important;
         }
 
-        /* Boton apertura sidebar */
+        /* Ocultar sidebar y boton de apertura definitivamente */
         [data-testid="collapsedControl"],
         [data-testid="stSidebarCollapsedControl"],
         [data-testid="stHeader"] button[aria-label*="sidebar" i],
         [data-testid="stHeader"] button[aria-label*="Sidebar" i],
-        button[data-testid="stSidebarCollapsedControl"] {
-            display: flex !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            z-index: 999999 !important;
-            background-color: #ffffff !important;
-            color: #0f172a !important;
-            border: 2px solid #00c853 !important;
-            border-radius: 8px !important;
-            min-width: 44px !important;
-            min-height: 44px !important;
-            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15) !important;
-            margin: 4px 8px !important;
-        }
-
-        [data-testid="collapsedControl"] svg,
-        [data-testid="stSidebarCollapsedControl"] svg,
-        [data-testid="stHeader"] button[aria-label*="sidebar" i] svg,
-        [data-testid="stHeader"] button[aria-label*="Sidebar" i] svg {
-            fill: #0f172a !important;
-            color: #0f172a !important;
-            stroke: #0f172a !important;
-            width: 24px !important;
-            height: 24px !important;
+        button[data-testid="stSidebarCollapsedControl"],
+        [data-testid="stSidebar"] {
+            display: none !important;
+            visibility: hidden !important;
+            width: 0px !important;
         }
 
         .stApp, [data-testid="stAppViewContainer"], section.main, .main {
@@ -4995,17 +4976,43 @@ else:
     st.markdown(dashboard_css, unsafe_allow_html=True)
     st.html(dashboard_css)
 
-    col_h1, col_h2 = st.columns([5, 1])
-    with col_h1:
-        st.markdown(
-            f"""<h2 style='margin: 0; font-weight: 700; font-size: 1.75rem; color: {"#ffffff" if st.session_state.tema_oscuro else "#0f172a"};'>⚡ Panel de Control</h2>""", 
-            unsafe_allow_html=True
-        )
-    with col_h2:
-        tema_sel = st.toggle("🌙 Oscuro", value=st.session_state.tema_oscuro, key="toggle_tema_top")
-        if tema_sel != st.session_state.tema_oscuro:
-            st.session_state.tema_oscuro = tema_sel
-            st.rerun()
+    u_id_admin_sb = ag.get("user_id") or cajero.get("user_id")
+    ciclo_admin_sb = obtener_periodo_trabajo(u_id_admin_sb)
+    rol_lower = str(cajero.get("rol", "")).lower()
+    user_rol = str(cajero.get('rol', 'cajero')).lower()
+
+    if rol_lower in ["agencia", "supervisor", "cobrador"]:
+        label_periodo_sb = "Periodo de Trabajo"
+        def _fmt_f(f_str):
+            try: return pd.to_datetime(f_str).strftime("%d/%m/%Y")
+            except Exception: return str(f_str)
+        if ciclo_admin_sb and ciclo_admin_sb.get("desde"):
+            f1_sb = _fmt_f(ciclo_admin_sb.get("desde"))
+            f2_sb = _fmt_f(ciclo_admin_sb.get("hasta"))
+            val_periodo_sb = f"📅 {f1_sb} al {f2_sb}"
+        else:
+            val_periodo_sb = "📅 Sin periodo"
+        val_color_sb = "#69f0ae"
+    else:
+        label_periodo_sb = "Último Cierre"
+        val_periodo_sb = f"📅 {ultimo_cierre.strftime('%d/%m/%Y')}" if ultimo_cierre else "📅 Sin cierres"
+        val_color_sb = '#34d399' if ultimo_cierre else '#fb7185'
+
+    wa_num_raw = str(ag.get("telefono_whatsapp", ag.get("telefono", ""))).strip()
+    if not wa_num_raw or wa_num_raw.lower() in ["none", "nan"]:
+        wa_num_raw = obtener_whatsapp_agencia_local(u_id_admin_sb, ag.get("nombre_agencia", ""))
+
+    wa_link = "#"
+    if wa_num_raw and wa_num_raw.lower() != "none":
+        clean_num = ''.join(c for c in wa_num_raw if c.isdigit())
+        if len(clean_num) == 10 and clean_num.startswith("0"):
+            clean_num = "58" + clean_num[1:]
+        elif len(clean_num) == 11 and clean_num.startswith("58"):
+            pass
+        wa_link = f"https://wa.me/{clean_num}" if clean_num else "#"
+
+    usr_disp_email = str(cajero.get('usuario') or cajero.get('nombre') or 'USUARIO').lower()
+    disp_terminal_nom = "🛵 RUTA DE COBRANZA" if rol_lower == "cobrador" else f"🏢 {ag.get('nombre_agencia', 'Terminal').upper()}"
 
     if st.session_state.tema_oscuro:
         card_bg = "rgba(13, 27, 34, 0.45)"
@@ -5022,10 +5029,79 @@ else:
         badge_border = "rgba(0, 200, 83, 0.2)"
         badge_text = "#00c853"
 
+    # --- TOP HEADER BAR (Mobile-First, Sin Sidebar Redundante) ---
+    col_h1, col_h2, col_h3, col_h4 = st.columns([4.2, 1.1, 1.2, 0.9])
+    with col_h1:
+        st.markdown(
+            f"""<div style='display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px;'>
+                <span style='font-weight: 800; font-size: 1.45rem; color: {"#ffffff" if st.session_state.tema_oscuro else "#0f172a"};'>⚡ Taquilla POS</span>
+                <span style='background-color: {badge_bg}; border: 1px solid {badge_border}; color: {badge_text}; font-size: 0.72rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 6px; text-transform: uppercase;'>{disp_terminal_nom}</span>
+                <span style='background-color: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.25); color: #38bdf8; font-size: 0.72rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 6px;'>👤 {usr_disp_email} ({cajero['rol'].upper()})</span>
+                <span style='font-size: 0.75rem; font-weight: 600; color: {val_color_sb};'>{val_periodo_sb}</span>
+            </div>""", 
+            unsafe_allow_html=True
+        )
+    with col_h2:
+        tema_sel = st.toggle("🌙 Oscuro", value=st.session_state.tema_oscuro, key="toggle_tema_top")
+        if tema_sel != st.session_state.tema_oscuro:
+            st.session_state.tema_oscuro = tema_sel
+            st.rerun()
+    with col_h3:
+        with st.popover(f"📖 Ayuda ({user_rol.upper()})", use_container_width=True):
+            st.markdown(f"### 📖 Guía Operativa — Rol {user_rol.upper()}")
+            if user_rol == "cobrador":
+                st.markdown("""
+                **🛵 Manual de Operación para Cobradores:**
+                1. **Validación QR:** Escanea el comprobante de la agencia.
+                2. **Confirmación:** Revisa y confirma el monto recibido.
+                3. **Liquidación:** Entrega a la Administración.
+                """)
+            elif user_rol == "agencia":
+                st.markdown("""
+                **🏢 Manual de Operación para Agencias:**
+                1. **Monitoreo:** Consulta ventas brutas, comisiones y premios.
+                2. **Cobranzas:** Revisa estado de cuenta y balance.
+                """)
+            elif user_rol == "supervisor":
+                st.markdown("""
+                **🛡️ Manual de Operación para Supervisores:**
+                1. **Gestión de Cierres:** Revisa el balance individual de cada terminal.
+                2. **Recepción Efectivo:** Confirma el dinero recibido de cajeros.
+                3. **Caja Central:** Entrega fondos a Administración.
+                """)
+            else:
+                st.markdown("""
+                **👤 Manual de Operación para Cajeros:**
+                1. **Carga de Ventas:** Registra venta bruta y premios.
+                2. **Gastos:** Registra gastos operativos y adjunta comprobantes.
+                3. **Rendición:** Entrega el efectivo a tu supervisor.
+                4. **Cierre:** Cuadra el efectivo físico en caja al final del turno.
+                """)
+
+            pdf_filename = f"Guia_de_Uso_{user_rol.upper()}.pdf"
+            pdf_path = os.path.join(os.path.dirname(__file__), pdf_filename)
+            if not os.path.exists(pdf_path):
+                pdf_path = os.path.join(os.path.dirname(__file__), "Guia_de_Uso_Taquilla_Movil.pdf")
+
+            if os.path.exists(pdf_path):
+                with open(pdf_path, "rb") as f_pdf:
+                    st.download_button(
+                        label=f"📥 Guía {user_rol.upper()} (PDF)",
+                        data=f_pdf.read(),
+                        file_name=pdf_filename,
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+            if wa_num_raw and wa_num_raw.lower() != "none":
+                st.markdown(f"📱 **Soporte WhatsApp:** [{wa_num_raw}]({wa_link})")
+    with col_h4:
+        if st.button("🚪 Salir", key="btn_logout_top", use_container_width=True, type="secondary"):
+            st.session_state.taquilla_autenticada = False
+            st.session_state["opcion_actual"] = "Inicio"
+            st.rerun()
+
     if "opcion_actual" not in st.session_state:
         st.session_state["opcion_actual"] = "Inicio"
-
-    rol_lower = str(cajero.get("rol", "")).lower()
 
     if rol_lower == "cobrador":
         menu_items = [
@@ -5069,7 +5145,7 @@ else:
     if st.session_state["opcion_actual"] not in [m[1] for m in menu_items]:
         st.session_state["opcion_actual"] = "Portal Cobrador" if rol_lower == "cobrador" else "Inicio"
 
-    # 🟢 BARRA DE NAVEGACIÓN HORIZONTAL POR PÍLDORAS (SIEMPRE VISIBLE EN MÓVIL Y ESCRITORIO SIN DESPLEGABLE) 🟢
+    # 🟢 BARRA DE NAVEGACIÓN HORIZONTAL POR PÍLDORAS (ÚNICO MENÚ, 100% AMIGABLE EN MÓVIL Y DESKTOP) 🟢
     opts_nav_labels = [m[0] for m in menu_items]
     vals_nav_values = [m[1] for m in menu_items]
     curr_val = st.session_state.get("opcion_actual", "Portal Cobrador" if rol_lower == "cobrador" else "Inicio")
@@ -5087,131 +5163,6 @@ else:
         target_nav_val = vals_nav_values[opts_nav_labels.index(selected_nav)]
         if target_nav_val != st.session_state["opcion_actual"]:
             st.session_state["opcion_actual"] = target_nav_val
-            st.rerun()
-
-    u_id_admin_sb = ag.get("user_id") or cajero.get("user_id")
-    ciclo_admin_sb = obtener_periodo_trabajo(u_id_admin_sb)
-    
-    if rol_lower in ["agencia", "supervisor", "cobrador"]:
-        label_periodo_sb = "Periodo de Trabajo"
-        def _fmt_f(f_str):
-            try: return pd.to_datetime(f_str).strftime("%d/%m/%Y")
-            except Exception: return str(f_str)
-        if ciclo_admin_sb and ciclo_admin_sb.get("desde"):
-            f1_sb = _fmt_f(ciclo_admin_sb.get("desde"))
-            f2_sb = _fmt_f(ciclo_admin_sb.get("hasta"))
-            val_periodo_sb = f"📅 {f1_sb} al {f2_sb}"
-        else:
-            val_periodo_sb = "📅 Sin periodo"
-        val_color_sb = "#69f0ae"
-    else:
-        label_periodo_sb = "Último Cierre"
-        val_periodo_sb = f"📅 {ultimo_cierre.strftime('%d/%m/%Y')}" if ultimo_cierre else "📅 Sin cierres"
-        val_color_sb = '#34d399' if ultimo_cierre else '#fb7185'
-
-    wa_num_raw = str(ag.get("telefono_whatsapp", ag.get("telefono", ""))).strip()
-    if not wa_num_raw or wa_num_raw.lower() in ["none", "nan"]:
-        wa_num_raw = obtener_whatsapp_agencia_local(u_id_admin_sb, ag.get("nombre_agencia", ""))
-
-    wa_display_html = ""
-    if wa_num_raw and wa_num_raw.lower() != "none":
-        clean_num = ''.join(c for c in wa_num_raw if c.isdigit())
-        if len(clean_num) == 10 and clean_num.startswith("0"):
-            clean_num = "58" + clean_num[1:]
-        elif len(clean_num) == 11 and clean_num.startswith("58"):
-            pass
-        wa_link = f"https://wa.me/{clean_num}" if clean_num else "#"
-        wa_display_html = f"""
-<div style="font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.4rem; margin-bottom: 0.1rem;">Contacto WhatsApp</div>
-<div style="font-size: 0.85rem; font-weight: 600; color: #25D366; font-family: inherit;">
-    📱 <a href="{wa_link}" target="_blank" style="color: #25D366; text-decoration: none; font-weight: 700;">{wa_num_raw}</a>
-</div>
-"""
-
-    usr_disp_email = str(cajero.get('usuario') or cajero.get('nombre') or 'USUARIO').lower()
-    disp_terminal_nom = "🛵 RUTA DE COBRANZA" if rol_lower == "cobrador" else f"🏢 {ag.get('nombre_agencia', 'Terminal').upper()}"
-
-    with st.sidebar:
-        sidebar_info = f"""<div style="background-color: {card_bg}; border: 1px solid {card_border}; padding: 0.85rem 1rem; border-radius: 12px; margin-bottom: 0.75rem;">
-<div style="font-size: 0.65rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.15rem;">USUARIO ACTIVO</div>
-<div style="font-size: 0.95rem; font-weight: 700; color: {text_val_color}; border-bottom: 2px solid #00c853; padding-bottom: 0.35rem; margin-bottom: 0.5rem; word-break: break-all;">{usr_disp_email}</div>
-<div style="font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.1rem;">Terminal / Asignación</div>
-<div style="font-size: 0.95rem; font-weight: 700; color: {text_val_color}; margin-bottom: 0.35rem;">{disp_terminal_nom}</div>
-<div style="font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.1rem;">Rol</div>
-<div style="display: inline-block; background-color: {badge_bg}; border: 1px solid {badge_border}; color: {badge_text}; font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.4rem; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.35rem;">{cajero['rol'].upper()}</div>
-<div style="font-size: 0.7rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.1rem;">{label_periodo_sb}</div>
-<div style="font-size: 0.85rem; font-weight: 500; color: {val_color_sb}; font-family: inherit;">{val_periodo_sb}</div>
-{wa_display_html}
-</div>"""
-        st.markdown(sidebar_info, unsafe_allow_html=True)
-
-        st.markdown(
-            f"""<div style="font-size: 0.7rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.3rem;">📌 MENÚ DE OPERACIONES</div>""",
-            unsafe_allow_html=True
-        )
-
-        for label_disp, val_opcion in menu_items:
-            is_active = (st.session_state["opcion_actual"] == val_opcion)
-            btn_type = "primary" if is_active else "secondary"
-            if st.button(label_disp, key=f"nav_btn_{val_opcion}", type=btn_type, use_container_width=True):
-                st.session_state["opcion_actual"] = val_opcion
-                st.rerun()
-
-        st.divider()
-        user_rol = str(cajero.get('rol', 'cajero')).lower()
-        with st.popover(f"📖 Guía de Uso ({user_rol.upper()})", use_container_width=True):
-            st.markdown(f"### 📖 Guía Operativa — Rol {user_rol.upper()}")
-            
-            if user_rol == "cobrador":
-                st.markdown("""
-                **🛵 Manual de Operación para Cobradores de Ruta:**
-                1. **Validación de Entregas QR:** Escanea el código QR del comprobante de la agencia o ingresa el token para sellar la recepción física del dinero.
-                2. **Confirmación en Ruta:** Revisa las entregas registradas en efectivo de las agencias en tu ruta asignada y confirma el monto recibido con un clic.
-                3. **Control de Recaudación:** Monitorea los totales acumulados en tu custodia (BS, USD, COP) hasta que sean liquidados con la Administración.
-                """)
-            elif user_rol == "agencia":
-                st.markdown("""
-                **🏢 Manual de Operación para Agencias:**
-                1. **Monitoreo del Ciclo Activo:** Consulta tus ventas brutas, comisiones negociadas, premios y saldo neto por cada moneda (BS, USD, COP).
-                2. **Libro de Cobranzas:** Revisa el estado de cuenta semanal, saldo inicial, abonado y balance pendiente.
-                3. **Auditoría de Pagos y Gastos:** Verifica los abonos y gastos registrados por tus terminales.
-                """)
-            elif user_rol == "supervisor":
-                st.markdown("""
-                **🛡️ Manual de Operación para Supervisores:**
-                1. **Gestión de Cierres:** Revisa el balance individual de cada cajero terminal en tiempo real.
-                2. **Recepción de Efectivo (Cajero ➔ Supervisor):** Haz clic en `🤝 Confirmar (Supervisor)` al recibir el dinero físico del cajero.
-                3. **Caja Chica Acumulada:** Usa `💸 Entregar al Administrador` para liquidar los fondos recaudados hacia la Administración.
-                """)
-            else:
-                st.markdown("""
-                **👤 Manual de Operación para Cajeros:**
-                1. **Carga de Ventas Diarias:** Selecciona el sistema (ej. BETM3), la moneda y registra tu venta bruta y premios pagados.
-                2. **Registro de Gastos:** Ingresa gastos de papelería, combustible, sueldos o servicios.
-                3. **Rendición de Efectivo:** Entrega el efectivo cobrado a tu supervisor para que confirme la recepción `🤝`.
-                4. **Solicitud de Cierre:** Solicita el cierre de turno al finalizar la jornada.
-                """)
-
-            pdf_filename = f"Guia_de_Uso_{user_rol.upper()}.pdf"
-            pdf_path = os.path.join(os.path.dirname(__file__), pdf_filename)
-            if not os.path.exists(pdf_path):
-                pdf_path = os.path.join(os.path.dirname(__file__), "Guia_de_Uso_Taquilla_Movil.pdf")
-
-            if os.path.exists(pdf_path):
-                with open(pdf_path, "rb") as f_pdf:
-                    st.download_button(
-                        label=f"📥 Descargar Guía Exclusiva {user_rol.upper()} (PDF)",
-                        data=f_pdf.read(),
-                        file_name=pdf_filename,
-                        mime="application/pdf",
-                        use_container_width=True
-                    )
-            
-            st.info("💡 Tip: Puedes subir este documento PDF a **NotebookLM (Google)** para generar audios explicativos (Podcast) o hacer preguntas automáticas.")
-
-        if st.button("🚪 Cerrar Sesión", use_container_width=True, key="btn_logout_sidebar"):
-            st.session_state.taquilla_autenticada = False
-            st.session_state["opcion_actual"] = "Inicio"
             st.rerun()
 
     opcion = st.session_state["opcion_actual"]

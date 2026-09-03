@@ -1570,147 +1570,145 @@ def modulo_home(agencia_data):
                 unsafe_allow_html=True
             )
 
-            # 3. TABLAS DE ACTIVIDAD DE LA MONEDA
-            col_t1, col_t2 = st.columns([1, 1])
-            with col_t1:
-                render_titulo_seccion(f"📋 Ventas del Ciclo - {m_code} ({ciclo_rango_str})")
-                if not df_v_m.empty:
-                    df_v_disp = df_v_m.copy()
-                    if "monto_venta" in df_v_disp.columns and "venta" not in df_v_disp.columns:
-                        df_v_disp = df_v_disp.rename(columns={"monto_venta": "venta"})
-                    elif "monto_venta" in df_v_disp.columns and "venta" in df_v_disp.columns:
-                        df_v_disp = df_v_disp.drop(columns=["monto_venta"])
+            # 3. TABLAS DE ACTIVIDAD DE LA MONEDA (DISEÑO LINEAL COMPLETO)
+            render_titulo_seccion(f"📋 Ventas del Ciclo - {m_code} ({ciclo_rango_str})")
+            if not df_v_m.empty:
+                df_v_disp = df_v_m.copy()
+                if "monto_venta" in df_v_disp.columns and "venta" not in df_v_disp.columns:
+                    df_v_disp = df_v_disp.rename(columns={"monto_venta": "venta"})
+                elif "monto_venta" in df_v_disp.columns and "venta" in df_v_disp.columns:
+                    df_v_disp = df_v_disp.drop(columns=["monto_venta"])
 
-                    if "monto_premios" in df_v_disp.columns and "premios" not in df_v_disp.columns:
-                        df_v_disp = df_v_disp.rename(columns={"monto_premios": "premios"})
-                    elif "monto_premios" in df_v_disp.columns and "premios" in df_v_disp.columns:
-                        df_v_disp = df_v_disp.drop(columns=["monto_premios"])
+                if "monto_premios" in df_v_disp.columns and "premios" not in df_v_disp.columns:
+                    df_v_disp = df_v_disp.rename(columns={"monto_premios": "premios"})
+                elif "monto_premios" in df_v_disp.columns and "premios" in df_v_disp.columns:
+                    df_v_disp = df_v_disp.drop(columns=["monto_premios"])
 
-                    desired_cols = ["sistema", "moneda", "venta", "comision", "premios", "neto"]
-                    cols_v_show = [c for c in desired_cols if c in df_v_disp.columns]
-                    df_v_disp = df_v_disp.loc[:, ~df_v_disp.columns.duplicated()][cols_v_show]
+                desired_cols = ["sistema", "moneda", "venta", "comision", "premios", "neto"]
+                cols_v_show = [c for c in desired_cols if c in df_v_disp.columns]
+                df_v_disp = df_v_disp.loc[:, ~df_v_disp.columns.duplicated()][cols_v_show]
 
-                    fmt_m_disp = obtener_formato_moneda(m_code)
-                    st.dataframe(
-                        df_v_disp,
-                        column_config={
-                            "sistema": "Sistema",
-                            "moneda": "Moneda",
-                            "venta": st.column_config.NumberColumn("Venta", format=fmt_m_disp),
-                            "comision": st.column_config.NumberColumn("Comisión", format=fmt_m_disp),
-                            "premios": st.column_config.NumberColumn("Premios", format=fmt_m_disp),
-                            "neto": st.column_config.NumberColumn("Neto", format=fmt_m_disp),
-                        },
-                        use_container_width=True,
-                        hide_index=True
-                    )
-                else:
-                    st.info(f"ℹ️ Sin registros de ventas cargados en {m_code} para este ciclo.")
-
-                # Gastos Registrados
-                if not df_g_m.empty:
-                    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-                    render_titulo_seccion(f"💸 Gastos del Ciclo - {m_code}")
-                    df_g_disp = enriquecer_columna_cajero(df_g_m)
-                    df_g_disp["Conf."] = df_g_disp.apply(obtener_etiqueta_confirmacion, axis=1)
-                    if "agencia" not in df_g_disp.columns and "nombre_agency" in df_g_disp.columns:
-                        df_g_disp["agencia"] = df_g_disp["nombre_agency"]
-                    elif "nombre_agency" in df_g_disp.columns:
-                        df_g_disp["agencia"] = df_g_disp["agencia"].fillna(df_g_disp["nombre_agency"])
-                    cols_g_show = ["fecha", "agencia", "cajero", "concepto", "moneda", "monto", "Conf."]
-                    if "motivo_rechazo" in df_g_disp.columns and df_g_disp["motivo_rechazo"].dropna().astype(str).str.strip().ne("").any():
-                        df_g_disp["motivo_rechazo"] = df_g_disp["motivo_rechazo"].fillna("")
-                        if "motivo_rechazo" not in cols_g_show:
-                            cols_g_show.append("motivo_rechazo")
-                    cols_g_show = [c for c in cols_g_show if c in df_g_disp.columns]
-                    st.dataframe(
-                        df_g_disp[cols_g_show],
-                        column_config={
-                            "monto": st.column_config.NumberColumn("monto", format=fmt_m_disp),
-                            "motivo_rechazo": st.column_config.TextColumn("Motivo Rechazo")
-                        },
-                        use_container_width=True,
-                        hide_index=True
-                    )
-
-            with col_t2:
                 fmt_m_disp = obtener_formato_moneda(m_code)
-                # 1. Tabla de Pagos a la Operadora (Bancos y Efectivo Ordinarios)
-                df_pagos_ord_m = pd.concat([df_banc_m, df_efec_m], ignore_index=True) if (not df_banc_m.empty or not df_efec_m.empty) else pd.DataFrame()
-                render_titulo_seccion(f"🏦 Pagos a Operadora (Bancos / Efectivo) - {m_code}")
-                if not df_pagos_ord_m.empty:
-                    df_pord_disp = df_pagos_ord_m.copy()
-                    df_pord_disp["Conf."] = df_pord_disp.apply(obtener_etiqueta_confirmacion, axis=1)
-                    if "agencia" not in df_pord_disp.columns and "nombre_agency" in df_pord_disp.columns:
-                        df_pord_disp["agencia"] = df_pord_disp["nombre_agency"]
-                    elif "nombre_agency" in df_pord_disp.columns:
-                        df_pord_disp["agencia"] = df_pord_disp["agencia"].fillna(df_pord_disp["nombre_agency"])
-                    if "tipo_pago" in df_pord_disp.columns:
-                        df_pord_disp = df_pord_disp.rename(columns={"tipo_pago": "pagos registrados", "referencia": "referencia / banco"})
-                    elif "referencia" in df_pord_disp.columns:
-                        df_pord_disp = df_pord_disp.rename(columns={"referencia": "referencia / banco"})
+                st.dataframe(
+                    df_v_disp,
+                    column_config={
+                        "sistema": "Sistema",
+                        "moneda": "Moneda",
+                        "venta": st.column_config.NumberColumn("Venta", format=fmt_m_disp),
+                        "comision": st.column_config.NumberColumn("Comisión", format=fmt_m_disp),
+                        "premios": st.column_config.NumberColumn("Premios", format=fmt_m_disp),
+                        "neto": st.column_config.NumberColumn("Neto", format=fmt_m_disp),
+                    },
+                    use_container_width=True,
+                    hide_index=True
+                )
+            else:
+                st.info(f"ℹ️ Sin registros de ventas cargados en {m_code} para este ciclo.")
 
-                    if "referencia / banco" not in df_pord_disp.columns:
-                        df_pord_disp["referencia / banco"] = "Efectivo"
-                    else:
-                        df_pord_disp["referencia / banco"] = df_pord_disp["referencia / banco"].fillna("Efectivo")
+            # Gastos Registrados
+            if not df_g_m.empty:
+                st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
+                render_titulo_seccion(f"💸 Gastos del Ciclo - {m_code}")
+                df_g_disp = enriquecer_columna_cajero(df_g_m)
+                df_g_disp["Conf."] = df_g_disp.apply(obtener_etiqueta_confirmacion, axis=1)
+                if "agencia" not in df_g_disp.columns and "nombre_agency" in df_g_disp.columns:
+                    df_g_disp["agencia"] = df_g_disp["nombre_agency"]
+                elif "nombre_agency" in df_g_disp.columns:
+                    df_g_disp["agencia"] = df_g_disp["agencia"].fillna(df_g_disp["nombre_agency"])
+                cols_g_show = ["fecha", "agencia", "cajero", "concepto", "moneda", "monto", "Conf."]
+                if "motivo_rechazo" in df_g_disp.columns and df_g_disp["motivo_rechazo"].dropna().astype(str).str.strip().ne("").any():
+                    df_g_disp["motivo_rechazo"] = df_g_disp["motivo_rechazo"].fillna("")
+                    if "motivo_rechazo" not in cols_g_show:
+                        cols_g_show.append("motivo_rechazo")
+                cols_g_show = [c for c in cols_g_show if c in df_g_disp.columns]
+                st.dataframe(
+                    df_g_disp[cols_g_show],
+                    column_config={
+                        "monto": st.column_config.NumberColumn("monto", format=fmt_m_disp),
+                        "motivo_rechazo": st.column_config.TextColumn("Motivo Rechazo")
+                    },
+                    use_container_width=True,
+                    hide_index=True
+                )
 
-                    cols_dup = [c for c in ["fecha", "monto", "moneda", "pagos registrados", "referencia / banco", "cajero"] if c in df_pord_disp.columns]
-                    if cols_dup:
-                        df_pord_disp = df_pord_disp.drop_duplicates(subset=cols_dup)
+            fmt_m_disp = obtener_formato_moneda(m_code)
+            # 1. Tabla de Pagos a la Operadora (Bancos y Efectivo Ordinarios)
+            st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
+            df_pagos_ord_m = pd.concat([df_banc_m, df_efec_m], ignore_index=True) if (not df_banc_m.empty or not df_efec_m.empty) else pd.DataFrame()
+            render_titulo_seccion(f"🏦 Pagos a Operadora (Bancos / Efectivo) - {m_code}")
+            if not df_pagos_ord_m.empty:
+                df_pord_disp = df_pagos_ord_m.copy()
+                df_pord_disp["Conf."] = df_pord_disp.apply(obtener_etiqueta_confirmacion, axis=1)
+                if "agencia" not in df_pord_disp.columns and "nombre_agency" in df_pord_disp.columns:
+                    df_pord_disp["agencia"] = df_pord_disp["nombre_agency"]
+                elif "nombre_agency" in df_pord_disp.columns:
+                    df_pord_disp["agencia"] = df_pord_disp["agencia"].fillna(df_pord_disp["nombre_agency"])
+                if "tipo_pago" in df_pord_disp.columns:
+                    df_pord_disp = df_pord_disp.rename(columns={"tipo_pago": "pagos registrados", "referencia": "referencia / banco"})
+                elif "referencia" in df_pord_disp.columns:
+                    df_pord_disp = df_pord_disp.rename(columns={"referencia": "referencia / banco"})
 
-                    cols_pord_show = ["fecha", "agencia", "cajero", "pagos registrados", "referencia / banco", "moneda", "monto", "Conf."]
-                    if "motivo_rechazo" in df_pord_disp.columns and df_pord_disp["motivo_rechazo"].dropna().astype(str).str.strip().ne("").any():
-                        df_pord_disp["motivo_rechazo"] = df_pord_disp["motivo_rechazo"].fillna("")
-                        if "motivo_rechazo" not in cols_pord_show:
-                            cols_pord_show.append("motivo_rechazo")
-                    cols_pord_show = [c for c in cols_pord_show if c in df_pord_disp.columns]
-                    st.dataframe(
-                        df_pord_disp[cols_pord_show],
-                        column_config={
-                            "monto": st.column_config.NumberColumn("monto", format=fmt_m_disp),
-                            "motivo_rechazo": st.column_config.TextColumn("Motivo Rechazo")
-                        },
-                        use_container_width=True,
-                        hide_index=True
-                    )
+                if "referencia / banco" not in df_pord_disp.columns:
+                    df_pord_disp["referencia / banco"] = "Efectivo"
                 else:
-                    st.info(f"ℹ️ Sin pagos ordinarios a la operadora en {m_code}.")
+                    df_pord_disp["referencia / banco"] = df_pord_disp["referencia / banco"].fillna("Efectivo")
 
-                # 2. TABLA DEDICADA DE PAGO DE PREMIOS / REPOSICIÓN DE PÉRDIDAS
-                st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-                render_titulo_seccion(f"🏆 Pagos de Premios / Reposición de Pérdidas - {m_code}")
-                if not df_prem_m.empty:
-                    df_prem_disp = df_prem_m.copy()
-                    df_prem_disp["Conf."] = df_prem_disp.apply(obtener_etiqueta_confirmacion, axis=1)
-                    if "agencia" not in df_prem_disp.columns and "nombre_agency" in df_prem_disp.columns:
-                        df_prem_disp["agencia"] = df_prem_disp["nombre_agency"]
-                    elif "nombre_agency" in df_prem_disp.columns:
-                        df_prem_disp["agencia"] = df_prem_disp["agencia"].fillna(df_prem_disp["nombre_agency"])
-                    if "tipo_pago" in df_prem_disp.columns:
-                        df_prem_disp = df_prem_disp.rename(columns={"tipo_pago": "detalle / concepto", "referencia": "referencia / cuenta"})
+                cols_dup = [c for c in ["fecha", "monto", "moneda", "pagos registrados", "referencia / banco", "cajero"] if c in df_pord_disp.columns]
+                if cols_dup:
+                    df_pord_disp = df_pord_disp.drop_duplicates(subset=cols_dup)
 
-                    cols_dup = [c for c in ["fecha", "monto", "moneda", "detalle / concepto", "referencia / cuenta", "cajero"] if c in df_prem_disp.columns]
-                    if cols_dup:
-                        df_prem_disp = df_prem_disp.drop_duplicates(subset=cols_dup)
+                cols_pord_show = ["fecha", "agencia", "cajero", "pagos registrados", "referencia / banco", "moneda", "monto", "Conf."]
+                if "motivo_rechazo" in df_pord_disp.columns and df_pord_disp["motivo_rechazo"].dropna().astype(str).str.strip().ne("").any():
+                    df_pord_disp["motivo_rechazo"] = df_pord_disp["motivo_rechazo"].fillna("")
+                    if "motivo_rechazo" not in cols_pord_show:
+                        cols_pord_show.append("motivo_rechazo")
+                cols_pord_show = [c for c in cols_pord_show if c in df_pord_disp.columns]
+                st.dataframe(
+                    df_pord_disp[cols_pord_show],
+                    column_config={
+                        "monto": st.column_config.NumberColumn("monto", format=fmt_m_disp),
+                        "motivo_rechazo": st.column_config.TextColumn("Motivo Rechazo")
+                    },
+                    use_container_width=True,
+                    hide_index=True
+                )
+            else:
+                st.info(f"ℹ️ Sin pagos ordinarios a la operadora en {m_code}.")
 
-                    cols_prem_show = ["fecha", "agencia", "cajero", "detalle / concepto", "referencia / cuenta", "moneda", "monto", "Conf."]
-                    if "motivo_rechazo" in df_prem_disp.columns and df_prem_disp["motivo_rechazo"].dropna().astype(str).str.strip().ne("").any():
-                        df_prem_disp["motivo_rechazo"] = df_prem_disp["motivo_rechazo"].fillna("")
-                        if "motivo_rechazo" not in cols_prem_show:
-                            cols_prem_show.append("motivo_rechazo")
-                    cols_prem_show = [c for c in cols_prem_show if c in df_prem_disp.columns]
-                    st.dataframe(
-                        df_prem_disp[cols_prem_show],
-                        column_config={
-                            "monto": st.column_config.NumberColumn("monto", format=fmt_m_disp),
-                            "motivo_rechazo": st.column_config.TextColumn("Motivo Rechazo")
-                        },
-                        use_container_width=True,
-                        hide_index=True
-                    )
-                else:
-                    st.caption(f"ℹ️ No hay reposiciones ni pagos de premios registrados en {m_code} para este ciclo.")
+            # 2. TABLA DEDICADA DE PAGO DE PREMIOS / REPOSICIÓN DE PÉRDIDAS
+            st.markdown("<div style='height: 14px;'></div>", unsafe_allow_html=True)
+            render_titulo_seccion(f"🏆 Pagos de Premios / Reposición de Pérdidas - {m_code}")
+            if not df_prem_m.empty:
+                df_prem_disp = df_prem_m.copy()
+                df_prem_disp["Conf."] = df_prem_disp.apply(obtener_etiqueta_confirmacion, axis=1)
+                if "agencia" not in df_prem_disp.columns and "nombre_agency" in df_prem_disp.columns:
+                    df_prem_disp["agencia"] = df_prem_disp["nombre_agency"]
+                elif "nombre_agency" in df_prem_disp.columns:
+                    df_prem_disp["agencia"] = df_prem_disp["agencia"].fillna(df_prem_disp["nombre_agency"])
+                if "tipo_pago" in df_prem_disp.columns:
+                    df_prem_disp = df_prem_disp.rename(columns={"tipo_pago": "detalle / concepto", "referencia": "referencia / cuenta"})
+
+                cols_dup = [c for c in ["fecha", "monto", "moneda", "detalle / concepto", "referencia / cuenta", "cajero"] if c in df_prem_disp.columns]
+                if cols_dup:
+                    df_prem_disp = df_prem_disp.drop_duplicates(subset=cols_dup)
+
+                cols_prem_show = ["fecha", "agencia", "cajero", "detalle / concepto", "referencia / cuenta", "moneda", "monto", "Conf."]
+                if "motivo_rechazo" in df_prem_disp.columns and df_prem_disp["motivo_rechazo"].dropna().astype(str).str.strip().ne("").any():
+                    df_prem_disp["motivo_rechazo"] = df_prem_disp["motivo_rechazo"].fillna("")
+                    if "motivo_rechazo" not in cols_prem_show:
+                        cols_prem_show.append("motivo_rechazo")
+                cols_prem_show = [c for c in cols_prem_show if c in df_prem_disp.columns]
+                st.dataframe(
+                    df_prem_disp[cols_prem_show],
+                    column_config={
+                        "monto": st.column_config.NumberColumn("monto", format=fmt_m_disp),
+                        "motivo_rechazo": st.column_config.TextColumn("Motivo Rechazo")
+                    },
+                    use_container_width=True,
+                    hide_index=True
+                )
+            else:
+                st.caption(f"ℹ️ No hay reposiciones ni pagos de premios registrados en {m_code} para este ciclo.")
 
     if es_supervisor:
         try:

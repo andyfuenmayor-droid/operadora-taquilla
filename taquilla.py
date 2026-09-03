@@ -4629,12 +4629,30 @@ else:
             border-radius: 10px !important;
         }
         [data-testid="stBaseButton-primary"] button,
-        button[data-testid="stBaseButton-primary"] {
-            background: linear-gradient(90deg, #00c853 0%, #00e676 100%) !important;
+        button[data-testid="stBaseButton-primary"],
+        button[kind="primary"] {
+            background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
             color: #ffffff !important;
-            border: none !important;
-            border-radius: 10px !important;
-            font-weight: 600 !important;
+            -webkit-text-fill-color: #ffffff !important;
+            border: 1px solid rgba(52, 211, 153, 0.45) !important;
+            border-radius: 12px !important;
+            font-weight: 700 !important;
+            font-size: 0.95rem !important;
+            letter-spacing: 0.03em !important;
+            padding: 0.65rem 1.4rem !important;
+            box-shadow: 0 4px 18px rgba(16, 185, 129, 0.35) !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35) !important;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        }
+        [data-testid="stBaseButton-primary"] button:hover,
+        button[data-testid="stBaseButton-primary"]:hover,
+        button[kind="primary"]:hover {
+            background: linear-gradient(135deg, #047857 0%, #059669 100%) !important;
+            border-color: rgba(52, 211, 153, 0.7) !important;
+            box-shadow: 0 6px 24px rgba(16, 185, 129, 0.5) !important;
+            transform: translateY(-1px) !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
         }
 
         /* 🟢 TOP PILLS (DARK) 🟢 */
@@ -4726,21 +4744,38 @@ else:
         button[kind="primaryFormSubmit"],
         button[data-testid="stBaseButton-secondaryFormSubmit"],
         button[data-testid="stBaseButton-primaryFormSubmit"] {
-            background: linear-gradient(90deg, #00c853 0%, #00e676 100%) !important;
-            background-color: #00c853 !important;
+            background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
+            background-color: #059669 !important;
             color: #ffffff !important;
             -webkit-text-fill-color: #ffffff !important;
-            border: none !important;
-            border-radius: 10px !important;
+            border: 1px solid rgba(52, 211, 153, 0.45) !important;
+            border-radius: 12px !important;
             font-weight: 700 !important;
-            padding: 0.6rem 1.25rem !important;
-            box-shadow: 0 4px 14px rgba(0, 200, 83, 0.4) !important;
+            font-size: 0.95rem !important;
+            letter-spacing: 0.03em !important;
+            padding: 0.65rem 1.4rem !important;
+            box-shadow: 0 4px 18px rgba(16, 185, 129, 0.35) !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35) !important;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        }
+        [data-testid="stFormSubmitButton"] button:hover,
+        [data-testid="stFormSubmitButton"] [data-baseweb="button"]:hover,
+        button[kind="secondaryFormSubmit"]:hover,
+        button[kind="primaryFormSubmit"]:hover {
+            background: linear-gradient(135deg, #047857 0%, #059669 100%) !important;
+            background-color: #047857 !important;
+            border-color: rgba(52, 211, 153, 0.7) !important;
+            box-shadow: 0 6px 24px rgba(16, 185, 129, 0.5) !important;
+            transform: translateY(-1px) !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
         }
         [data-testid="stFormSubmitButton"] button *,
         button[kind="secondaryFormSubmit"] *,
         button[kind="primaryFormSubmit"] * {
             color: #ffffff !important;
             -webkit-text-fill-color: #ffffff !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35) !important;
         }
 
         /* 🟢 DATAFRAMES (DARK) 🟢 */
@@ -4926,12 +4961,30 @@ else:
             border-radius: 10px !important;
         }
         [data-testid="stBaseButton-primary"] button,
-        button[data-testid="stBaseButton-primary"] {
-            background: linear-gradient(90deg, #00c853 0%, #00e676 100%) !important;
+        button[data-testid="stBaseButton-primary"],
+        button[kind="primary"] {
+            background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
             color: #ffffff !important;
-            border: none !important;
-            border-radius: 10px !important;
-            font-weight: 600 !important;
+            -webkit-text-fill-color: #ffffff !important;
+            border: 1px solid rgba(52, 211, 153, 0.45) !important;
+            border-radius: 12px !important;
+            font-weight: 700 !important;
+            font-size: 0.95rem !important;
+            letter-spacing: 0.03em !important;
+            padding: 0.65rem 1.4rem !important;
+            box-shadow: 0 4px 18px rgba(16, 185, 129, 0.35) !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35) !important;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        }
+        [data-testid="stBaseButton-primary"] button:hover,
+        button[data-testid="stBaseButton-primary"]:hover,
+        button[kind="primary"]:hover {
+            background: linear-gradient(135deg, #047857 0%, #059669 100%) !important;
+            border-color: rgba(52, 211, 153, 0.7) !important;
+            box-shadow: 0 6px 24px rgba(16, 185, 129, 0.5) !important;
+            transform: translateY(-1px) !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
         }
 
         /* 🟢 TOP PILLS (LIGHT MODE) 🟢 */
@@ -4952,21 +5005,38 @@ else:
         button[kind="primaryFormSubmit"],
         button[data-testid="stBaseButton-secondaryFormSubmit"],
         button[data-testid="stBaseButton-primaryFormSubmit"] {
-            background: linear-gradient(90deg, #00c853 0%, #00e676 100%) !important;
-            background-color: #00c853 !important;
+            background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
+            background-color: #059669 !important;
             color: #ffffff !important;
             -webkit-text-fill-color: #ffffff !important;
-            border: none !important;
-            border-radius: 10px !important;
+            border: 1px solid rgba(52, 211, 153, 0.45) !important;
+            border-radius: 12px !important;
             font-weight: 700 !important;
-            padding: 0.6rem 1.25rem !important;
-            box-shadow: 0 4px 14px rgba(0, 200, 83, 0.35) !important;
+            font-size: 0.95rem !important;
+            letter-spacing: 0.03em !important;
+            padding: 0.65rem 1.4rem !important;
+            box-shadow: 0 4px 18px rgba(16, 185, 129, 0.35) !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35) !important;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        }
+        [data-testid="stFormSubmitButton"] button:hover,
+        [data-testid="stFormSubmitButton"] [data-baseweb="button"]:hover,
+        button[kind="secondaryFormSubmit"]:hover,
+        button[kind="primaryFormSubmit"]:hover {
+            background: linear-gradient(135deg, #047857 0%, #059669 100%) !important;
+            background-color: #047857 !important;
+            border-color: rgba(52, 211, 153, 0.7) !important;
+            box-shadow: 0 6px 24px rgba(16, 185, 129, 0.5) !important;
+            transform: translateY(-1px) !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
         }
         [data-testid="stFormSubmitButton"] button *,
         button[kind="secondaryFormSubmit"] *,
         button[kind="primaryFormSubmit"] * {
             color: #ffffff !important;
             -webkit-text-fill-color: #ffffff !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35) !important;
         }
 
         /* 🟢 DATAFRAMES (LIGHT) 🟢 */

@@ -5105,22 +5105,24 @@ else:
     rol_lower = str(cajero.get("rol", "")).lower()
     user_rol = str(cajero.get('rol', 'cajero')).lower()
 
-    if rol_lower in ["agencia", "supervisor", "cobrador"]:
-        label_periodo_sb = "Periodo de Trabajo"
-        def _fmt_f(f_str):
-            try: return pd.to_datetime(f_str).strftime("%d/%m/%Y")
-            except Exception: return str(f_str)
-        if ciclo_admin_sb and ciclo_admin_sb.get("desde"):
-            f1_sb = _fmt_f(ciclo_admin_sb.get("desde"))
-            f2_sb = _fmt_f(ciclo_admin_sb.get("hasta"))
-            val_periodo_sb = f"📅 {f1_sb} al {f2_sb}"
-        else:
-            val_periodo_sb = "📅 Sin periodo"
-        val_color_sb = "#69f0ae"
+    def _fmt_f(f_str):
+        try: return pd.to_datetime(f_str).strftime("%d/%m/%Y")
+        except Exception: return str(f_str)
+
+    if ciclo_admin_sb and ciclo_admin_sb.get("desde"):
+        f1_sb = _fmt_f(ciclo_admin_sb.get("desde"))
+        f2_sb = _fmt_f(ciclo_admin_sb.get("hasta"))
+        val_periodo_sb = f"🗓️ Ciclo: {f1_sb} al {f2_sb}"
     else:
-        label_periodo_sb = "Último Cierre"
-        val_periodo_sb = f"📅 {ultimo_cierre.strftime('%d/%m/%Y')}" if ultimo_cierre else "📅 Sin cierres"
-        val_color_sb = '#34d399' if ultimo_cierre else '#fb7185'
+        val_periodo_sb = "🗓️ Sin ciclo asignado"
+
+    badge_ultimo_cierre_html = ""
+    if rol_lower == "cajero":
+        if ultimo_cierre:
+            f_cierre_str = ultimo_cierre.strftime('%d/%m/%Y')
+            badge_ultimo_cierre_html = f"<span style='background-color: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; font-size: 0.72rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 6px;'>🔒 Últ. Cierre: {f_cierre_str}</span>"
+        else:
+            badge_ultimo_cierre_html = "<span style='background-color: rgba(244, 63, 94, 0.12); border: 1px solid rgba(244, 63, 94, 0.3); color: #fb7185; font-size: 0.72rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 6px;'>⚠️ Sin Cierres Previos</span>"
 
     wa_num_raw = str(ag.get("telefono_whatsapp", ag.get("telefono", ""))).strip()
     if not wa_num_raw or wa_num_raw.lower() in ["none", "nan"]:
@@ -5154,14 +5156,15 @@ else:
         badge_text = "#00c853"
 
     # --- TOP HEADER BAR (Mobile-First, Sin Sidebar Redundante) ---
-    col_h1, col_h2, col_h3, col_h4 = st.columns([4.2, 1.1, 1.2, 0.9])
+    col_h1, col_h2, col_h3, col_h4 = st.columns([4.6, 1.0, 1.1, 0.8])
     with col_h1:
         st.markdown(
             f"""<div style='display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px;'>
                 <span style='font-weight: 800; font-size: 1.45rem; color: {"#ffffff" if st.session_state.tema_oscuro else "#0f172a"};'>⚡ Taquilla POS</span>
                 <span style='background-color: {badge_bg}; border: 1px solid {badge_border}; color: {badge_text}; font-size: 0.72rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 6px; text-transform: uppercase;'>{disp_terminal_nom}</span>
                 <span style='background-color: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.25); color: #38bdf8; font-size: 0.72rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 6px;'>👤 {usr_disp_email} ({cajero['rol'].upper()})</span>
-                <span style='font-size: 0.75rem; font-weight: 600; color: {val_color_sb};'>{val_periodo_sb}</span>
+                <span style='background-color: rgba(147, 51, 234, 0.12); border: 1px solid rgba(147, 51, 234, 0.25); color: #c084fc; font-size: 0.72rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 6px;'>{val_periodo_sb}</span>
+                {badge_ultimo_cierre_html}
             </div>""", 
             unsafe_allow_html=True
         )

@@ -2147,6 +2147,10 @@ def _fragmento_gastos(agencia_data):
 
 def modulo_pagos(agencia_data):
     render_encabezado_principal("💵 Pago Efectivo")
+    _fragmento_pagos(agencia_data)
+
+@st.fragment
+def _fragmento_pagos(agencia_data):
     u_id = agencia_data['user_id']
     ag_nombre = agencia_data['nombre_agencia']
     cajero_info = st.session_state.get("cajero_actual", {})
@@ -2305,7 +2309,7 @@ def modulo_pagos(agencia_data):
             st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
             if st.button("❌ Cerrar Comprobante", key="btn_cerrar_qr_activo", use_container_width=True):
                 st.session_state["pago_qr_generado"] = None
-                st.rerun()
+                st.rerun(scope="fragment")
             st.markdown("---")
 
     if not df_p.empty:
@@ -2399,8 +2403,8 @@ def modulo_pagos(agencia_data):
                         }
 
                     st.success("✅ Pago guardado exitosamente!")
-                    time.sleep(1)
-                    st.rerun()
+                    time.sleep(0.5)
+                    st.rerun(scope="fragment")
 
 
 def modulo_gestion_bancaria(agencia_data):
@@ -2712,284 +2716,288 @@ def modulo_gestion_bancaria(agencia_data):
 
     # ==================== TAB 3: REGISTRAR PAGO ====================
     with tabs_map["registrar"]:
-        render_titulo_seccion("💸 Registrar Pago Recibido")
-
-        # MOSTRAR DEUDA / SALDO PENDIENTE POR MONEDA ASIGNADA
-        saldos_monedas_b = calcular_resumen_saldos_monedas(agencia_data, cajero_target_id=c_id_ref)
-        render_tarjetas_deuda_monedas(
-            saldos_monedas_b,
-            titulo="💳 Estado de Deuda / Saldo Pendiente por Moneda",
-            subtitulo="Consulta en tiempo real cuánto debes en cada moneda asignada antes de registrar tu transferencia o pago bancario."
-        )
-
-        metodos_bancarios_opciones = [
-            "Punto de Venta", 
-            "BioPago", 
-            "Pago Móvil", 
-            "Zelle", 
-            "Transferencia Bancaria", 
-            "Depósito Bancario", 
-            "Binance / Cripto", 
-            "PayPal", 
-            "Otro (Cuenta Admin)"
-        ]
-
-        # Construir lista unificada de todos los dispositivos y cuentas asignadas
-        mapa_destinos = {}
-        lista_opciones_destino = []
-
-        # 1. Cargar Dispositivos de Pago (POS / BioPago)
-        if not df_dispositivos.empty:
-            df_disp_activos = df_dispositivos[df_dispositivos["estatus"].astype(str).str.upper().isin(["ACTIVO", "ACTIVA"])] if "estatus" in df_dispositivos.columns else df_dispositivos
-            if df_disp_activos.empty:
-                df_disp_activos = df_dispositivos
-            for _, r_disp in df_disp_activos.iterrows():
-                alias = str(r_disp.get("alias_nombre", "")).strip()
-                tipo = str(r_disp.get("tipo_dispositivo", "PUNTO DE VENTA (POS)")).strip()
-                s_tid = str(r_disp.get("serial_tid", "")).strip()
-                c_asoc = str(r_disp.get("cuenta_asociada", "")).strip()
-                mon_item = str(r_disp.get("moneda", "USD")).strip().upper() or "USD"
-
-                # Keep only the bank name as the selectbox label
-                base_lbl = alias
-                lbl = base_lbl
-                counter = 1
-                while lbl in mapa_destinos:
-                    lbl = f"{base_lbl} #{counter}"
-                    counter += 1
-
-                tipo_u = tipo.upper()
-                met_impl = "BioPago" if "BIOPAGO" in tipo_u else "Punto de Venta"
-
-                lista_opciones_destino.append(lbl)
-                mapa_destinos[lbl] = {"moneda": mon_item, "metodo": met_impl}
-
-        # 2. Cargar Cuentas Bancarias Asignadas
-        if not df_cuentas.empty:
-            for _, r in df_cuentas.iterrows():
-                b_name = str(r.get("banco", "Banco")).strip().upper()
-                tit = str(r.get("titular", "")).strip()
-                n_acc = str(r.get("numero_cuenta") or r.get("identificador") or r.get("email") or "").strip()
-                mon_item = str(r.get("moneda", "USD")).strip().upper() or "USD"
-                tipo_c = str(r.get("tipo_cuenta", "")).strip()
-
-                desc = f"{b_name} | {tit}"
-                if n_acc and n_acc != "N/A":
-                    desc += f" - N°: {n_acc}"
-                if mon_item:
-                    desc += f" ({mon_item})"
-                if tipo_c:
-                    desc += f" [{tipo_c}]"
-
-                tc_u = tipo_c.upper()
-                bn_u = b_name.upper()
-                if "PAGO MÓVIL" in tc_u or "PAGO MOVIL" in tc_u or "PAGO MÓVIL" in bn_u or "PAGO MOVIL" in bn_u:
-                    met_impl = "Pago Móvil"
-                elif "ZELLE" in tc_u or "ZELLE" in bn_u:
-                    met_impl = "Zelle"
-                elif "BINANCE" in tc_u or "CRIPTO" in tc_u or "BINANCE" in bn_u:
-                    met_impl = "Binance / Cripto"
-                elif "PAYPAL" in tc_u or "PAYPAL" in bn_u:
-                    met_impl = "PayPal"
-                elif "DEPÓSITO" in tc_u or "DEPOSITO" in tc_u:
-                    met_impl = "Depósito Bancario"
-                elif "TRANSFERENCIA" in tc_u or "CORRIENTE" in tc_u or "AHORRO" in tc_u:
-                    met_impl = "Transferencia Bancaria"
-                else:
-                    met_impl = "Otro (Cuenta Admin)"
-
-                lista_opciones_destino.append(desc)
-                mapa_destinos[desc] = {"moneda": mon_item, "metodo": met_impl}
-
-        if not lista_opciones_destino:
-            lbl_def = "POS / Cuenta Taquilla General (USD)"
-            lista_opciones_destino = [lbl_def]
-            mapa_destinos[lbl_def] = {"moneda": "USD", "metodo": "Punto de Venta"}
-
-        col_top1, col_top2 = st.columns([2, 4])
-        fecha_pago = col_top1.date_input("Fecha de Operación", value=fecha_defecto, key="reg_fecha_pago")
-        pos_o_cuenta = col_top2.selectbox("Seleccione Dispositivo / Cuenta de Pago Asignado*", lista_opciones_destino, key="reg_destino_unificado")
-
-        cerrado = dia_esta_cerrado(ag_nombre, fecha_pago, cajero_id=c_id_ref)
-        if cerrado:
-            st.info(f"🔒 El día {fecha_pago} está cerrado para este usuario. No se pueden registrar nuevos pagos.")
-
-        # Auto-detectar la moneda y el método según la cuenta/dispositivo seleccionado (sin permitir cambio manual)
-        meta_sel = mapa_destinos.get(pos_o_cuenta, {"moneda": "USD", "metodo": "Punto de Venta"})
-        moneda_pago = meta_sel.get("moneda", "USD")
-        metodo_pago = meta_sel.get("metodo", "Punto de Venta")
-
-        if moneda_pago not in ["USD", "BS", "COP"]:
-            if "BS" in moneda_pago or "VES" in moneda_pago:
-                moneda_pago = "BS"
-            elif "COP" in moneda_pago:
-                moneda_pago = "COP"
-            else:
-                moneda_pago = "USD"
-
-        col_inf1, col_inf2 = st.columns([3, 3])
-        col_inf1.text_input("Moneda (Definida por la cuenta/dispositivo)*", value=moneda_pago, disabled=True, key=f"dis_mon_{pos_o_cuenta}")
-        col_inf2.text_input("Método de Pago Asignado*", value=metodo_pago, disabled=True, key=f"dis_met_{pos_o_cuenta}")
-
-        # Campos de Pago (Monto primero, luego Concepto)
-        col_v1, col_v2 = st.columns([2, 4])
-        monto_pago = col_v1.number_input("Monto Recibido*", min_value=0.0, format="%.2f", key=f"reg_monto_pago_{st.session_state.bancaria_form_version}")
-        rol_actual_b = str(st.session_state.get("cajero_actual", {}).get("rol", "")).lower()
-        if rol_actual_b == "agencia":
-            opts_concepto = ["Pago a Comercializador"]
-        else:
-            opts_concepto = ["Compra de Tickets", "Pago de Premios", "Recibos Punto Venta", "Pago a Comercializador"]
-        concepto = col_v2.selectbox("Concepto de Operación*", opts_concepto, key="reg_concepto_pago")
-
-        # Campos dinámicos según el concepto seleccionado
-        if concepto in ["Compra de Tickets", "Pago de Premios", "Pago a Comercializador"]:
-            col_f1, col_f2 = st.columns([3, 3])
-            referencia = col_f1.text_input("Número de Referencia / Comprobante*", placeholder="Ej: 987654 / Últimos 6 dígitos", key=f"reg_ref_pago_{st.session_state.bancaria_form_version}")
-            datos_cliente = col_f2.text_input("Datos del Pagador / Titular", placeholder="Ej: V-14567890 / Pedro Pérez", key=f"reg_datos_cliente_{st.session_state.bancaria_form_version}")
-        else:
-            referencia = st.text_input("Número de Referencia / Comprobante*", placeholder="Ej: 987654 / Últimos 6 dígitos", key=f"reg_ref_pago_{st.session_state.bancaria_form_version}")
-            datos_cliente = ""
-
-        # Botón de envío
-        if st.button("💾 REGISTRAR PAGO BANCARIO", use_container_width=True, type="primary", disabled=cerrado):
-            if cerrado:
-                st.error(f"🔒 El día {fecha_pago} está cerrado para este usuario. No se pueden registrar nuevos pagos.")
-            elif monto_pago <= 0:
-                st.error("Ingrese un monto válido mayor a cero.")
-            elif not referencia.strip():
-                st.error("Debe proporcionar un número de referencia o comprobante.")
-            else:
-                try:
-                    cajero_id_b = st.session_state.get("cajero_actual", {}).get("id")
-                    # 1. Guardar en tabla cda_pagos_bancarios
-                    data_bancaria = {
-                        "fecha": str(fecha_pago),
-                        "agencia": ag_nombre,
-                        "metodo_pago": metodo_pago,
-                        "monto": round(float(monto_pago), 2),
-                        "moneda": moneda_pago,
-                        "referencia": referencia.strip().upper(),
-                        "concepto": concepto,
-                        "datos_pagador": datos_cliente.strip().upper() if datos_cliente else "N/A",
-                        "pos_o_cuenta": pos_o_cuenta,
-                        "user_id": u_id,
-                        "confirmado": False,
-                        "rechazado": False,
-                        "created_at": datetime.now().isoformat()
-                    }
-                    if st.session_state.get("cajero_id_in_bancarios", False) and cajero_id_b:
-                        data_bancaria["cajero_id"] = cajero_id_b
-                    supabase.table("cda_pagos_bancarios").insert(data_bancaria).execute()
-
-                    st.success(f"✅ Pago por {metodo_pago} (Ref: {referencia}) registrado exitosamente!")
-                    # Limpiar campos de entrada incrementando la versión del formulario
-                    st.session_state["bancaria_form_version"] += 1
-                    time.sleep(1)
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error al guardar transacción: {e}")
+        _fragmento_registrar_pago_bancario(agencia_data, df_cuentas, df_dispositivos, c_id_ref, fecha_defecto, u_id, ag_nombre)
 
     # ==================== TAB 4: HISTORIAL Y RESUMEN ====================
     with tabs_map["historial"]:
-        render_titulo_seccion("📊 Historial de Transacciones Bancarias")
+        _fragmento_historial_bancario(agencia_data, fecha_defecto, ag_nombre, es_supervisor_b, es_agencia_b, cajero_id_b)
 
-        c_f1, _ = st.columns([2, 2])
-        fecha_hist = c_f1.date_input("📅 Filtrar por Fecha:", value=fecha_defecto, key="fecha_hist_bancaria")
 
-        cajero_info_b = st.session_state.get("cajero_actual", {})
-        rol_usuario_b = str(cajero_info_b.get("rol", "cajero")).lower()
-        cajero_id_b = cajero_info_b.get("id")
-        es_supervisor_b = (rol_usuario_b == 'supervisor')
-        es_agencia_b = (rol_usuario_b == 'agencia')
+@st.fragment
+def _fragmento_registrar_pago_bancario(agencia_data, df_cuentas, df_dispositivos, c_id_ref, fecha_defecto, u_id, ag_nombre):
+    render_titulo_seccion("💸 Registrar Pago Recibido")
 
-        monedas_asig_b = [normalizar_moneda(m) for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip() and m.strip().upper() not in ["NONE", "NAN", ""]]
-        if not monedas_asig_b:
-            monedas_asig_b = ["BS"]
+    # MOSTRAR DEUDA / SALDO PENDIENTE POR MONEDA ASIGNADA
+    saldos_monedas_b = calcular_resumen_saldos_monedas(agencia_data, cajero_target_id=c_id_ref)
+    render_tarjetas_deuda_monedas(
+        saldos_monedas_b,
+        titulo="💳 Estado de Deuda / Saldo Pendiente por Moneda",
+        subtitulo="Consulta en tiempo real cuánto debes en cada moneda asignada antes de registrar tu transferencia o pago bancario."
+    )
 
-        try:
-            res_pb = supabase.table("cda_pagos_bancarios").select("*").eq("fecha", str(fecha_hist)).ilike("agencia", ag_nombre).execute()
-            df_pb = pd.DataFrame(res_pb.data or [])
-            if df_pb.empty:
-                res_pb = supabase.table("cda_pagos_bancarios").select("*").eq("fecha", str(fecha_hist)).ilike("nombre_agency", ag_nombre).execute()
-                df_pb = pd.DataFrame(res_pb.data or [])
-            if not df_pb.empty:
-                df_pb.columns = [c.lower() for c in df_pb.columns]
-                if not es_supervisor_b and not es_agencia_b and cajero_id_b:
-                    col_pb = "cajero_id" if "cajero_id" in df_pb.columns else ("user_id" if "user_id" in df_pb.columns else None)
-                    if col_pb and col_pb in df_pb.columns:
-                        df_pb = df_pb[df_pb[col_pb].astype(str) == str(cajero_id_b)]
-                if "moneda" in df_pb.columns:
-                    df_pb = df_pb[df_pb["moneda"].astype(str).str.strip().str.upper().apply(normalizar_moneda).isin(monedas_asig_b)]
-        except Exception:
-            df_pb = pd.DataFrame()
+    metodos_bancarios_opciones = [
+        "Punto de Venta", 
+        "BioPago", 
+        "Pago Móvil", 
+        "Zelle", 
+        "Transferencia Bancaria", 
+        "Depósito Bancario", 
+        "Binance / Cripto", 
+        "PayPal", 
+        "Otro (Cuenta Admin)"
+    ]
 
-        if not df_pb.empty:
-            df_pb_val = df_pb[df_pb.get("rechazado", False) != True] if "rechazado" in df_pb.columns else df_pb
-            met_col = df_pb_val["metodo_pago"].astype(str).str.upper() if not df_pb_val.empty else pd.Series()
-            df_pos_m = df_pb_val[met_col == "PUNTO DE VENTA"] if not df_pb_val.empty else pd.DataFrame()
-            df_biopago_m = df_pb_val[met_col == "BIOPAGO"] if not df_pb_val.empty else pd.DataFrame()
-            df_pm_m = df_pb_val[met_col == "PAGO MÓVIL"] if not df_pb_val.empty else pd.DataFrame()
-            df_zelle_m = df_pb_val[met_col == "ZELLE"] if not df_pb_val.empty else pd.DataFrame()
-            df_transf_m = df_pb_val[met_col.str.contains("TRANSFERENCIA|DEPÓSITO|DEPOSITO", regex=True, na=False)] if not df_pb_val.empty else pd.DataFrame()
-            df_efectivo_m = df_pb_val[met_col.str.contains("EFECTIVO", regex=True, na=False)] if not df_pb_val.empty else pd.DataFrame()
-            df_otros_m = df_pb_val[
-                ~met_col.isin(["PUNTO DE VENTA", "BIOPAGO", "PAGO MÓVIL", "ZELLE"]) &
-                ~met_col.str.contains("TRANSFERENCIA|DEPÓSITO|DEPOSITO|EFECTIVO", regex=True, na=False)
-            ] if not df_pb_val.empty else pd.DataFrame()
+    # Construir lista unificada de todos los dispositivos y cuentas asignadas
+    mapa_destinos = {}
+    lista_opciones_destino = []
 
-            tot_pos = float(df_pos_m["monto"].sum()) if not df_pos_m.empty else 0.0
-            tot_biopago = float(df_biopago_m["monto"].sum()) if not df_biopago_m.empty else 0.0
-            tot_pm = float(df_pm_m["monto"].sum()) if not df_pm_m.empty else 0.0
-            tot_zelle = float(df_zelle_m["monto"].sum()) if not df_zelle_m.empty else 0.0
-            tot_transf = float(df_transf_m["monto"].sum()) if not df_transf_m.empty else 0.0
-            tot_efectivo = float(df_efectivo_m["monto"].sum()) if not df_efectivo_m.empty else 0.0
-            tot_otros = float(df_otros_m["monto"].sum()) if not df_otros_m.empty else 0.0
-            tot_total = float(df_pb_val["monto"].sum()) if not df_pb_val.empty else 0.0
+    # 1. Cargar Dispositivos de Pago (POS / BioPago)
+    if not df_dispositivos.empty:
+        df_disp_activos = df_dispositivos[df_dispositivos["estatus"].astype(str).str.upper().isin(["ACTIVO", "ACTIVA"])] if "estatus" in df_dispositivos.columns else df_dispositivos
+        if df_disp_activos.empty:
+            df_disp_activos = df_dispositivos
+        for _, r_disp in df_disp_activos.iterrows():
+            alias = str(r_disp.get("alias_nombre", "")).strip()
+            tipo = str(r_disp.get("tipo_dispositivo", "PUNTO DE VENTA (POS)")).strip()
+            s_tid = str(r_disp.get("serial_tid", "")).strip()
+            c_asoc = str(r_disp.get("cuenta_asociada", "")).strip()
+            mon_item = str(r_disp.get("moneda", "USD")).strip().upper() or "USD"
 
-            is_dark = st.session_state.get("tema_oscuro", True)
-            bg_card = "rgba(30, 41, 59, 0.6)" if is_dark else "#f8fafc"
-            border_card = "rgba(255, 255, 255, 0.08)" if is_dark else "#e2e8f0"
-            txt_label = "#94a3b8" if is_dark else "#64748b"
-            txt_val = "#f8fafc" if is_dark else "#0f172a"
+            # Keep only the bank name as the selectbox label
+            base_lbl = alias
+            lbl = base_lbl
+            counter = 1
+            while lbl in mapa_destinos:
+                lbl = f"{base_lbl} #{counter}"
+                counter += 1
 
-            cols_m = st.columns(7)
-            met_cards = [
-                ("📟 POS", f"${tot_pos:,.2f}"),
-                ("👆 BioPago", f"${tot_biopago:,.2f}"),
-                ("📲 Pago Móvil", f"${tot_pm:,.2f}"),
-                ("💵 Zelle", f"${tot_zelle:,.2f}"),
-                ("🏦 Transf/Dep", f"${tot_transf:,.2f}"),
-                ("💵 Efectivo (Por Cobrar)", f"${tot_efectivo:,.2f}"),
-                ("🏛️ Total General", f"${tot_total:,.2f}")
-            ]
+            tipo_u = tipo.upper()
+            met_impl = "BioPago" if "BIOPAGO" in tipo_u else "Punto de Venta"
 
-            for i, (l_title, l_val) in enumerate(met_cards):
-                card_h = f"""<div style="background: {bg_card}; border: 1px solid {border_card}; border-radius: 8px; padding: 8px; text-align: center;">
-                <div style="font-size: 10px; font-weight: 700; color: {txt_label}; text-transform: uppercase;">{l_title}</div>
-                <div style="font-size: 13px; font-weight: 700; color: { '#34d399' if 'Total' in l_title else txt_val };">{l_val}</div>
-                </div>"""
-                cols_m[i].markdown(card_h, unsafe_allow_html=True)
+            lista_opciones_destino.append(lbl)
+            mapa_destinos[lbl] = {"moneda": mon_item, "metodo": met_impl}
 
-            st.markdown("<br>", unsafe_allow_html=True)
-            df_pb["Conf."] = df_pb.apply(obtener_etiqueta_confirmacion, axis=1)
-            cols_show_pb = ["fecha", "metodo_pago", "monto", "moneda", "referencia", "pos_o_cuenta", "concepto", "datos_pagador", "Conf."]
-            if "motivo_rechazo" in df_pb.columns and df_pb["motivo_rechazo"].dropna().astype(str).str.strip().ne("").any():
-                df_pb["motivo_rechazo"] = df_pb["motivo_rechazo"].fillna("")
-                cols_show_pb.append("motivo_rechazo")
-            if "created_at" in df_pb.columns:
-                cols_show_pb.append("created_at")
-            cols_show_pb = [c for c in cols_show_pb if c in df_pb.columns]
-            st.dataframe(
-                df_pb[cols_show_pb],
-                column_config={
-                    "monto": st.column_config.NumberColumn("monto", format="%,.2f"),
-                    "motivo_rechazo": st.column_config.TextColumn("Motivo Rechazo")
-                },
-                use_container_width=True,
-                hide_index=True
-            )
+    # 2. Cargar Cuentas Bancarias Asignadas
+    if not df_cuentas.empty:
+        for _, r in df_cuentas.iterrows():
+            b_name = str(r.get("banco", "Banco")).strip().upper()
+            tit = str(r.get("titular", "")).strip()
+            n_acc = str(r.get("numero_cuenta") or r.get("identificador") or r.get("email") or "").strip()
+            mon_item = str(r.get("moneda", "USD")).strip().upper() or "USD"
+            tipo_c = str(r.get("tipo_cuenta", "")).strip()
+
+            desc = f"{b_name} | {tit}"
+            if n_acc and n_acc != "N/A":
+                desc += f" - N°: {n_acc}"
+            if mon_item:
+                desc += f" ({mon_item})"
+            if tipo_c:
+                desc += f" [{tipo_c}]"
+
+            tc_u = tipo_c.upper()
+            bn_u = b_name.upper()
+            if "PAGO MÓVIL" in tc_u or "PAGO MOVIL" in tc_u or "PAGO MÓVIL" in bn_u or "PAGO MOVIL" in bn_u:
+                met_impl = "Pago Móvil"
+            elif "ZELLE" in tc_u or "ZELLE" in bn_u:
+                met_impl = "Zelle"
+            elif "BINANCE" in tc_u or "CRIPTO" in tc_u or "BINANCE" in bn_u:
+                met_impl = "Binance / Cripto"
+            elif "PAYPAL" in tc_u or "PAYPAL" in bn_u:
+                met_impl = "PayPal"
+            elif "DEPÓSITO" in tc_u or "DEPOSITO" in tc_u:
+                met_impl = "Depósito Bancario"
+            elif "TRANSFERENCIA" in tc_u or "CORRIENTE" in tc_u or "AHORRO" in tc_u:
+                met_impl = "Transferencia Bancaria"
+            else:
+                met_impl = "Otro (Cuenta Admin)"
+
+            lista_opciones_destino.append(desc)
+            mapa_destinos[desc] = {"moneda": mon_item, "metodo": met_impl}
+
+    if not lista_opciones_destino:
+        lbl_def = "POS / Cuenta Taquilla General (USD)"
+        lista_opciones_destino = [lbl_def]
+        mapa_destinos[lbl_def] = {"moneda": "USD", "metodo": "Punto de Venta"}
+
+    col_top1, col_top2 = st.columns([2, 4])
+    fecha_pago = col_top1.date_input("Fecha de Operación", value=fecha_defecto, key="reg_fecha_pago")
+    pos_o_cuenta = col_top2.selectbox("Seleccione Dispositivo / Cuenta de Pago Asignado*", lista_opciones_destino, key="reg_destino_unificado")
+
+    cerrado = dia_esta_cerrado(ag_nombre, fecha_pago, cajero_id=c_id_ref)
+    if cerrado:
+        st.info(f"🔒 El día {fecha_pago} está cerrado para este usuario. No se pueden registrar nuevos pagos.")
+
+    # Auto-detectar la moneda y el método según la cuenta/dispositivo seleccionado (sin permitir cambio manual)
+    meta_sel = mapa_destinos.get(pos_o_cuenta, {"moneda": "USD", "metodo": "Punto de Venta"})
+    moneda_pago = meta_sel.get("moneda", "USD")
+    metodo_pago = meta_sel.get("metodo", "Punto de Venta")
+
+    if moneda_pago not in ["USD", "BS", "COP"]:
+        if "BS" in moneda_pago or "VES" in moneda_pago:
+            moneda_pago = "BS"
+        elif "COP" in moneda_pago:
+            moneda_pago = "COP"
         else:
-            st.info(f"ℹ️ No hay transacciones bancarias registradas el día {fecha_hist}.")
+            moneda_pago = "USD"
+
+    col_inf1, col_inf2 = st.columns([3, 3])
+    col_inf1.text_input("Moneda (Definida por la cuenta/dispositivo)*", value=moneda_pago, disabled=True, key=f"dis_mon_{pos_o_cuenta}")
+    col_inf2.text_input("Método de Pago Asignado*", value=metodo_pago, disabled=True, key=f"dis_met_{pos_o_cuenta}")
+
+    # Campos de Pago (Monto primero, luego Concepto)
+    col_v1, col_v2 = st.columns([2, 4])
+    monto_pago = col_v1.number_input("Monto Recibido*", min_value=0.0, format="%.2f", key=f"reg_monto_pago_{st.session_state.bancaria_form_version}")
+    rol_actual_b = str(st.session_state.get("cajero_actual", {}).get("rol", "")).lower()
+    if rol_actual_b == "agencia":
+        opts_concepto = ["Pago a Comercializador"]
+    else:
+        opts_concepto = ["Compra de Tickets", "Pago de Premios", "Recibos Punto Venta", "Pago a Comercializador"]
+    concepto = col_v2.selectbox("Concepto de Operación*", opts_concepto, key="reg_concepto_pago")
+
+    # Campos dinámicos según el concepto seleccionado
+    if concepto in ["Compra de Tickets", "Pago de Premios", "Pago a Comercializador"]:
+        col_f1, col_f2 = st.columns([3, 3])
+        referencia = col_f1.text_input("Número de Referencia / Comprobante*", placeholder="Ej: 987654 / Últimos 6 dígitos", key=f"reg_ref_pago_{st.session_state.bancaria_form_version}")
+        datos_cliente = col_f2.text_input("Datos del Pagador / Titular", placeholder="Ej: V-14567890 / Pedro Pérez", key=f"reg_datos_cliente_{st.session_state.bancaria_form_version}")
+    else:
+        referencia = st.text_input("Número de Referencia / Comprobante*", placeholder="Ej: 987654 / Últimos 6 dígitos", key=f"reg_ref_pago_{st.session_state.bancaria_form_version}")
+        datos_cliente = ""
+
+    # Botón de envío
+    if st.button("💾 REGISTRAR PAGO BANCARIO", use_container_width=True, type="primary", disabled=cerrado):
+        if cerrado:
+            st.error(f"🔒 El día {fecha_pago} está cerrado para este usuario. No se pueden registrar nuevos pagos.")
+        elif monto_pago <= 0:
+            st.error("Ingrese un monto válido mayor a cero.")
+        elif not referencia.strip():
+            st.error("Debe proporcionar un número de referencia o comprobante.")
+        else:
+            try:
+                cajero_id_b = st.session_state.get("cajero_actual", {}).get("id")
+                # 1. Guardar en tabla cda_pagos_bancarios
+                data_bancaria = {
+                    "fecha": str(fecha_pago),
+                    "agencia": ag_nombre,
+                    "metodo_pago": metodo_pago,
+                    "monto": round(float(monto_pago), 2),
+                    "moneda": moneda_pago,
+                    "referencia": referencia.strip().upper(),
+                    "concepto": concepto,
+                    "datos_pagador": datos_cliente.strip().upper() if datos_cliente else "N/A",
+                    "pos_o_cuenta": pos_o_cuenta,
+                    "user_id": u_id,
+                    "confirmado": False,
+                    "rechazado": False,
+                    "created_at": datetime.now().isoformat()
+                }
+                if st.session_state.get("cajero_id_in_bancarios", False) and cajero_id_b:
+                    data_bancaria["cajero_id"] = cajero_id_b
+                supabase.table("cda_pagos_bancarios").insert(data_bancaria).execute()
+
+                st.success(f"✅ Pago por {metodo_pago} (Ref: {referencia}) registrado exitosamente!")
+                # Limpiar campos de entrada incrementando la versión del formulario
+                st.session_state["bancaria_form_version"] += 1
+                time.sleep(0.5)
+                st.rerun(scope="fragment")
+            except Exception as e:
+                st.error(f"Error al guardar transacción: {e}")
+
+
+@st.fragment
+def _fragmento_historial_bancario(agencia_data, fecha_defecto, ag_nombre, es_supervisor_b, es_agencia_b, cajero_id_b):
+    render_titulo_seccion("📊 Historial de Transacciones Bancarias")
+
+    c_f1, _ = st.columns([2, 2])
+    fecha_hist = c_f1.date_input("📅 Filtrar por Fecha:", value=fecha_defecto, key="fecha_hist_bancaria")
+
+    monedas_asig_b = [normalizar_moneda(m) for m in str(agencia_data.get("monedas", "BS")).split(",") if m.strip() and m.strip().upper() not in ["NONE", "NAN", ""]]
+    if not monedas_asig_b:
+        monedas_asig_b = ["BS"]
+
+    try:
+        res_pb = supabase.table("cda_pagos_bancarios").select("*").eq("fecha", str(fecha_hist)).ilike("agencia", ag_nombre).execute()
+        df_pb = pd.DataFrame(res_pb.data or [])
+        if df_pb.empty:
+            res_pb = supabase.table("cda_pagos_bancarios").select("*").eq("fecha", str(fecha_hist)).ilike("nombre_agency", ag_nombre).execute()
+            df_pb = pd.DataFrame(res_pb.data or [])
+        if not df_pb.empty:
+            df_pb.columns = [c.lower() for c in df_pb.columns]
+            if not es_supervisor_b and not es_agencia_b and cajero_id_b:
+                col_pb = "cajero_id" if "cajero_id" in df_pb.columns else ("user_id" if "user_id" in df_pb.columns else None)
+                if col_pb and col_pb in df_pb.columns:
+                    df_pb = df_pb[df_pb[col_pb].astype(str) == str(cajero_id_b)]
+            if "moneda" in df_pb.columns:
+                df_pb = df_pb[df_pb["moneda"].astype(str).str.strip().str.upper().apply(normalizar_moneda).isin(monedas_asig_b)]
+    except Exception:
+        df_pb = pd.DataFrame()
+
+    if not df_pb.empty:
+        df_pb_val = df_pb[df_pb.get("rechazado", False) != True] if "rechazado" in df_pb.columns else df_pb
+        met_col = df_pb_val["metodo_pago"].astype(str).str.upper() if not df_pb_val.empty else pd.Series()
+        df_pos_m = df_pb_val[met_col == "PUNTO DE VENTA"] if not df_pb_val.empty else pd.DataFrame()
+        df_biopago_m = df_pb_val[met_col == "BIOPAGO"] if not df_pb_val.empty else pd.DataFrame()
+        df_pm_m = df_pb_val[met_col == "PAGO MÓVIL"] if not df_pb_val.empty else pd.DataFrame()
+        df_zelle_m = df_pb_val[met_col == "ZELLE"] if not df_pb_val.empty else pd.DataFrame()
+        df_transf_m = df_pb_val[met_col.str.contains("TRANSFERENCIA|DEPÓSITO|DEPOSITO", regex=True, na=False)] if not df_pb_val.empty else pd.DataFrame()
+        df_efectivo_m = df_pb_val[met_col.str.contains("EFECTIVO", regex=True, na=False)] if not df_pb_val.empty else pd.DataFrame()
+        df_otros_m = df_pb_val[
+            ~met_col.isin(["PUNTO DE VENTA", "BIOPAGO", "PAGO MÓVIL", "ZELLE"]) &
+            ~met_col.str.contains("TRANSFERENCIA|DEPÓSITO|DEPOSITO|EFECTIVO", regex=True, na=False)
+        ] if not df_pb_val.empty else pd.DataFrame()
+
+        tot_pos = float(df_pos_m["monto"].sum()) if not df_pos_m.empty else 0.0
+        tot_biopago = float(df_biopago_m["monto"].sum()) if not df_biopago_m.empty else 0.0
+        tot_pm = float(df_pm_m["monto"].sum()) if not df_pm_m.empty else 0.0
+        tot_zelle = float(df_zelle_m["monto"].sum()) if not df_zelle_m.empty else 0.0
+        tot_transf = float(df_transf_m["monto"].sum()) if not df_transf_m.empty else 0.0
+        tot_efectivo = float(df_efectivo_m["monto"].sum()) if not df_efectivo_m.empty else 0.0
+        tot_otros = float(df_otros_m["monto"].sum()) if not df_otros_m.empty else 0.0
+        tot_total = float(df_pb_val["monto"].sum()) if not df_pb_val.empty else 0.0
+
+        is_dark = st.session_state.get("tema_oscuro", True)
+        bg_card = "rgba(30, 41, 59, 0.6)" if is_dark else "#f8fafc"
+        border_card = "rgba(255, 255, 255, 0.08)" if is_dark else "#e2e8f0"
+        txt_label = "#94a3b8" if is_dark else "#64748b"
+        txt_val = "#f8fafc" if is_dark else "#0f172a"
+
+        cols_m = st.columns(7)
+        met_cards = [
+            ("📟 POS", f"${tot_pos:,.2f}"),
+            ("👆 BioPago", f"${tot_biopago:,.2f}"),
+            ("📲 Pago Móvil", f"${tot_pm:,.2f}"),
+            ("💵 Zelle", f"${tot_zelle:,.2f}"),
+            ("🏦 Transf/Dep", f"${tot_transf:,.2f}"),
+            ("💵 Efectivo (Por Cobrar)", f"${tot_efectivo:,.2f}"),
+            ("🏛️ Total General", f"${tot_total:,.2f}")
+        ]
+
+        for i, (l_title, l_val) in enumerate(met_cards):
+            card_h = f"""<div style="background: {bg_card}; border: 1px solid {border_card}; border-radius: 8px; padding: 8px; text-align: center;">
+            <div style="font-size: 10px; font-weight: 700; color: {txt_label}; text-transform: uppercase;">{l_title}</div>
+            <div style="font-size: 13px; font-weight: 700; color: { '#34d399' if 'Total' in l_title else txt_val };">{l_val}</div>
+            </div>"""
+            cols_m[i].markdown(card_h, unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        df_pb["Conf."] = df_pb.apply(obtener_etiqueta_confirmacion, axis=1)
+        cols_show_pb = ["fecha", "metodo_pago", "monto", "moneda", "referencia", "pos_o_cuenta", "concepto", "datos_pagador", "Conf."]
+        if "motivo_rechazo" in df_pb.columns and df_pb["motivo_rechazo"].dropna().astype(str).str.strip().ne("").any():
+            df_pb["motivo_rechazo"] = df_pb["motivo_rechazo"].fillna("")
+            cols_show_pb.append("motivo_rechazo")
+        if "created_at" in df_pb.columns:
+            cols_show_pb.append("created_at")
+        cols_show_pb = [c for c in cols_show_pb if c in df_pb.columns]
+        st.dataframe(
+            df_pb[cols_show_pb],
+            column_config={
+                "monto": st.column_config.NumberColumn("monto", format="%,.2f"),
+                "motivo_rechazo": st.column_config.TextColumn("Motivo Rechazo")
+            },
+            use_container_width=True,
+            hide_index=True
+        )
+    else:
+        st.info(f"ℹ️ No hay transacciones bancarias registradas el día {fecha_hist}.")
 
 
 def modulo_reporte_rango(agencia_data):
@@ -4536,6 +4544,22 @@ else:
             width: 0px !important;
         }
 
+        /* Evitar que Streamlit opaque o ponga negra la pantalla en cada rerun */
+        [data-testid="stAppViewContainer"] [data-testid="stMain"],
+        [data-testid="stAppViewBlockContainer"],
+        .element-container,
+        div[data-testid="stVerticalBlock"] > div {
+            opacity: 1 !important;
+            transition: none !important;
+            filter: none !important;
+        }
+        .stApp--running [data-testid="stMain"],
+        .stApp--running [data-testid="stAppViewBlockContainer"],
+        .stApp--running .element-container {
+            opacity: 1 !important;
+            filter: none !important;
+        }
+
         .stApp, [data-testid="stAppViewContainer"], section.main, .main {
             background-color: #071217 !important;
             background-image: 
@@ -4814,6 +4838,22 @@ else:
             display: none !important;
             visibility: hidden !important;
             width: 0px !important;
+        }
+
+        /* Evitar que Streamlit opaque o ponga negra la pantalla en cada rerun */
+        [data-testid="stAppViewContainer"] [data-testid="stMain"],
+        [data-testid="stAppViewBlockContainer"],
+        .element-container,
+        div[data-testid="stVerticalBlock"] > div {
+            opacity: 1 !important;
+            transition: none !important;
+            filter: none !important;
+        }
+        .stApp--running [data-testid="stMain"],
+        .stApp--running [data-testid="stAppViewBlockContainer"],
+        .stApp--running .element-container {
+            opacity: 1 !important;
+            filter: none !important;
         }
 
         .stApp, [data-testid="stAppViewContainer"], section.main, .main {

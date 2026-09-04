@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timezone, timedelta
 import time
-from utils import supabase, obtener_periodo_trabajo, normalizar_moneda
+from utils import supabase, obtener_periodo_trabajo, normalizar_moneda, invalidar_cache_datos
 
 def _obtener_hora_actual():
     """Retorna la fecha y hora actual en zona horaria UTC-4."""
@@ -20,8 +20,9 @@ def _obtener_user_id(agencia_data=None):
         return str(st.session_state["agencia_actual"].get("user_id", "")).strip()
     return None
 
+@st.cache_data(ttl=60, show_spinner=False)
 def _cargar_agencias(u_id):
-    """Carga todas las agencias registradas bajo el user_id del administrador."""
+    """Carga todas las agencias registradas bajo el user_id del administrador (en caché 60s)."""
     try:
         query = supabase.table("agencias").select("id, nombre_agencia, activo").order("nombre_agencia")
         if u_id:
@@ -35,8 +36,9 @@ def _cargar_agencias(u_id):
         st.error(f"Error cargando agencias: {e}")
         return pd.DataFrame()
 
+@st.cache_data(ttl=60, show_spinner=False)
 def _cargar_cobradores(u_id):
-    """Carga todos los cobradores registrados."""
+    """Carga todos los cobradores registrados (en caché 60s)."""
     try:
         query = supabase.table("cda_cobradores").select("*").order("created_at", desc=True)
         if u_id:
@@ -53,8 +55,9 @@ def _cargar_cobradores(u_id):
         )
         return pd.DataFrame()
 
+@st.cache_data(ttl=60, show_spinner=False)
 def _cargar_cobrador_agencias(u_id):
-    """Carga las asignaciones de agencias por cobrador."""
+    """Carga las asignaciones de agencias por cobrador (en caché 60s)."""
     try:
         query = supabase.table("cda_cobrador_agencias").select("*")
         if u_id:
@@ -203,6 +206,7 @@ def modulo_cobradores(agencia_data=None):
                                             upd_data["clave"] = e_pwd.strip()
 
                                         supabase.table("cda_cobradores").update(upd_data).eq("id", cob_id).execute()
+                                        invalidar_cache_datos()
                                         st.success("✅ Datos actualizados exitosamente!")
                                         time.sleep(0.8)
                                         st.rerun()
@@ -216,6 +220,7 @@ def modulo_cobradores(agencia_data=None):
                                 if st.button("Confirmar Eliminación", key=f"btn_del_{cob_id}", type="primary", use_container_width=True):
                                     try:
                                         supabase.table("cda_cobradores").delete().eq("id", cob_id).execute()
+                                        invalidar_cache_datos()
                                         st.success(f"Cobrador '{cob_nom}' eliminado.")
                                         time.sleep(0.8)
                                         st.rerun()
@@ -290,6 +295,7 @@ def modulo_cobradores(agencia_data=None):
                                     })
                                 supabase.table("cda_cobrador_agencias").insert(asig_rows).execute()
 
+                            invalidar_cache_datos()
                             st.success(f"🎉 ¡Cobrador '{n_nombre}' registrado exitosamente con {len(agencias_seleccionadas)} agencias!")
                             time.sleep(1)
                             st.rerun()
@@ -348,6 +354,7 @@ def modulo_cobradores(agencia_data=None):
                                 })
                             supabase.table("cda_cobrador_agencias").insert(nuevas_filas).execute()
 
+                        invalidar_cache_datos()
                         st.success(f"✅ Ruta actualizada exitosamente con {len(nuevas_asignaciones)} agencias.")
                         time.sleep(0.8)
                         st.rerun()
@@ -492,6 +499,7 @@ def modulo_cobradores(agencia_data=None):
                                         "liquidado_admin": True,
                                         "fecha_liquidacion_admin": _obtener_hora_actual().isoformat()
                                     }).eq("id", pid).execute()
+                                    invalidar_cache_datos()
                                     st.success("✅ Liquidado")
                                     time.sleep(0.5)
                                     st.rerun()
@@ -504,6 +512,7 @@ def modulo_cobradores(agencia_data=None):
                                         "liquidado_admin": False,
                                         "fecha_liquidacion_admin": None
                                     }).eq("id", pid).execute()
+                                    invalidar_cache_datos()
                                     st.info("Liquidación revertida.")
                                     time.sleep(0.5)
                                     st.rerun()
@@ -629,6 +638,7 @@ def _procesar_validacion_entrega(token_input, c_id, c_nombre, u_id):
             "confirmado": True,
             "confirmado_supervisor": True
         }).eq("id", p_id).execute()
+        invalidar_cache_datos()
 
         # Guardar en session_state para mostrar tarjeta de éxito persistente
         st.session_state["entrega_validada_exito"] = {
@@ -854,6 +864,7 @@ def modulo_portal_cobrador(cobrador_info, agencia_ctx=None, vista_inicial="Porta
                                         "confirmado": True,
                                         "confirmado_supervisor": True
                                     }).eq("id", pid_p).execute()
+                                    invalidar_cache_datos()
                                     st.success(f"✅ ¡Efectivo de {ag_n} ({sym_n}{mto_n:,.2f}) recibido correctamente!")
                                     time.sleep(1)
                                     st.rerun()

@@ -7,7 +7,18 @@ import textwrap
 import uuid
 import json
 import random
-from utils import supabase, obtener_periodo_trabajo, obtener_whatsapp_agencia_local, obtener_pagos_locales_agencia, obtener_gastos_locales_agencia, obtener_etiqueta_confirmacion, normalizar_moneda, generar_codigo_qr_base64
+from utils import (
+    supabase, 
+    obtener_periodo_trabajo, 
+    obtener_whatsapp_agencia_local, 
+    obtener_pagos_locales_agencia, 
+    obtener_gastos_locales_agencia, 
+    obtener_etiqueta_confirmacion, 
+    normalizar_moneda, 
+    generar_codigo_qr_base64,
+    invalidar_cache_datos,
+    obtener_mapa_cajeros
+)
 
 from datetime import datetime, timedelta, timezone
 from modulo_pizarra import modulo_pizarra
@@ -240,10 +251,12 @@ def es_misma_moneda(series_moneda, target_code):
         return s.isin(["COP", "PESOS", "COP$"])
     return s == t
 
+@st.cache_data(ttl=20, show_spinner=False)
 def cargar_datos_agencia_tabla(tabla, agencia_nombre, fecha=None, fecha_desde=None, fecha_hasta=None, u_id=None):
     """
     Carga registros de Supabase comprobando estrictamente el nombre de la agencia
     y filtrando por fecha o rango de fechas (compatible con timestamps y cadenas de fecha ISO).
+    Optimizado en caché (20s TTL) sin descargas redundantes.
     """
     try:
         q = supabase.table(tabla).select("*")
@@ -259,13 +272,6 @@ def cargar_datos_agencia_tabla(tabla, agencia_nombre, fecha=None, fecha_desde=No
             
         res = q.execute()
         df = pd.DataFrame(res.data or [])
-        if df.empty and (fecha_desde or fecha_hasta or fecha):
-            # Fallback: consultar la tabla completa si la comparación de strings en BD difiere por formato de fecha
-            try:
-                res_fb = supabase.table(tabla).select("*").execute()
-                df = pd.DataFrame(res_fb.data or [])
-            except Exception:
-                pass
 
         if df.empty:
             return df
@@ -303,7 +309,7 @@ def cargar_datos_agencia_tabla(tabla, agencia_nombre, fecha=None, fecha_desde=No
                 df = df[fechas_str <= str(fecha_hasta)[:10]]
 
         return df
-    except Exception as e:
+    except Exception:
         return pd.DataFrame()
 
 def filtrar_df_por_cajero(df, target_cajero_id):
@@ -311,6 +317,7 @@ def filtrar_df_por_cajero(df, target_cajero_id):
     Filtra un DataFrame para incluir los registros del cajero indicado,
     coincidiendo por cajero_id, user_id, usuario o nombre, o incluyendo registros
     general de agencia sin cajero específico asignado o generados por Admin/Supervisor.
+    Utiliza el catálogo en memoria RAM.
     """
     if df.empty or target_cajero_id is None:
         return df
@@ -318,19 +325,10 @@ def filtrar_df_por_cajero(df, target_cajero_id):
     if not c_str or c_str.lower() in ["none", "nan"]:
         return df
 
-    # Identificadores de cajeros registrados
-    cajeros_ids = set()
-    try:
-        res_u = supabase.table("taquilla_usuarios").select("id, usuario, nombre_cajero, rol").execute()
-        for u in (res_u.data or []):
-            if u.get("rol") == "cajero":
-                for k in ["id", "usuario", "nombre_cajero"]:
-                    val = str(u.get(k, "")).strip()
-                    if val and val.lower() not in ["none", "nan", ""]:
-                        cajeros_ids.add(val)
-                        cajeros_ids.add(val.lower())
-    except Exception:
-        pass
+    mapa_cajeros = obtener_mapa_cajeros()
+    cajeros_ids = set(str(k).strip() for k in mapa_cajeros.keys())
+    cajeros_ids.update(str(k).strip().lower() for k in mapa_cajeros.keys())
+    cajeros_ids.update(str(v).strip().lower() for v in mapa_cajeros.values())
 
     targets = {c_str, c_str.lower()}
     cajero_actual = st.session_state.get("cajero_actual", {})
@@ -341,17 +339,11 @@ def filtrar_df_por_cajero(df, target_cajero_id):
                 targets.add(val)
                 targets.add(val.lower())
 
-    try:
-        res_u = supabase.table("taquilla_usuarios").select("id, usuario, nombre_cajero").eq("id", c_str).execute()
-        if res_u.data:
-            u_info = res_u.data[0]
-            for k in ["id", "usuario", "nombre_cajero"]:
-                val = str(u_info.get(k, "")).strip()
-                if val and val.lower() not in ["none", "nan", ""]:
-                    targets.add(val)
-                    targets.add(val.lower())
-    except Exception:
-        pass
+    if c_str in mapa_cajeros:
+        nom_map = str(mapa_cajeros[c_str]).strip()
+        if nom_map:
+            targets.add(nom_map)
+            targets.add(nom_map.lower())
 
     has_cajero = "cajero_id" in df.columns
     has_user = "user_id" in df.columns
@@ -386,22 +378,12 @@ def filtrar_df_por_cajero(df, target_cajero_id):
     return df[mask]
 
 def enriquecer_columna_cajero(df):
-    """Añade o formatea la columna `cajero` traduciendo cajero_id/user_id al nombre del cajero."""
+    """Añade o formatea la columna `cajero` traduciendo cajero_id/user_id al nombre del cajero usando memoria local."""
     if df.empty:
         return df
     df = df.copy()
 
-    mapa_cajeros = {}
-    try:
-        res_u = supabase.table("taquilla_usuarios").select("id, usuario, nombre_cajero").execute()
-        for u in (res_u.data or []):
-            nom = u.get("nombre_cajero") or u.get("usuario") or ""
-            if u.get("id"):
-                mapa_cajeros[str(u["id"]).strip()] = nom
-            if u.get("usuario"):
-                mapa_cajeros[str(u["usuario"]).strip()] = nom
-    except Exception:
-        pass
+    mapa_cajeros = dict(obtener_mapa_cajeros())
 
     cajero_actual = st.session_state.get("cajero_actual", {})
     if cajero_actual.get("id"):
@@ -576,6 +558,7 @@ def clasificar_pago_registro(r):
 
     return "EFECTIVO"
 
+@st.cache_data(ttl=20, show_spinner=False)
 def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha_hasta=None, cajero_id=None, es_supervisor=False, u_id=None):
     """
     Retorna tuple: (df_p_total, df_pb)
@@ -750,6 +733,7 @@ def obtener_pagos_unificados(agencia_nombre, fecha=None, fecha_desde=None, fecha
     df_p = sincronizar_confirmaciones_pagos(df_p, df_pb, agencia_nombre)
     return df_p, df_pb
 
+@st.cache_data(ttl=25, show_spinner=False)
 def dia_esta_cerrado(agencia_nombre, fecha, cajero_id=None):
     """Retorna True si el día ya fue cerrado para esta agencia (y cajero opcional)."""
     try:
@@ -787,6 +771,7 @@ def cerrar_dia(agencia_nombre, fecha, cajero_id=None):
         if cajero_id:
             q = q.eq("cajero_id", str(cajero_id))
         q.execute()
+        invalidar_cache_datos()
         return True
     except Exception as e:
         st.error(f"Error al cerrar el día: {e}")
@@ -812,11 +797,13 @@ def reabrir_dia(agencia_nombre, fecha, cajero_id=None):
             q_s.execute()
         except Exception:
             pass
+        invalidar_cache_datos()
         return True
     except Exception as e:
         st.error(f"Error al reabrir el día: {e}")
         return False
 
+@st.cache_data(ttl=25, show_spinner=False)
 def obtener_ultimo_dia_cerrado(agencia_nombre, cajero_id=None):
     """Retorna la última fecha cerrada, o None si no hay ninguna."""
     fechas_encontradas = []
@@ -871,6 +858,7 @@ def obtener_ultimo_dia_cerrado(agencia_nombre, cajero_id=None):
         pass
     return None
 
+@st.cache_data(ttl=25, show_spinner=False)
 def obtener_fecha_inicial_operativa(agencia_nombre, cajero_id=None, u_id=None):
     """
     Retorna la fecha desde la cual se deben cargar los datos del periodo operativo.
@@ -938,7 +926,10 @@ def _check_saldo_taquilla_table():
     return st.session_state["check_saldo_ok"]
 
 def _check_cajero_id_cols():
-    """Verifica que la columna `cajero_id` y `qr_token` existan en las tablas correspondientes."""
+    """Verifica que la columna `cajero_id` y `qr_token` existan en las tablas correspondientes (una sola vez por sesión)."""
+    if st.session_state.get("cajero_cols_master_checked"):
+        return True
+
     if "cajero_id_in_gastos" not in st.session_state:
         try:
             supabase.table("cda_gastos_diarios").select("cajero_id").limit(1).execute()
@@ -983,8 +974,10 @@ def _check_cajero_id_cols():
             "ALTER TABLE cda_pagos_diarios ADD COLUMN IF NOT EXISTS fecha_liquidacion_admin TIMESTAMP WITH TIME ZONE;\n"
             "```"
         )
+    st.session_state["cajero_cols_master_checked"] = True
     return st.session_state["cajero_id_in_gastos"] and st.session_state["cajero_id_in_pagos"] and st.session_state["cajero_id_in_bancarios"]
 
+@st.cache_data(ttl=25, show_spinner=False)
 def obtener_saldo_anterior(agencia_nombre, fecha_sel, cajero_id=None, moneda="BS"):
     """Retorna el saldo restante del último día cerrado anterior a fecha_sel o el saldo inicial de la moneda en agencias."""
     ag_str = str(agencia_nombre).strip()
@@ -1990,6 +1983,7 @@ def _fragmento_registro_taquilla(agencia_data):
                             "fecha": fecha_carga_iso
                         }
                         supabase.table("cda_reportes_diarios").insert(data).execute()
+                        invalidar_cache_datos()
                         st.success(f"✅ {sist} ({moneda_sel}) registrado para el {fecha_carga_iso}!")
                         time.sleep(0.5); st.rerun(scope="fragment")
                     except Exception as e:
@@ -2139,6 +2133,7 @@ def _fragmento_gastos(agencia_data):
                     if st.session_state.get("cajero_id_in_gastos", False):
                         gasto_data["cajero_id"] = cajero_id
                     supabase.table("cda_gastos_diarios").insert(gasto_data).execute()
+                    invalidar_cache_datos()
                     st.success("✅ Gasto guardado exitosamente!")
                     time.sleep(0.5)
                     st.rerun(scope="fragment")
@@ -2385,6 +2380,7 @@ def _fragmento_pagos(agencia_data):
                         pago_data["cajero_id"] = cajero_id
                     
                     res_ins = supabase.table("cda_pagos_diarios").insert(pago_data).execute()
+                    invalidar_cache_datos()
                     pago_id_ins = res_ins.data[0].get("id") if (res_ins and res_ins.data) else None
 
                     if tipo_pg == "Entregado a Cobrador" and qr_token_val:
@@ -2892,6 +2888,7 @@ def _fragmento_registrar_pago_bancario(agencia_data, df_cuentas, df_dispositivos
                 if st.session_state.get("cajero_id_in_bancarios", False) and cajero_id_b:
                     data_bancaria["cajero_id"] = cajero_id_b
                 supabase.table("cda_pagos_bancarios").insert(data_bancaria).execute()
+                invalidar_cache_datos()
 
                 st.success(f"✅ Pago por {metodo_pago} (Ref: {referencia}) registrado exitosamente!")
                 # Limpiar campos de entrada incrementando la versión del formulario
@@ -3628,6 +3625,7 @@ def _fragmento_cierre_diario(agencia_data):
                                     if c_id_item:
                                         p_saldo["cajero_id"] = str(c_id_item)
                                     supabase.table("saldo_taquilla").upsert(p_saldo, on_conflict="nombre_agency,fecha,cajero_id").execute()
+                                    invalidar_cache_datos()
                                 except Exception:
                                     pass
                                 st.session_state["mensaje_cierre_exitoso"] = f"✅ Día {fecha_sel} cerrado exitosamente para {c_name_item}."
@@ -3830,6 +3828,7 @@ def modulo_premios_tickets(agencia_data):
                             except Exception as e:
                                 errores.append(f"Ticket #{i+1}: {e}")
                         if ok_count:
+                            invalidar_cache_datos()
                             st.success(f"✅ {ok_count} ticket(s) registrado(s).")
                             st.session_state["premios_form_version"] += 1
                         for e in errores:
@@ -3885,6 +3884,7 @@ def modulo_premios_tickets(agencia_data):
                             except Exception:
                                 pass
                             if ok_count:
+                                invalidar_cache_datos()
                                 st.success(f"✅ {ok_count} ticket(s) TODOS registrados por ${monto_total:,.2f}.")
                                 st.session_state["premios_form_version"] += 1
                             for e in errores:
@@ -3929,6 +3929,7 @@ def modulo_premios_tickets(agencia_data):
                                         }).execute()
                                 except Exception:
                                     pass
+                                invalidar_cache_datos()
                                 st.success("✅ Premio registrado.")
                                 st.session_state["premios_form_version"] += 1
                                 time.sleep(1); st.rerun()

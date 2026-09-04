@@ -1,6 +1,23 @@
 import streamlit as st
 import pandas as pd
-from utils import supabase, obtener_periodo_trabajo, obtener_etiqueta_confirmacion
+from utils import supabase, obtener_periodo_trabajo, obtener_etiqueta_confirmacion, invalidar_cache_datos
+
+@st.cache_data(ttl=30, show_spinner=False)
+def _cargar_datos_auditoria_periodo_cached(u_id, f_desde_str, f_hasta_str):
+    """Carga en caché (30s) las tablas completas para la auditoría híbrida."""
+    res_ag = supabase.table("agencias").select("id, nombre_agencia, auditoria_activa, participacion_ag, sistemas, monedas, usuario_taquilla").eq("user_id", u_id).execute()
+    df_agencias = pd.DataFrame(res_ag.data or [])
+
+    df_oficial = pd.DataFrame(supabase.table("carga_actual").select("*").eq("user_id", u_id).execute().data or [])
+    df_taq_periodo = pd.DataFrame(supabase.table("cda_reportes_diarios").select("*").gte("fecha", f_desde_str).lte("fecha", f_hasta_str).execute().data or [])
+    df_gastos_periodo = pd.DataFrame(supabase.table("cda_gastos_diarios").select("*").gte("fecha", f_desde_str).lte("fecha", f_hasta_str).execute().data or [])
+    df_pagos_periodo = pd.DataFrame(supabase.table("cda_pagos_diarios").select("*").gte("fecha", f_desde_str).lte("fecha", f_hasta_str).execute().data or [])
+
+    df_oficial_gastos = pd.DataFrame(supabase.table("gastos").select("*").eq("user_id", u_id).gte("fecha", f_desde_str).lte("fecha", f_hasta_str).execute().data or [])
+    res_ofic_p = supabase.table("pagos_semana").select("*").eq("user_id", u_id).execute()
+    df_oficial_pagos = pd.DataFrame(res_ofic_p.data or [])
+
+    return df_agencias, df_oficial, df_taq_periodo, df_gastos_periodo, df_pagos_periodo, df_oficial_gastos, df_oficial_pagos
 
 def modulo_auditoria_hibrida(agencia_data=None):
     st.header("🛡️ Panel de Auditoría Híbrida (Taquilla vs Carga Oficial)")
@@ -24,12 +41,12 @@ def modulo_auditoria_hibrida(agencia_data=None):
         ciclo = obtener_periodo_trabajo(u_id)
         f_desde_str, f_hasta_str = ciclo['desde'], ciclo['hasta']
 
-        res_ag = supabase.table("agencias").select("id, nombre_agencia, auditoria_activa, participacion_ag, sistemas, monedas, usuario_taquilla").eq("user_id", u_id).execute()
-        df_agencias = pd.DataFrame(res_ag.data or [])
+        df_agencias, df_oficial, df_taq_periodo, df_gastos_periodo, df_pagos_periodo, df_oficial_gastos, df_oficial_pagos = _cargar_datos_auditoria_periodo_cached(u_id, f_desde_str, f_hasta_str)
 
         agencias_auditables = []
         diccionario_part = {}
         if not df_agencias.empty:
+            df_agencias = df_agencias.copy()
             df_agencias.columns = [c.lower().strip() for c in df_agencias.columns]
             df_agencias = df_agencias.sort_values(by="id", ascending=True).reset_index(drop=True)
             agencias_auditables = df_agencias[df_agencias.get("auditoria_activa", False) == True]["nombre_agencia"].astype(str).str.upper().str.strip().tolist()
@@ -37,18 +54,14 @@ def modulo_auditoria_hibrida(agencia_data=None):
             df_agencias["participacion_ag"] = pd.to_numeric(df_agencias.get("participacion_ag", 0), errors='coerce').fillna(0.0)
             diccionario_part = dict(zip(df_agencias["agencia_limpia"], df_agencias["participacion_ag"]))
 
-        df_oficial = pd.DataFrame(supabase.table("carga_actual").select("*").eq("user_id", u_id).execute().data or [])
-        df_taq_periodo = pd.DataFrame(supabase.table("cda_reportes_diarios").select("*").gte("fecha", f_desde_str).lte("fecha", f_hasta_str).execute().data or [])
-        df_gastos_periodo = pd.DataFrame(supabase.table("cda_gastos_diarios").select("*").gte("fecha", f_desde_str).lte("fecha", f_hasta_str).execute().data or [])
-        df_pagos_periodo = pd.DataFrame(supabase.table("cda_pagos_diarios").select("*").gte("fecha", f_desde_str).lte("fecha", f_hasta_str).execute().data or [])
+        df_taq_periodo = df_taq_periodo[df_taq_periodo['fecha'].apply(lambda x: str(x) >= '2026-06-29')].copy() if not df_taq_periodo.empty else df_taq_periodo.copy()
+        df_gastos_periodo = df_gastos_periodo[df_gastos_periodo['fecha'].apply(lambda x: str(x) >= '2026-06-29')].copy() if not df_gastos_periodo.empty else df_gastos_periodo.copy()
+        df_pagos_periodo = df_pagos_periodo[df_pagos_periodo['fecha'].apply(lambda x: str(x) >= '2026-06-29')].copy() if not df_pagos_periodo.empty else df_pagos_periodo.copy()
 
-        df_taq_periodo = df_taq_periodo[df_taq_periodo['fecha'].apply(lambda x: str(x) >= '2026-06-29')] if not df_taq_periodo.empty else df_taq_periodo
-        df_gastos_periodo = df_gastos_periodo[df_gastos_periodo['fecha'].apply(lambda x: str(x) >= '2026-06-29')] if not df_gastos_periodo.empty else df_gastos_periodo
-        df_pagos_periodo = df_pagos_periodo[df_pagos_periodo['fecha'].apply(lambda x: str(x) >= '2026-06-29')] if not df_pagos_periodo.empty else df_pagos_periodo
+        df_oficial = df_oficial.copy()
+        df_oficial_gastos = df_oficial_gastos.copy()
+        df_oficial_pagos = df_oficial_pagos.copy()
 
-        df_oficial_gastos = pd.DataFrame(supabase.table("gastos").select("*").eq("user_id", u_id).gte("fecha", f_desde_str).lte("fecha", f_hasta_str).execute().data or [])
-        res_ofic_p = supabase.table("pagos_semana").select("*").eq("user_id", u_id).execute()
-        df_oficial_pagos = pd.DataFrame(res_ofic_p.data or [])
         if not df_oficial_pagos.empty and "fecha" in df_oficial_pagos.columns:
             f_subs = df_oficial_pagos["fecha"].astype(str).str.slice(0, 10)
             df_oficial_pagos = df_oficial_pagos[(f_subs >= f_desde_str) & (f_subs <= f_hasta_str)]
@@ -136,6 +149,7 @@ def modulo_auditoria_hibrida(agencia_data=None):
                                             if n_cajero.strip():
                                                 data["nombre_cajero"] = n_cajero.strip()
                                             supabase.table("taquilla_usuarios").insert(data).execute()
+                                            invalidar_cache_datos()
                                             st.success(f"Usuario '{nu}' creado")
                                             st.session_state[f"show_form_{ag_id}"] = False
                                             st.rerun()
@@ -175,6 +189,7 @@ def modulo_auditoria_hibrida(agencia_data=None):
                                         if st.button("💾 Guardar Rol", key=f"upd_{uid}", type="primary", use_container_width=True):
                                             try:
                                                 supabase.table("taquilla_usuarios").update({"rol": nuevo_rol, "activo": nuevo_activo}).eq("id", uid).execute()
+                                                invalidar_cache_datos()
                                                 st.success(f"✅ Rol actualizado a '{nuevo_rol.upper()}'")
                                                 time.sleep(0.8)
                                                 st.rerun()
@@ -187,6 +202,7 @@ def modulo_auditoria_hibrida(agencia_data=None):
                                             if nueva_clave.strip():
                                                 try:
                                                     supabase.table("taquilla_usuarios").update({"clave": nueva_clave.strip()}).eq("id", uid).execute()
+                                                    invalidar_cache_datos()
                                                     st.success("✅ Clave actualizada")
                                                     time.sleep(0.8)
                                                     st.rerun()
@@ -198,6 +214,7 @@ def modulo_auditoria_hibrida(agencia_data=None):
                                     if st.button("🗑️ Eliminar Usuario", key=f"del_{uid}", use_container_width=True, type="secondary"):
                                         try:
                                             supabase.table("taquilla_usuarios").delete().eq("id", uid).execute()
+                                            invalidar_cache_datos()
                                             st.success(f"Usuario '{u['usuario']}' eliminado")
                                             time.sleep(0.8)
                                             st.rerun()

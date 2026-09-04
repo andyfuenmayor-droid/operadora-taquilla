@@ -49,6 +49,14 @@ def db_engine(tabla, accion, datos=None, u_id=None, filtrar_usuario=True):
         st.error(f"Error en db_engine ({tabla}): {e}")
         return pd.DataFrame()
 
+def invalidar_cache_datos():
+    """Limpia la caché en memoria de Streamlit tras mutaciones (inserts/updates/deletes)."""
+    try:
+        st.cache_data.clear()
+    except Exception:
+        pass
+
+@st.cache_data(ttl=120, show_spinner=False)
 def obtener_periodo_trabajo(u_id):
     # Valores por defecto calculados dinámicamente (Semana actual Lunes a Domingo)
     hoy = datetime.now().date()
@@ -83,6 +91,26 @@ def obtener_periodo_trabajo(u_id):
     except Exception as e:
         st.error(f"DEBUG ERROR Periodo: {e}")
     return default
+
+@st.cache_data(ttl=60, show_spinner=False)
+def obtener_mapa_cajeros(u_id=None):
+    """Mapeo en memoria (RAM) id -> nombre de cajero, evitando consultas repetitivas a Supabase."""
+    mapa = {}
+    try:
+        q = supabase.table("taquilla_usuarios").select("id, usuario, nombre_cajero, rol")
+        if u_id:
+            q = q.eq("user_id", str(u_id).strip())
+        res = q.execute()
+        rows = res.data or []
+        if not rows and u_id:
+            rows = supabase.table("taquilla_usuarios").select("id, usuario, nombre_cajero, rol").execute().data or []
+        for u in rows:
+            nom = u.get("nombre_cajero") or u.get("usuario") or ""
+            if u.get("id"):
+                mapa[str(u["id"]).strip()] = nom
+    except Exception:
+        pass
+    return mapa
 
 def obtener_whatsapp_agencia_local(u_id: str, agencia_nombre: str) -> str:
     cms_path = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "operadora-cms", "data", "agencias_whatsapp.json"))

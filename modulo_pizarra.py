@@ -4,7 +4,7 @@ from datetime import datetime
 import time
 import uuid
 import random
-from utils import supabase, obtener_periodo_trabajo, normalizar_moneda, obtener_etiqueta_confirmacion, generar_codigo_qr_base64
+from utils import supabase, obtener_periodo_trabajo, normalizar_moneda, obtener_etiqueta_confirmacion, generar_codigo_qr_base64, invalidar_cache_datos, obtener_mapa_cajeros
 
 def obtener_nombre_usuario_actual():
     if "cajero_actual" in st.session_state and st.session_state["cajero_actual"]:
@@ -258,7 +258,10 @@ def _sincronizar_efectivo_supervisor_con_pagos(u_id=None, existe_supervisor=True
         pass
 
 def _check_confirmado_cols_cms():
-    """Verifica si las columnas y permisos necesarios existen en Supabase."""
+    """Verifica si las columnas y permisos necesarios existen en Supabase (una sola vez por sesión)."""
+    if st.session_state.get("pizarra_cols_checked"):
+        return
+
     tablas_faltantes = []
     for tabla in ["cda_gastos_diarios", "cda_pagos_diarios", "cda_pagos_bancarios"]:
         try:
@@ -352,6 +355,7 @@ CREATE POLICY "cda_caja_sup_delete_policy" ON cda_caja_efectivo_supervisor
             f"⚠️ **Configuración de Políticas RLS Requerida:** Para proteger la tabla `cda_caja_efectivo_supervisor` con políticas seguras por tenant, ejecuta este script en el **SQL Editor** de Supabase:\n\n"
             f"```sql\n{sql_script}\n```"
         )
+    st.session_state["pizarra_cols_checked"] = True
 
 def _confirmar_registro_individual(row, current_usr, mapa_cajeros=None):
     """Ejecuta la confirmación directa en 1 solo clic de cualquier transacción."""
@@ -397,6 +401,7 @@ def _confirmar_registro_individual(row, current_usr, mapa_cajeros=None):
                 }).execute()
             except Exception:
                 pass
+        invalidar_cache_datos()
         return True, None
     except Exception as e:
         return False, str(e)
@@ -430,6 +435,7 @@ def _revertir_registro_individual(row):
         except Exception:
             pass
 
+        invalidar_cache_datos()
         return True, None
     except Exception as e:
         return False, str(e)
@@ -458,6 +464,7 @@ def _confirmar_lote(df_a_confirmar, mapa_cajeros=None):
     progress_bar.empty()
 
     if total_procesados > 0:
+        invalidar_cache_datos()
         st.success(f"✅ ¡Se confirmaron exitosamente {total_procesados} transacciones por {current_usr}!")
     if errores:
         st.error(f"⚠️ Ocurrieron {len(errores)} errores durante el proceso.")
@@ -1215,6 +1222,55 @@ def _renderizar_caja_acumulada_supervisor(u_id, existe_supervisor=True, agencias
     else:
         st.info(f"ℹ️ No hay movimientos registrados en el ciclo operativo actual ({f_desde_str} al {f_hasta_str}). El saldo proviene del arrastre inicial.")
 
+@st.cache_data(ttl=20, show_spinner=False)
+def _cargar_datos_pizarra_confirmaciones_cached(u_id_param):
+    b = pd.DataFrame()
+    g = pd.DataFrame()
+    pd_df = pd.DataFrame()
+    ps = pd.DataFrame()
+
+    try:
+        q_pb = supabase.table("cda_pagos_bancarios").select("*")
+        if u_id_param:
+            try: q_pb = q_pb.eq("user_id", u_id_param)
+            except Exception: pass
+        res_pb = q_pb.execute()
+        b = pd.DataFrame(res_pb.data or [])
+    except Exception:
+        pass
+
+    try:
+        q_g = supabase.table("cda_gastos_diarios").select("*")
+        if u_id_param:
+            try: q_g = q_g.eq("user_id", u_id_param)
+            except Exception: pass
+        res_g = q_g.execute()
+        g = pd.DataFrame(res_g.data or [])
+    except Exception:
+        pass
+
+    try:
+        q_pd = supabase.table("cda_pagos_diarios").select("*")
+        if u_id_param:
+            try: q_pd = q_pd.eq("user_id", u_id_param)
+            except Exception: pass
+        res_pd = q_pd.execute()
+        pd_df = pd.DataFrame(res_pd.data or [])
+    except Exception:
+        pass
+
+    try:
+        q_ps = supabase.table("pagos_semana").select("*")
+        if u_id_param:
+            try: q_ps = q_ps.eq("user_id", u_id_param)
+            except Exception: pass
+        res_ps = q_ps.execute()
+        ps = pd.DataFrame(res_ps.data or [])
+    except Exception:
+        pass
+
+    return b, g, pd_df, ps
+
 def modulo_pizarra(agencia_data=None):
     return modulo_pizarra_confirmaciones(agencia_data)
 
@@ -1279,59 +1335,8 @@ def modulo_pizarra_confirmaciones(agencia_data=None):
         if unombre and unombre not in lista_cajeros:
             lista_cajeros.append(unombre)
 
-    # Fetch datos de Supabase
-    df_bancarios = pd.DataFrame()
-    df_gastos = pd.DataFrame()
-    df_pagos_diarios = pd.DataFrame()
-    df_pagos_semana = pd.DataFrame()
-
-    try:
-        q_pb = supabase.table("cda_pagos_bancarios").select("*")
-        if u_id:
-            try:
-                q_pb = q_pb.eq("user_id", u_id)
-            except Exception:
-                pass
-        res_pb = q_pb.execute()
-        df_bancarios = pd.DataFrame(res_pb.data or [])
-    except Exception:
-        pass
-
-    try:
-        q_g = supabase.table("cda_gastos_diarios").select("*")
-        if u_id:
-            try:
-                q_g = q_g.eq("user_id", u_id)
-            except Exception:
-                pass
-        res_g = q_g.execute()
-        df_gastos = pd.DataFrame(res_g.data or [])
-    except Exception:
-        pass
-
-    try:
-        q_pd = supabase.table("cda_pagos_diarios").select("*")
-        if u_id:
-            try:
-                q_pd = q_pd.eq("user_id", u_id)
-            except Exception:
-                pass
-        res_pd = q_pd.execute()
-        df_pagos_diarios = pd.DataFrame(res_pd.data or [])
-    except Exception:
-        pass
-
-    try:
-        q_ps = supabase.table("pagos_semana").select("*")
-        if u_id:
-            try:
-                q_ps = q_ps.eq("user_id", u_id)
-            except Exception:
-                pass
-        res_ps = q_ps.execute()
-        df_pagos_semana = pd.DataFrame(res_ps.data or [])
-    except Exception:
-        pass
+    # Fetch datos de Supabase (con caché en memoria RAM)
+    df_bancarios, df_gastos, df_pagos_diarios, df_pagos_semana = _cargar_datos_pizarra_confirmaciones_cached(u_id)
 
     # Normalizar transacciones
     registros = []
